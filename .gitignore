@@ -4,3 +4,4 @@ Input.mli
 Input_lex.ml
 *.cm?
 Input_top
+Input.conflicts

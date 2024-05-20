@@ -156,14 +156,12 @@ let tok' x = "\""^Ord_input.getstr x^"\""
 let import_seen = ref false
 
 let tok arg =
-  print_endline (match arg with STRING s -> s | _ -> tok' arg);
+  if false then print_endline (match arg with STRING s -> s | _ -> tok' arg);
   arg
 }
 
 let ident = ['a'-'z' 'A'-'Z' '$' '_' '|' '\\'] ['a'-'z' 'A'-'Z' '_' '0'-'9' '$' ]*
-let sizednumber = ['0'-'9']+'\''[ '0'-'9' 'a'-'f' 'x' 'A'-'F' 'X' '_' '?']*
 let number = ['0'-'9']['0'-'9' '_']*
-let dfltnum = '''['0'-'9' 'b' 'd' 'h' 'x' 'X']['0'-'9' 'a'-'f' 'A'-'F' 'x' '?']*
 let space = [' ' '\t' '\r']+
 let newline = ['\n'] [' ']*
 let qstring = '"'[^'"']*'"'

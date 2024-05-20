@@ -708,4 +708,51 @@ fullnam: Builtin COLON COLON vnam { $4 }
 input_lst: { [] }
   | input input_lst { $1 :: $2 }
   
-  
+unreachable:
+| ACCEPT { Work }
+| AMPERSAND { Work }
+| BACKQUOTE { Work }
+| BACKSLASH { Work }
+| CARET { Work }
+| CONS1 { Work }
+| CONS2 { Work }
+| CONS3 { Work }
+| CONS4 { Work }
+| Clk { Work }
+| DEFAULT { Work }
+| DOLLAR { Work }
+| DOUBLEQUOTE { Work }
+| ELIST { Work }
+| EMPTY_TOKEN { Work }
+| END { Work }
+| ERROR { Work }
+| ERROR_TOKEN { Work }
+| GREATER { Work }
+| HASH { Work }
+| LBRACE { Work }
+| LBRACK { Work }
+| LESS { Work }
+| LINEFEED { Work }
+| PERCENT { Work }
+| PLING { Work }
+| Post_Elab { Work }
+| Pre_Elab { Work }
+| QUERY { Work }
+| QUOTE { Work }
+| RBRACE { Work }
+| RBRACK { Work }
+| Restored { Work }
+| SLIST { Work }
+| TILDE { Work }
+| TLIST { Work }
+| TUPLE10 { Work }
+| TUPLE2 { Work }
+| TUPLE3 { Work }
+| TUPLE4 { Work }
+| TUPLE5 { Work }
+| TUPLE6 { Work }
+| TUPLE7 { Work }
+| TUPLE8 { Work }
+| TUPLE9 { Work }
+| UNDERSCORE { Work }
+| VBAR { Work }

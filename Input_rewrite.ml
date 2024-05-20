@@ -1,5 +1,4 @@
 open Input_lex
-open Input_rewrite_types
 open Input
 open Printf
 

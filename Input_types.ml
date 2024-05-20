@@ -118,3 +118,4 @@ let getstr = function
 | Vpivisibility -> "vpiVisibility";
 | Work -> "work";
 | STRING s -> s
+| oth -> "UNKNOWN"

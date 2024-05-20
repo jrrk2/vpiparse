@@ -1,6 +1,5 @@
 open Input
 open Input_rewrite
-open Input_rewrite_types
 
 let il = "../UHDM/dump.txt";;
 
