@@ -560,7 +560,7 @@ logic_net_opt:
   | Vpiname COLON vnam { $3 }
   | Vpiname COLON Work AT name { Vpiname }
   | Vpifullname COLON fullnam { $3 }
-  | Vpinettype COLON VpiNum { TUPLE2(Vpinettype, VpiNum $3) }
+  | Vpinettype COLON VpiNum { TUPLE2(Vpinettype, STRING (Vpi_types.vpi_type $3)) }
   | Vpitypespec COLON ref_typespec { Vpitypespec }
 
 ret:
