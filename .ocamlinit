@@ -2,6 +2,7 @@ open Input
 open Input_main
 open Input_lex
 
-let fd = open_out "junk.txt";;
-let p = op fd "../UHDM/dump.txt";;
-let _ = close_out fd;;
+#print_length 1000000;;
+#print_depth 1000000;;
+
+let p = op "../UHDM/dump.txt";;

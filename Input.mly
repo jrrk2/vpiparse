@@ -175,12 +175,11 @@
 %token Vpivisibility
 %token Work
 %token <int> VpiNum 
-%type <token> ml_start
+%type <token list> ml_start
 %start ml_start
 %%
 
-
-ml_start: input_lst EOF_TOKEN { TLIST $1 }
+ml_start: input_lst EOF_TOKEN { $1 }
 
 package_opt:
   | Vpiparent COLON parent { Vpiparent }
@@ -188,9 +187,9 @@ package_opt:
   | Vpifullname COLON fullnam { $3 }
   | Vpidefname COLON def_name { $3 }
   | Vpitop COLON VpiNum { TUPLE2(Vpitop, VpiNum $3) }
-  | Vpiclassdefn COLON class_intro { Vpiclassdefn }
+  | Vpiclassdefn COLON class_intro { TUPLE2(Vpiclassdefn, $3) }
 
-class_intro: Class_defn COLON class_def Indent class_lst { Class_defn }
+class_intro: Class_defn COLON class_def Indent class_lst { TUPLE2(Class_defn,TLIST (List.rev $5)) }
 
 parent:
   | Package COLON Builtin LPAREN Builtin COLON COLON RPAREN { Package }
@@ -223,7 +222,7 @@ class_var_def:
 class_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpiname COLON vnam { $3 }
-  | Vpiname COLON Work AT name { Vpiname }
+  | Vpiname COLON Work AT name { TUPLE2(Vpiname, $5) }
   | Vpifullname COLON fullnam { $3 }
   | Vpimethod COLON vpi_method_arg { TUPLE2(Vpimethod, $3) }
   | Vpitypedef COLON typespec { TUPLE2(Vpitypedef, $3) }
@@ -389,18 +388,31 @@ package_lst: { [] }
 
 class_lst: { [] }
   | class_opt class_lst { $1 :: $2 }
-  
-input: DESIGN COLON LPAREN Work AT STRING RPAREN { DESIGN }
-  | Vpiname COLON Work AT name { Vpiname }
-  | Uhdmallclasses COLON class_intro { Uhdmallclasses }
-  | Uhdmallpackages COLON { Uhdmallpackages }
-  | Package COLON Builtin LPAREN Builtin COLON COLON RPAREN Indent package_lst { Package }
-  | Uhdmtopmodules COLON { Uhdmtopmodules }
-  | Uhdmtoppackages COLON { Uhdmtoppackages }
-  | Uhdmallmodules COLON { Uhdmallmodules }
+
+packlst: { [] }
+  | pack packlst { $1 :: $2 }
+
+pack: Package COLON Builtin LPAREN Builtin COLON COLON RPAREN Indent package_lst { TUPLE2(Package, TLIST (List.rev $10)) }
+
+module_inst:
   | Module_inst COLON module_inst_def Indent module_inst_lst { TUPLE2(Module_inst, TLIST (List.rev $5)) }
-  | Weaklyreferenced COLON weak_lst { Weaklyreferenced }
+
+modlst: { [] }
+  | module_inst modlst { $1 :: $2 }
+
+elab: { TUPLE2(Vpielaborated, VpiNum 0) }
   | Vpielaborated COLON VpiNum { TUPLE2(Vpielaborated, VpiNum $3) }
+
+modnam:
+  | Vpiname COLON Work AT name { Vpiname }
+
+input: DESIGN COLON LPAREN Work AT STRING RPAREN elab modnam { TUPLE4(DESIGN, STRING $6, $8, $9) }
+  | Uhdmallclasses COLON class_intro { TUPLE2(Uhdmallclasses, $3) }
+  | Uhdmallpackages COLON packlst { TUPLE2(Uhdmallpackages, TLIST (List.rev $3)) }
+  | Uhdmtopmodules COLON modlst { TUPLE2(Uhdmtopmodules, TLIST (List.rev $3)) }
+  | Uhdmtoppackages COLON packlst { TUPLE2(Uhdmtoppackages, TLIST (List.rev $3)) }
+  | Uhdmallmodules COLON modlst { TUPLE2(Uhdmallmodules, TLIST (List.rev $3)) }
+  | Weaklyreferenced COLON weak_lst { TUPLE2(Weaklyreferenced, TLIST (List.rev $3)) }
 
 weak_lst: { [] }
   | weak_opt weak_lst { $1 :: $2 }
