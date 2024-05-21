@@ -214,7 +214,7 @@ parent:
   | Var_select COLON var_select_def { Var_select }
   | Logic_typespec COLON logic_typespec_def { Logic_typespec }
   | Range COLON range_def { Range }
-  | Ref_typespec COLON type_spec { Ref_typespec }
+  | Ref_typespec COLON type_spec { TUPLE2(Ref_typespec, $3) }
 
 class_var_def:
   | LPAREN Work AT name type_lst RPAREN COMMA Line COLON VpiNum COLON VpiNum COMMA Endln COLON VpiNum COLON VpiNum { Work }
@@ -296,7 +296,7 @@ logic_var_opt:
   | Vpivisibility COLON vis { TUPLE2(Vpivisibility, $3) }
 
 ref_typespec:
-  | Ref_typespec COLON type_spec Indent ref_typespec_lst { Ref_typespec }
+  | Ref_typespec COLON type_spec Indent ref_typespec_lst { TUPLE3(Ref_typespec, $3, TLIST (List.rev $5)) }
 
 ref_typespec_lst: { [] }
   | ref_typespec_opt ref_typespec_lst { $1 :: $2 }
@@ -348,7 +348,7 @@ io_decl_lst: { [] }
 io_decl_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpiname COLON vnam { $3 }
-  | Vpidirection COLON VpiNum { TUPLE2(Vpidirection,VpiNum $3) }
+  | Vpidirection COLON VpiNum { TUPLE2(Vpidirection, STRING (Vpi_types.vpi_type $3)) }
   | Vpilowconn COLON conn { TUPLE2(Vpilowconn,$3) }
   | Vpiexpr COLON vexpr { TUPLE2(Vpiexpr,$3) }
   | Vpitypedef COLON ref_typespec { $3 }
@@ -503,7 +503,7 @@ begin_opt:
   | Vpiname COLON vnam { $3 }
   | Vpiname COLON Work AT name { Vpiname }
   | Vpifullname COLON fullnam { $3 }
-  | Vpistmt COLON stmt { Vpistmt }
+  | Vpistmt COLON stmt { TUPLE2(Vpistmt, $3) }
 
 assignment_lst: { [] }
   | assignment_opt assignment_lst { $1 :: $2 }
@@ -514,9 +514,9 @@ assignment_opt:
   | Vpiname COLON Work AT name { Vpiname }
   | Vpifullname COLON fullnam { $3 }
   | Vpistmt COLON stmt { Vpistmt }
-  | Vpioptype COLON VpiNum { TUPLE2(Vpioptype, VpiNum $3) }
-  | Vpirhs COLON rhs { Vpirhs }
-  | Vpilhs COLON conn { Vpilhs }
+  | Vpioptype COLON VpiNum { TUPLE2(Vpioptype, STRING (Vpi_types.vpi_type $3)) }
+  | Vpirhs COLON rhs { TUPLE2(Vpirhs, $3) }
+  | Vpilhs COLON conn { TUPLE2(Vpilhs, $3) }
 
 rhs:
   | Var_select COLON var_select_def Indent var_select_lst { TUPLE2(Var_select, TLIST (List.rev $5)) }
@@ -529,7 +529,7 @@ var_select_opt:
   | Vpiname COLON vnam { $3 }
   | Vpiname COLON Work AT name { Vpiname }
   | Vpifullname COLON fullnam { $3 }
-  | Vpiindex COLON conn { Vpiindex }
+  | Vpiindex COLON conn { TUPLE2(Vpiindex, $3) }
   | Vpiactual COLON parent { TUPLE2(Vpiactual, $3) }
   
 event_control_lst: { [] }
@@ -551,7 +551,7 @@ operation_lst: { [] }
 
 operation_opt:
   | Vpiparent COLON parent { Vpiparent }
-  | Vpioptype COLON VpiNum { TUPLE2(Vpioptype, VpiNum $3) }
+  | Vpioptype COLON VpiNum { TUPLE2(Vpioptype, STRING (Vpi_types.vpi_type $3)) }
   | Vpioperand COLON conn { TUPLE2(Vpioperand, $3) }
   | Vpiname COLON vnam { $3 }
   | Vpiname COLON Work AT name { $5 }
@@ -593,7 +593,7 @@ class_def: LPAREN Builtin COLON COLON vnam RPAREN { Work }
   | LPAREN Work AT name RPAREN COMMA File COLON path COMMA Line COLON VpiNum COLON VpiNum COMMA Endln COLON VpiNum COLON VpiNum { Work }
   
 module_inst_def: { Work }
-  | Work AT STRING LPAREN Work AT STRING RPAREN COMMA File COLON path COMMA Line COLON VpiNum COLON VpiNum COMMA Endln COLON VpiNum COLON VpiNum { Work }
+  | Work AT STRING LPAREN Work AT STRING RPAREN COMMA File COLON path COMMA Line COLON VpiNum COLON VpiNum COMMA Endln COLON VpiNum COLON VpiNum { STRING $3 }
   
 function_def: LPAREN Builtin COLON COLON vnam RPAREN { Work }
   | LPAREN Work AT name type_lst RPAREN COMMA Line COLON VpiNum COLON VpiNum COMMA Endln COLON VpiNum COLON VpiNum { Work }

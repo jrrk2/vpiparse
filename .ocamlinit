@@ -1,5 +1,6 @@
 open Input
 open Input_main
+open Input_rewrite
 open Input_lex
 
 #print_length 1000000;;
