@@ -40,21 +40,38 @@ SUSPENDED, "SUSPENDED";
 UINT, "|UINT";
 WAITING, "WAITING";
 Always, "\\_always";
+Array_net, "\\_array_net";
 Assignment, "\\_assignment";
+Attribute, "\\_attribute";
 Begin, "\\_begin";
+Bit_select, "\\_bit_select";
+Case_item, "\\_case_item";
+Case_stmt, "\\_case_stmt";
 Class_defn, "\\_class_defn";
 Class_typespec, "\\_class_typespec";
 Class_var, "\\_class_var";
 Constant, "\\_constant";
-DESIGN, "design";
+Cont_assign, "\\_cont_assign";
 Design, "\\_design";
+DESIGN, "design";
 Enum_const, "\\_enum_const";
 Enum_typespec, "\\_enum_typespec";
 Enum_var, "\\_enum_var";
 Event_control, "\\_event_control";
+For_stmt, "\\_for_stmt";
 Function, "\\_function";
+Gen_if_else, "\\_gen_if_else";
+Gen_region, "\\_gen_region";
+Gen_scope, "\\_gen_scope";
+Gen_scope_array, "\\_gen_scope_array";
+If_else, "\\_if_else";
+If_stmt, "\\_if_stmt";
+Indexed_part_select, "\\_indexed_part_select";
+Initial, "\\_initial";
 Int_typespec, "\\_int_typespec";
 Int_var, "\\_int_var";
+Integer_typespec, "\\_integer_typespec";
+Integer_var, "\\_integer_var";
 Io_decl, "\\_io_decl";
 Logic_net, "\\_logic_net";
 Logic_typespec, "\\_logic_typespec";
@@ -62,11 +79,18 @@ Logic_var, "\\_logic_var";
 Module_inst, "\\_module_inst";
 Operation, "\\_operation";
 Package, "\\_package";
+Param_assign, "\\_param_assign";
+Parameter, "\\_parameter";
+Part_select, "\\_part_select";
 Port, "\\_port";
 Range, "\\_range";
+Ref_module, "\\_ref_module";
 Ref_obj, "\\_ref_obj";
 Ref_typespec, "\\_ref_typespec";
+Ref_var, "\\_ref_var";
+Sys_func_call, "\\_sys_func_call";
 Task, "\\_task";
+Task_call, "\\_task_call";
 Var_select, "\\_var_select";
 Weaklyreferenced, "\\_weaklyReferenced";
 Any_sverilog_class, "any_sverilog_class";
@@ -94,6 +118,7 @@ Queue, "queue";
 Resume, "resume";
 Self, "self";
 Semaphore, "semaphore";
+(*
 State, "state";
 Status, "status";
 String, "string";
@@ -102,11 +127,80 @@ System, "system";
 Try_get, "try_get";
 Try_peek, "try_peek";
 Try_put, "try_put";
+*)
 Uhdmallclasses, "|uhdmallClasses";
 Uhdmallmodules, "|uhdmallModules";
 Uhdmallpackages, "|uhdmallPackages";
 Uhdmtopmodules, "|uhdmtopModules";
 Uhdmtoppackages, "|uhdmtopPackages";
+Vpiactual, "|vpiActual";
+Vpialwaystype, "|vpiAlwaysType";
+Vpiargument, "|vpiArgument";
+Vpiarraynet, "|vpiArrayNet";
+Vpiattribute, "|vpiAttribute";
+Vpibaseexpr, "|vpiBaseExpr";
+Vpiblocking, "|vpiBlocking";
+Vpicaseitem, "|vpiCaseItem";
+Vpicasetype, "|vpiCaseType";
+Vpiclassdefn, "|vpiClassDefn";
+Vpicondition, "|vpiCondition";
+Vpiconsttype, "|vpiConstType";
+Vpiconstantselect, "|vpiConstantSelect";
+Vpicontassign, "|vpiContAssign";
+Vpidecompile, "|vpiDecompile";
+Vpideffile, "|vpiDefFile";
+Vpideflineno, "|vpiDefLineNo";
+Vpidefname, "|vpiDefName";
+Vpidirection, "|vpiDirection";
+Vpielsestmt, "|vpiElseStmt";
+Vpienumconst, "|vpiEnumConst";
+Vpiexpr, "|vpiExpr";
+Vpiforincstmt, "|vpiForIncStmt";
+Vpiforinitstmt, "|vpiForInitStmt";
+Vpifullname, "|vpiFullName";
+Vpigenscope, "|vpiGenScope";
+Vpigenscopearray, "|vpiGenScopeArray";
+Vpigenstmt, "|vpiGenStmt";
+Vpihighconn, "|vpiHighConn";
+Vpiiodecl, "|vpiIODecl";
+Vpiindex, "|vpiIndex";
+Vpiindexedpartselecttype, "|vpiIndexedPartSelectType";
+Vpiinstance, "|vpiInstance";
+Vpileftrange, "|vpiLeftRange";
+Vpilhs, "|vpiLhs";
+Vpilocalparam, "|vpiLocalParam";
+Vpilowconn, "|vpiLowConn";
+Vpimethod, "|vpiMethod";
+Vpimodule, "|vpiModule";
+Vpiname, "|vpiName";
+Vpinet, "|vpiNet";
+Vpinetdeclassign, "|vpiNetDeclAssign";
+Vpinettype, "|vpiNetType";
+Vpioptype, "|vpiOpType";
+Vpioperand, "|vpiOperand";
+Vpioverriden, "|vpiOverriden";
+Vpiparamassign, "|vpiParamAssign";
+Vpiparameter, "|vpiParameter";
+Vpiparent, "|vpiParent";
+Vpiport, "|vpiPort";
+Vpiprocess, "|vpiProcess";
+Vpirange, "|vpiRange";
+Vpirefmodule, "|vpiRefModule";
+Vpireturn, "|vpiReturn";
+Vpirhs, "|vpiRhs";
+Vpirightrange, "|vpiRightRange";
+Vpisigned, "|vpiSigned";
+Vpisize, "|vpiSize";
+Vpistmt, "|vpiStmt";
+Vpitask, "|vpiTask";
+Vpitaskfunc, "|vpiTaskFunc";
+Vpitop, "|vpiTop";
+Vpitopmodule, "|vpiTopModule";
+Vpitypedef, "|vpiTypedef";
+Vpitypespec, "|vpiTypespec";
+Vpivariables, "|vpiVariables";
+Vpivisibility, "|vpiVisibility";
+Vpiwidthexpr, "|vpiWidthExpr";
 Vpiactual, "|vpiActual";
 Vpialwaystype, "|vpiAlwaysType";
 Vpiclassdefn, "|vpiClassDefn";
@@ -119,9 +213,9 @@ Vpielaborated, "|vpiElaborated";
 Vpienumconst, "|vpiEnumConst";
 Vpiexpr, "|vpiExpr";
 Vpifullname, "|vpiFullName";
-Vpiiodecl, "|vpiIODecl";
 Vpiindex, "|vpiIndex";
 Vpiinstance, "|vpiInstance";
+Vpiiodecl, "|vpiIODecl";
 Vpileftrange, "|vpiLeftRange";
 Vpilhs, "|vpiLhs";
 Vpilowconn, "|vpiLowConn";
@@ -129,8 +223,8 @@ Vpimethod, "|vpiMethod";
 Vpiname, "|vpiName";
 Vpinet, "|vpiNet";
 Vpinettype, "|vpiNetType";
-Vpioptype, "|vpiOpType";
 Vpioperand, "|vpiOperand";
+Vpioptype, "|vpiOpType";
 Vpiparent, "|vpiParent";
 Vpiport, "|vpiPort";
 Vpiprocess, "|vpiProcess";
@@ -161,13 +255,16 @@ let tok arg =
 }
 
 let ident = ['a'-'z' 'A'-'Z' '$' '_' '|' '\\'] ['a'-'z' 'A'-'Z' '_' '0'-'9' '$' ]*
-let number = ['0'-'9']['0'-'9' '_']*
+let number = ['0'-'9' '-']['0'-'9' '_']*
+let sized = ['0'-'9']*"'"['b' 'd' 'h']['0'-'9' 'A'-'F' 'a'-'f' '_' 'x' 'X' 'z' 'Z' '?']+
+let hex = "|HEX:"['0'-'9' 'A'-'F' 'a'-'f']+
+let bin = "|BIN:"['0' '1' 'x' 'X' 'z' 'Z' '?']+
 let space = [' ' '\t' '\r']+
 let newline = ['\n'] [' ']*
+let string_const = "|STRING:"[^'\n']*
 let qstring = '"'[^'"']*'"'
-let comment = '.''.'[^'\n']*
 let vpimethod = "|vpiMethod:"['0'-'9']+
-   
+
 rule token = parse
 | '#' { tok ( HASH ) }
 | ''' { tok ( QUOTE ) }
@@ -184,10 +281,10 @@ rule token = parse
 | '(' { tok ( LPAREN ) }
 | ')' { tok ( RPAREN ) }
 | '@' { tok ( AT ) }
+| '-' { tok ( HYPHEN ) }
 | '/' { tok ( SLASH ) }
 | '\\' { tok ( BACKSLASH ) }
 (*
-| '-' { tok ( HYPHEN ) }
 | '+' { tok ( PLUS ) }
 | '!' { tok ( PLING ) }
 | '"' { tok ( DOUBLEQUOTE ) }
@@ -203,14 +300,20 @@ rule token = parse
 | '_' { tok ( UNDERSCORE ) }
 *)
 
-  | comment
-      { token lexbuf }
   | space
       { token lexbuf }
   | newline as s
       { let old = !oldcnt in oldcnt := String.length s; if old < !oldcnt then Indent else token lexbuf }
+  | string_const as s
+      { tok ( STRING_CONST s ) }
+  | sized as n
+      { tok ( VpiNum n ) }
   | number as n
-      { tok ( VpiNum (int_of_string n) ) }
+      { tok ( VpiNum n ) }
+  | hex as h
+      { tok ( HEX (Scanf.sscanf h "|HEX:%Lx" (fun h->h) )) }
+  | bin as b
+      { tok ( BIN (Scanf.sscanf b "|BIN:%s" (fun b->b) )) }
   | vpimethod as s
       { tok ( Vpimethodint (Scanf.sscanf s "|vpiMethod:%d" (fun n -> n))) }
   | ident as s

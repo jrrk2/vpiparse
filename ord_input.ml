@@ -121,7 +121,7 @@ let getstr = function
 | Vpivariables -> "vpiVariables";
 | Vpivisibility -> "vpiVisibility";
 | Work -> "work";
-| VpiNum n -> string_of_int n
+| VpiNum n -> n
 | LPAREN -> "("
 | RPAREN -> ")"
 | oth -> othinput := Some oth; "UNKNOWN"

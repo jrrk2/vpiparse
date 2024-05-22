@@ -6,4 +6,8 @@ open Input_lex
 #print_length 1000000;;
 #print_depth 1000000;;
 
-let p = op "../UHDM/dump.txt";;
+(*
+let p = op "cond.txt";;
+*)
+
+let p = op "../picorv32/picorv32.txt";;

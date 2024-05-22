@@ -40,12 +40,12 @@ let othlst = ref []
 
 let rec rw = function
 | (Vpiparent | Vpiname | Always | STRING _ | TLIST _) as s -> s
-| TUPLE2 ((Vpitopmodule|Vpitop as top), VpiNum 1) -> top
+| TUPLE2 ((Vpitopmodule|Vpitop as top), VpiNum "1") -> top
 | TUPLE2 (Vpiactual, Logic_var) -> Logic_var
 | TUPLE2 (Ref_obj, TLIST [TUPLE2 (Vpiactual, Logic_net); TLIST pth; nam; Vpiparent]) -> TUPLE2(Logic_net, nam)
 | TUPLE2 (Module_inst, TLIST ilst) -> TLIST ( List.map rw ilst )
 | TUPLE2 (Vpiprocess, arg) -> rw arg
-| TUPLE3 (Always, TLIST lst, TUPLE2 (Vpialwaystype, VpiNum 1)) -> TUPLE2 (Always, TLIST (List.map rw lst))
+| TUPLE3 (Always, TLIST lst, TUPLE2 (Vpialwaystype, VpiNum "1")) -> TUPLE2 (Always, TLIST (List.map rw lst))
 | TUPLE2 (Vpiindex, TUPLE2 (Ref_obj, TLIST [TUPLE2 (Vpiactual, Logic_net); pth; select;
           Vpiparent])) -> TUPLE2(pth, select)
 | TUPLE2 (Var_select, TLIST lst) -> (match List.map rw lst with
