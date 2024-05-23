@@ -651,14 +651,14 @@ module_inst_opt:
   | Vpiparamassign COLON Param_assign COLON loc Indent param_assign_lst { Vpiparamassign }
   | Vpicontassign COLON cont_assign { Vpicontassign }
   | Vpitaskfunc COLON vpi_method_arg { Vpitaskfunc }
-  | Vpigenstmt COLON Gen_region COLON Indent gen_region_lst { Vpigenstmt }
+  | Vpigenstmt COLON Gen_region COLON Indent gen_region_lst { TUPLE2(Vpigenstmt, TLIST (List.rev $6)) }
   | Vpirefmodule COLON stmt { Vpirefmodule }
-  | Vpimodule COLON module_inst { Vpimodule }
+  | Vpimodule COLON module_inst { TUPLE2(Vpimodule, $3) }
   | Vpiinstance COLON Module_inst COLON module_inst_def { TUPLE2(Vpiinstance, $5) }
   | Vpigenscopearray COLON gen_scope_array { TUPLE2(Vpigenscopearray, $3) }
 
 gen_scope_array:
-  | Gen_scope_array COLON gen_scope_array_def Indent gen_scope_array_lst { Gen_scope_array }
+  | Gen_scope_array COLON gen_scope_array_def Indent gen_scope_array_lst { TUPLE2(Gen_scope_array, TLIST (List.rev $5)) }
 
 gen_scope_array_lst: { [] }
   | gen_scope_array_opt gen_scope_array_lst { $1 :: $2 }
@@ -863,7 +863,7 @@ assignment_opt:
   | Vpiblocking COLON VpiNum { TUPLE2(Vpiblocking, VpiNum $3) }
   | Vpiname COLON Work AT name { Vpiname }
   | Vpifullname COLON fullnam { $3 }
-  | Vpistmt COLON stmt { Vpistmt }
+  | Vpistmt COLON stmt { TUPLE2(Vpistmt, $3) }
   | Vpioptype COLON VpiNum { TUPLE2(Vpioptype, STRING (Vpi_types.vpi_type (int_of_string $3))) }
   | Vpirhs COLON rhs { TUPLE2(Vpirhs, $3) }
   | Vpilhs COLON oexpr { TUPLE2(Vpilhs, $3) }
@@ -876,7 +876,7 @@ cont_assign_opt:
   | Vpiname COLON vnam { $3 }
   | Vpiname COLON Work AT name { Vpiname }
   | Vpifullname COLON fullnam { $3 }
-  | Vpistmt COLON stmt { Vpistmt }
+  | Vpistmt COLON stmt { TUPLE2(Vpistmt, $3) }
   | Vpinetdeclassign COLON VpiNum { TUPLE2(Vpinetdeclassign, VpiNum $3) }
   | Vpioptype COLON VpiNum { TUPLE2(Vpioptype, STRING (Vpi_types.vpi_type (int_of_string $3))) }
   | Vpirhs COLON rhs { TUPLE2(Vpirhs, $3) }
