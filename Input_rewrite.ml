@@ -1,6 +1,5 @@
 open Input_lex
 open Input
-open Vpi_types
 
 let parse_output_ast_from_chan ch =
   let lb = Lexing.from_channel ch in
@@ -47,10 +46,13 @@ let findport pattr = function
 
 let rec rw = function
 | (Vpideffile | Vpiparent | Vpiname | VpiNum _ | Always | Vpicontassign | Vpitaskfunc | Vpiparamassign | Vpiparameter | Vpirefmodule | STRING _ | TLIST _) as s -> s
+| TUPLE2 (Vpicontassign, TUPLE3 (Cont_assign, TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs))) ->  TUPLE3 (Cont_assign, rw lhs, rw rhs)
+| TUPLE4 (Operation, TUPLE2 (Vpioptype, (Vpiaddop|Vpisubop|Vpimultop as op)), TUPLE2 (Vpioperand, op1), TUPLE2 (Vpioperand, op2)) -> TUPLE3(op, rw op1, rw op2)
 | TUPLE2 ((Vpitopmodule|Vpitop|Vpiblocking|Vpicasetype as top), VpiNum "1") -> top
 | TUPLE2 (Vpiactual, Logic_var) -> Logic_var
 | TUPLE2 (Vpioptype, (STRING ("vpiIterator"|"vpiModule"|"vpiNamedBegin"|"vpiPartSelect"|"vpiRhs"|"vpiIf"|"vpiFunction"|"vpiEventStmt"|"vpiInitial"|"vpiDelayControl"|"vpiOperation"|"vpiAssignment"|"vpiBegin"|"vpiIODecl"|"vpiInterModPath"|"vpiConstant"|"vpiFor"|"vpiMemory"|"vpiIfElse"|"vpiFuncCall"|"vpiMemoryWord"|"vpiCase"|"vpiCaseItem"|"vpiNamedEvent"|"vpiGate"|"vpiAlways"|"vpiIntegerVar") as s)) -> s
 | TUPLE2 (Ref_var, TLIST [TLIST pth; r; Vpiparent]) -> rw r
+| TUPLE4 (Ref_obj, nam, TLIST pth, TUPLE2 (Vpiactual, Logic_net)) -> TUPLE2(Logic_net, nam)
 | TUPLE2 (Ref_obj, TLIST [TUPLE2 (Vpiactual, (Logic_net|Part_select)); TLIST pth; nam; Vpiparent]) -> TUPLE2(Logic_net, nam)
 | TUPLE2 (Ref_obj, TLIST [STRING "$unsigned"; TUPLE2 (Vpiactual, Logic_net); TLIST pth; nam; Vpiparent]) -> TUPLE2(Logic_net, nam)
 | TUPLE2 ((Ref_module|Module_inst|Vpigenstmt|Begin|If_else|Assignment|Event_control|Always|Sys_func_call|If_stmt|Case_stmt|For_stmt as op), TLIST ilst) -> TUPLE2(op, TLIST ( List.map rw ilst ))
