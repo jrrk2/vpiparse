@@ -8,6 +8,7 @@ open Input_lex
 
 (*
 let p = op "cond.txt";;
+let p = op "../picorv32/picorv32.txt";;
 *)
 
-let p = op "../picorv32/picorv32.txt";;
+let p = op "uhdm.txt";;
