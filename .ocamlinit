@@ -12,3 +12,6 @@ let p = op "../picorv32/picorv32.txt";;
 *)
 
 let p = op "uhdm.txt";;
+
+let reflst = ref [];;
+let _ = Hashtbl.iter (fun k x -> reflst := (k,x) :: !reflst) refh;;
