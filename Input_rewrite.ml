@@ -24,19 +24,13 @@ let findport pattr = function
 | TUPLE2 (Vpiinstance, STRING inst) -> ()
 | STRING _ as port -> pattr.nam <- port
 | TUPLE2 (Vpidirection, dir) -> pattr.dir <- dir
-| TUPLE3 (Ref_typespec, STRING refport,
-            TLIST
-             [TUPLE2 (Vpiactual, Logic_typespec);
-              TLIST pth; Vpiparent]) -> ()
+| TUPLE5 (Ref_typespec, TLIST pth, Vpiparent, TLIST pth', 
+              TUPLE2 (Vpiactual, TUPLE2(Logic_typespec, Work))) -> ()
 | TUPLE2 ((Vpilowconn|Vpihighconn),
-            TUPLE2 (Ref_obj,
-              TLIST
-               [TUPLE2 (Vpiactual, Logic_net);
-               TLIST pth'; lowport; Vpiparent])) -> pattr.nam <- lowport
+            TUPLE4 (Ref_obj, lowport, TLIST pth, 
+               TUPLE2 (Vpiactual, TUPLE2(Logic_net, TLIST pth')))) -> pattr.nam <- lowport
 | TUPLE2 (Vpihighconn,
-      TUPLE2 (Ref_obj,
-        TLIST
-        [TLIST pth; STRING _ as port; Vpiparent])) -> pattr.nam <- port
+      TUPLE3 (Ref_obj, (STRING _ as port), TLIST pth)) -> pattr.nam <- port
 | TUPLE3
      (Ref_typespec, TLIST pth,
       TLIST
@@ -48,10 +42,10 @@ let rec rw = function
 | TUPLE2 (Vpinet, arg) -> rw arg
 | TUPLE3 (If_stmt, TUPLE2 (Vpicondition, expr), stmt) -> TUPLE3 (If_stmt, rw expr, rw stmt)
         
-| (Constant | Initial | Vpideffile | Vpiparent | Vpiname | VpiNum _ | Always | Vpicontassign | Vpitaskfunc | Vpiparamassign | Vpiparameter | Vpirefmodule | STRING _ | TLIST _) as s -> s
+| (Constant | Initial | Vpideffile | Vpiparent | Vpiname | VpiNum _ | Always | Cont_assign | Vpitaskfunc | Vpiparamassign | Vpiparameter | Vpirefmodule | STRING _ | TLIST _) as s -> s
 | TUPLE2 (Vpicontassign, Cont_assign) -> Work
-| TUPLE2 (Vpicontassign, TUPLE3 (Cont_assign, TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs))) ->  TUPLE3 (Cont_assign, rw lhs, rw rhs)
-| TUPLE2 (Vpicontassign, TUPLE4 (Cont_assign, TUPLE2 (Vpinetdeclassign, VpiNum "1"), TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs))) ->  TUPLE3 (Cont_assign, rw lhs, rw rhs)
+| TUPLE3 (Cont_assign, TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) ->  TUPLE3 (Cont_assign, rw lhs, rw rhs)
+| TUPLE4 (Cont_assign, TUPLE2 (Vpinetdeclassign, VpiNum "1"), TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) ->  TUPLE3 (Cont_assign, rw lhs, rw rhs)
 | TUPLE5 (Assignment, TUPLE2 (Vpioptype, Vpirhs), TUPLE2 (Vpiblocking, VpiNum "1"),
 		  TUPLE2 (Vpirhs, rhs),
 		  TUPLE2 (Vpilhs, lhs)) -> TUPLE3(Assignment, rw lhs, rw rhs)
@@ -168,8 +162,6 @@ let rec rw = function
       TLIST pth,
       TUPLE2 (Vpiindex, arg1)) -> TUPLE2(rw op1, rw arg1)
 | TUPLE2 (Vpiindex, op) -> TUPLE2(Vpiindex, rw op)
-| TUPLE2 (Cont_assign, TLIST [TUPLE2(Vpilhs, lhs); TUPLE2(Vpirhs, rhs); Vpiparent]) -> TUPLE3 (Cont_assign, rw lhs, rw rhs)
-| TUPLE2 (Cont_assign, TLIST lst) -> TUPLE2(Cont_assign, TLIST (List.map rw lst))
 | TUPLE2 ((Vpileftrange|Vpirightrange as op), arg) -> TUPLE2 (op, rw arg)
 | TUPLE2 (Ref_obj, TLIST [STRING "$signed"; TLIST pth; op; Vpiparent]) -> op
 | TUPLE2 (Ref_obj, TLIST [STRING "$signed"; TUPLE2 (Vpiactual, Logic_net); TLIST pth; op; Vpiparent]) -> op

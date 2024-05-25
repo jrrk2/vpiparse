@@ -1,5 +1,125 @@
 %{
   open Parsing
+let getstr = function
+| FINISHED -> "FINISHED";
+| INT -> "INT";
+| KILLED -> "KILLED";
+| Post_Elab -> "Post-Elab";
+| Pre_Elab -> "Pre-Elab";
+| RUNNING -> "RUNNING";
+| Restored -> "Restored";
+| SUSPENDED -> "SUSPENDED";
+| UINT -> "UINT";
+| WAITING -> "WAITING";
+| Always -> "_always";
+| Assignment -> "_assignment";
+| Begin -> "_begin";
+| Class_defn -> "_class_defn";
+| Class_typespec -> "_class_typespec";
+| Class_var -> "_class_var";
+| Constant -> "_constant";
+| Design -> "_design";
+| Enum_const -> "_enum_const";
+| Enum_typespec -> "_enum_typespec";
+| Enum_var -> "_enum_var";
+| Event_control -> "_event_control";
+| Function -> "_function";
+| Int_typespec -> "_int_typespec";
+| Int_var -> "_int_var";
+| Io_decl -> "_io_decl";
+| Logic_net -> "_logic_net";
+| Logic_typespec -> "_logic_typespec";
+| Logic_var -> "_logic_var";
+| Module_inst -> "_module_inst";
+| Operation -> "_operation";
+| Package -> "_package";
+| Port -> "_port";
+| Range -> "_range";
+| Ref_obj -> "_ref_obj";
+| Ref_typespec -> "_ref_typespec";
+| Task -> "_task";
+| Var_select -> "_var_select";
+| Weaklyreferenced -> "_weaklyReferenced";
+| Any_sverilog_class -> "any_sverilog_class";
+| Array -> "array";
+| Await -> "await";
+| Bound -> "bound";
+| Builtin -> "builtin";
+| Clk -> "clk";
+| DESIGN -> "DESIGN";
+| Endln -> "endln";
+| File -> "file";
+| Get -> "get";
+| Keycount -> "keyCount";
+| Kill -> "kill";
+| Line -> "line";
+| Mailbox -> "mailbox";
+| Message -> "message";
+| New -> "new";
+| Num -> "num";
+| Peek -> "peek";
+| Process -> "process";
+| Put -> "put";
+| Queue -> "queue";
+| Resume -> "resume";
+| Self -> "self";
+| Semaphore -> "semaphore";
+| State -> "state";
+| Status -> "status";
+| String -> "string";
+| Suspend -> "suspend";
+| System -> "system";
+| Try_get -> "try_get";
+| Try_peek -> "try_peek";
+| Try_put -> "try_put";
+| Uhdmallclasses -> "uhdmallClasses";
+| Uhdmallmodules -> "uhdmallModules";
+| Uhdmallpackages -> "uhdmallPackages";
+| Uhdmtopmodules -> "uhdmtopModules";
+| Uhdmtoppackages -> "uhdmtopPackages";
+| Vpiactual -> "vpiActual";
+| Vpialwaystype -> "vpiAlwaysType";
+| Vpiclassdefn -> "vpiClassDefn";
+| Vpicondition -> "vpiCondition";
+| Vpiconsttype -> "vpiConstType";
+| Vpidecompile -> "vpiDecompile";
+| Vpidefname -> "vpiDefName";
+| Vpidirection -> "vpiDirection";
+| Vpielaborated -> "vpiElaborated";
+| Vpienumconst -> "vpiEnumConst";
+| Vpiexpr -> "vpiExpr";
+| Vpifullname -> "vpiFullName";
+| Vpiiodecl -> "vpiIODecl";
+| Vpiindex -> "vpiIndex";
+| Vpiinstance -> "vpiInstance";
+| Vpileftrange -> "vpiLeftRange";
+| Vpilhs -> "vpiLhs";
+| Vpilowconn -> "vpiLowConn";
+| Vpimethod -> "vpiMethod";
+| Vpiname -> "vpiName";
+| Vpinet -> "vpiNet";
+| Vpinettype -> "vpiNetType";
+| Vpioptype -> "vpiOpType";
+| Vpioperand -> "vpiOperand";
+| Vpiparent -> "vpiParent";
+| Vpiport -> "vpiPort";
+| Vpiprocess -> "vpiProcess";
+| Vpirange -> "vpiRange";
+| Vpireturn -> "vpiReturn";
+| Vpirhs -> "vpiRhs";
+| Vpirightrange -> "vpiRightRange";
+| Vpisigned -> "vpiSigned";
+| Vpisize -> "vpiSize";
+| Vpistmt -> "vpiStmt";
+| Vpitop -> "vpiTop";
+| Vpitopmodule -> "vpiTopModule";
+| Vpitypedef -> "vpiTypedef";
+| Vpitypespec -> "vpiTypespec";
+| Vpivariables -> "vpiVariables";
+| Vpivisibility -> "vpiVisibility";
+| Work -> "work";
+| STRING s -> s
+| oth -> "UNKNOWN"
 
 (******************************** OBJECT TYPES ********************************)
 
@@ -507,7 +627,7 @@ let vpi_task_func = function
     TUPLE16(kind, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15)
     | arg1::arg2::arg3::arg4::arg5::arg6::arg7::arg8::arg9::arg10::arg11::arg12::arg13::arg14::arg15::arg16::[] ->
     TUPLE17(kind, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16)
-    | oth -> print_endline ("kind:"^string_of_int (List.length oth)); TUPLE2(kind, TLIST oth)
+    | oth -> print_endline ("kind:"^getstr kind^" "^string_of_int (List.length oth)); TUPLE2(kind, TLIST oth)
 %}
 
 %token  Indent
@@ -1462,7 +1582,7 @@ module_inst_opt:
   | Vpitopmodule COLON VpiNum { TUPLE2(Vpitopmodule, VpiNum $3) }
   | Vpiparameter COLON Parameter parameter_def Indent parameter_lst { Vpiparameter }
   | Vpiparamassign COLON Param_assign COLON loc Indent param_assign_lst { Vpiparamassign }
-  | Vpicontassign COLON cont_assign { TUPLE2(Vpicontassign, $3) }
+  | Vpicontassign COLON cont_assign { $3 }
   | Vpitaskfunc COLON vpi_method_arg { TUPLE2(Vpitaskfunc, $3) }
   | Vpigenstmt COLON Gen_region COLON Indent gen_region_lst { to_tuple Vpigenstmt $6 }
   | Vpirefmodule COLON stmt { Vpirefmodule }
@@ -1566,7 +1686,7 @@ stmt:
   | Case_item COLON loc Indent case_item_lst { to_tuple Case_item $5 }
   | Task_call COLON task_call_def Indent task_call_lst { to_tuple Case_item $5 }
   | Gen_if_else COLON loc Indent gen_if_else_lst { to_tuple If_else $5 }
-  | Ref_module COLON ref_module_def Indent ref_module_lst { to_tuple Ref_module $5 }
+  | Ref_module COLON ref_module_def Indent ref_module_lst { TUPLE2 (Ref_module, TLIST $5) }
   | Cont_assign COLON loc Indent cont_assign_lst { to_tuple Cont_assign $5 }
   | Always COLON always_def Indent always_lst always_typ { to_tuple (TUPLE2(Always,$6)) $5 }
   
@@ -1667,12 +1787,7 @@ cont_assign_lst: { [] }
 
 cont_assign_opt:
   | Vpiparent COLON parent { Vpiparent }
-  | Vpiname COLON vnam { $3 }
-  | Vpiname COLON Work AT name { Vpiname }
-  | Vpifullname COLON fullnam { $3 }
-  | Vpistmt COLON stmt { $3 }
   | Vpinetdeclassign COLON VpiNum { TUPLE2(Vpinetdeclassign, VpiNum $3) }
-  | Vpioptype COLON VpiNum { TUPLE2(Vpioptype, optype $3) }
   | Vpirhs COLON rhs { TUPLE2(Vpirhs, $3) }
   | Vpilhs COLON oexpr { TUPLE2(Vpilhs, $3) }
 
@@ -1781,7 +1896,7 @@ operation_opt:
   | Vpicondition COLON oexpr { TUPLE2(Vpicondition, $3) }
 
 vport:
-  | Port COLON port_def Indent io_decl_lst { to_tuple Port $5 }
+  | Port COLON port_def Indent io_decl_lst { TUPLE2 (Port, TLIST $5) }
 
 nettyp: 
   | Logic_net COLON logic_net_def Indent logic_net_lst { to_tuple Logic_net $5 }

@@ -15,3 +15,4 @@ let p = op "uhdm.txt";;
 
 let reflst = ref [];;
 let _ = Hashtbl.iter (fun k x -> reflst := (k,x) :: !reflst) refh;;
+let reflst = !reflst;;
