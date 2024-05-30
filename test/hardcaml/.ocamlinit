@@ -3,7 +3,6 @@
 #directory "/Users/jonathan/vpiparse";;
 
 open Hardcaml
-open Always_example
 open Signal
 open Input
 open Input_main
@@ -30,22 +29,122 @@ Hardcaml.Rtl.print Verilog circuit;;
 *)
 
 let otht = ref None
+let othdim = ref None
+let declare_inputh = Hashtbl.create 255
+let declare_wireh = Hashtbl.create 255
+let declare_regh = Hashtbl.create 255
+
+let declare_input port =
+  if false then print_endline port;
+    let wid = if Hashtbl.mem refh (STRING port) then
+      match Hashtbl.find refh (STRING port) with
+    | {lft = VpiNum lft'; rght = VpiNum rght'; lfttyp = Vpiuintconst;
+   rghttyp = Vpiuintconst; lftsiz = VpiNum "64"; rghtsiz = VpiNum "64"} -> int_of_string lft' - int_of_string rght' + 1
+    | oth -> othdim := Some oth; 1 else 1 in
+  Hashtbl.add declare_inputh port (Signal.input port wid)
+
+let declare_wire = function
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING wire) ->
+  if true then print_endline wire;
+    let wid = if Hashtbl.mem refh (STRING wire) then
+      match Hashtbl.find refh (STRING wire) with
+    | {lft = VpiNum lft'; rght = VpiNum rght'; lfttyp = Vpiuintconst;
+   rghttyp = Vpiuintconst; lftsiz = VpiNum "64"; rghtsiz = VpiNum "64"} -> int_of_string lft' - int_of_string rght' + 1
+    | oth -> othdim := Some oth; 1 else 1 in
+  Hashtbl.add declare_wireh wire (Always.Variable.wire ~default:(Signal.zero wid))
+| _ -> ()
+
+let declare_reg = function
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING reg) -> if Hashtbl.mem declare_regh reg then () else
+  begin
+  if true then print_endline reg;
+    let wid = if Hashtbl.mem refh (STRING reg) then
+      match Hashtbl.find refh (STRING reg) with
+    | {lft = VpiNum lft'; rght = VpiNum rght'; lfttyp = Vpiuintconst;
+   rghttyp = Vpiuintconst; lftsiz = VpiNum "64"; rghtsiz = VpiNum "64"} -> int_of_string lft' - int_of_string rght' + 1
+    | oth -> othdim := Some oth; 1 else 1 in
+  let clock = Hashtbl.find declare_inputh "clock" in
+  let clear = Hashtbl.find declare_inputh "clear" in
+  let r_sync = Reg_spec.create ~clock ~clear () in
+  Hashtbl.add declare_regh reg (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid);
+  end
+| _ -> ()
 
 let rec traverse = function
 | TUPLE3 (Always, Vpiassignstmt,
-   TUPLE3 (Assignment, lhs, rhs)) -> traverse lhs; traverse rhs
-| TUPLE3 (Always, TUPLE2 (Vpioptype,
-        TUPLE2 (TUPLE2 (Vpiactual,
-            TUPLE2 (Logic_net, TLIST pth)), STRING "clock")), stmt) -> ()
-| TUPLE2 (Vpiconditionop, TUPLE4 (Vpieqop, lhs, rhs, _)) -> ()
+   TUPLE3 (Assignment, lhs, rhs)) ->
+   traverse lhs;
+   traverse rhs;
+   declare_wire lhs
+| TUPLE3 (Assignment, lhs, rhs) ->
+   traverse lhs;
+   traverse rhs;
+| TUPLE3 (Always, TUPLE2 (Vpiposedgeop, edg), stmt) -> traverse edg; traverse stmt
+| TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> traverse cond; traverse lhs; traverse rhs
+| TUPLE4 (If_else, cond, lhs, rhs) -> traverse cond; traverse lhs; traverse rhs
+| TUPLE3 (Vpiaddop, lhs, rhs) -> traverse lhs; traverse rhs
+| TUPLE3 (Vpieqop, lhs, rhs) -> traverse lhs; traverse rhs
+| TUPLE2 (Vpiconcatop, TLIST lst) -> List.iter traverse lst
+| TUPLE4 (Part_select, STRING nam, VpiNum lft, VpiNum rght) -> ()
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING wire) -> ()
-| TUPLE2 ((Vpioutput|Vpiinput as dir), STRING port)	    -> ()
+| TUPLE2 (Vpioutput, STRING port)	    -> ()
+| TUPLE2 (Vpiinput, STRING port)	    -> declare_input port
 | TUPLE3 (Logic_net, Vpireg, STRING reg) -> ()
 | TUPLE3 (Logic_net, Vpinet, STRING net) -> ()
 | TUPLE2 (Logic_net, STRING net) -> ()
 | STRING s -> ()
 | TLIST [] -> ()
+| VpiNum s -> ()
+| (Always|Vpitopmodule|Vpitop|Vpiname) -> ()
+| oth -> otht := Some oth
+
+let rec traverse' = function
+| TUPLE3 (Always, Vpiassignstmt,
+   TUPLE3 (Assignment, lhs, rhs)) ->
+   traverse' lhs;
+   traverse' rhs;
+| TUPLE3 (Assignment, lhs, rhs) ->
+   traverse' lhs;
+   traverse' rhs;
+   declare_reg lhs
+| TUPLE3 (Always, TUPLE2 (Vpiposedgeop, edg), stmt) -> traverse' edg; traverse' stmt
+| TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> traverse' cond; traverse' lhs; traverse' rhs
+| TUPLE4 (If_else, cond, lhs, rhs) -> traverse' cond; traverse' lhs; traverse' rhs
+| TUPLE3 (Vpiaddop, lhs, rhs) -> traverse' lhs; traverse' rhs
+| TUPLE3 (Vpieqop, lhs, rhs) -> traverse' lhs; traverse' rhs
+| TUPLE2 (Vpiconcatop, TLIST lst) -> List.iter traverse' lst
+| TUPLE4 (Part_select, STRING nam, VpiNum lft, VpiNum rght) -> ()
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING wire) -> ()
+| TUPLE2 (Vpioutput, STRING port)	    -> ()
+| TUPLE2 (Vpiinput, STRING port)	    -> declare_input port
+| TUPLE3 (Logic_net, Vpireg, STRING reg) -> ()
+| TUPLE3 (Logic_net, Vpinet, STRING net) -> ()
+| TUPLE2 (Logic_net, STRING net) -> ()
+| STRING s -> ()
+| TLIST [] -> ()
+| VpiNum s -> ()
 | (Always|Vpitopmodule|Vpitop|Vpiname) -> ()
 | oth -> otht := Some oth
 
 let _ = List.iter traverse p;;
+let _ = List.iter traverse' p;;
+
+let always_circuit =
+  let a = Hashtbl.find declare_inputh "a" in
+  let b = Hashtbl.find declare_inputh "b" in
+  let c_reg = Hashtbl.find declare_regh "c_reg" in
+  let c_wire = Hashtbl.find declare_wireh "c_wire" in
+  (* The program block with a call to [compile] *)
+  Always.(compile [
+    if_ (a ==: b) [
+      c_wire <-- (sll a 1);
+      c_reg  <-- (sll a 1)
+    ] [
+      c_wire <-- (a +: b);
+      c_reg  <-- (a +: b);
+    ]
+  ]);
+  (* the [c_wire.value] are assigned appropriately by the Always
+  compiler. *)
+  Hardcaml.Circuit.create_exn ~name:"creat" (List.map (fun (s,v) -> output s v) ["c_wire", c_wire.value; "c_reg", c_reg.value])
+;;

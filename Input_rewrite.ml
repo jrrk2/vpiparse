@@ -103,11 +103,11 @@ let rec rw = function
 | TUPLE2 (Vpiinstance, STRING _) as s -> s
 | TUPLE2 (Vpideflineno, VpiNum _) -> Vpideflineno
 | TUPLE2 ((Vpicondition|Vpirhs|Vpilhs as op), arg) -> TUPLE2 (op, rw arg)
-| TUPLE7 (Part_select, TUPLE2(Vpiname, STRING netnam), TUPLE2(Vpifullname, TLIST pth),
+| TUPLE7 (Part_select, TUPLE2(Vpiname, netnam), TUPLE2(Vpifullname, TLIST pth),
 		       TUPLE2 (Vpidefname, STRING netnam'),
 		       TUPLE2 (Vpiconstantselect, VpiNum "1"),
       TUPLE2 (Vpileftrange, lftrng),
-      TUPLE2 (Vpirightrange, rghtrng)) -> Part_select
+      TUPLE2 (Vpirightrange, rghtrng)) -> TUPLE4(Part_select, rw netnam, rw lftrng, rw rghtrng)
 | TUPLE8 (Indexed_part_select, nam, TLIST pth, nam', _, _, TUPLE2 (Vpileftrange, lftexp), TUPLE2 (Vpirightrange, rghtexp)) ->
   TUPLE4 (Indexed_part_select, rw nam, rw lftexp, rw rghtexp)
 | TUPLE2 (Vpiport, TUPLE5 (Port, port, TUPLE2 (Vpidirection, dir), loconn, rts)) -> TUPLE3(Port, port, dir)
@@ -231,7 +231,7 @@ let hash_itm = function
              TUPLE5 (Constant, TUPLE2 (Vpidecompile, lft), TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
            TUPLE2 (Vpirightrange,
 		   TUPLE5 (Constant, TUPLE2 (Vpidecompile, rght), TUPLE2 (Vpisize, rghtsiz), _, rghttyp)))) ->
-Hashtbl.add refh pth {lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz}
+Hashtbl.add refh (List.hd (List.rev pth)) {lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz}
 | _ -> ()
 
 let parse arg =
@@ -243,7 +243,7 @@ let parse arg =
     | TUPLE4 (DESIGN, STRING _, TUPLE2 (Vpielaborated, VpiNum _), Vpiname) -> []
     | TUPLE2 ((Uhdmallpackages|Uhdmtoppackages), _) -> []
     | TUPLE2 (Weaklyreferenced, TLIST lst) -> List.iter (hash_itm) lst; []
-    | TUPLE2 (Uhdmallclasses, _) -> []
-    | TUPLE2((Uhdmtopmodules|Uhdmallmodules), TUPLE2(Module_inst, TLIST arg)) -> List.map rw arg
+    | TUPLE2 ((Uhdmtopmodules|Uhdmallclasses), _) -> []
+    | TUPLE2(Uhdmallmodules, TUPLE2(Module_inst, TLIST arg)) -> List.map rw arg
     | Work -> []
     | oth -> othrw := Some oth; failwith "map") p)
