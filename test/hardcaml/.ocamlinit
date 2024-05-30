@@ -1,10 +1,25 @@
 #directory "/Users/jonathan/.opam/default/lib/hardcaml";;
 #directory "/Users/jonathan/.opam/default/lib/base";;
+#directory "/Users/jonathan/vpiparse";;
 
-open Hardcaml;;
-open Always_example;;
-open Signal;;
+open Hardcaml
+open Always_example
+open Signal
+open Input
+open Input_main
+open Input_rewrite
+open Input_lex
 
+#print_length 1000000;;
+#print_depth 1000000;;
+
+let p = op "uhdm.txt";;
+
+let reflst = ref [];;
+let _ = Hashtbl.iter (fun k x -> reflst := (k,x) :: !reflst) refh;;
+let reflst = !reflst;;
+
+(*
 let adder a b = a +: b;;
 
 let c = output "c" (adder (input "a" 8) (input "b" 8));;
@@ -12,4 +27,25 @@ let c = output "c" (adder (input "a" 8) (input "b" 8));;
 let circuit = Circuit.create_exn ~name:"my_adder" [ c ];;
 
 Hardcaml.Rtl.print Verilog circuit;;
+*)
 
+let otht = ref None
+
+let rec traverse = function
+| TUPLE3 (Always, Vpiassignstmt,
+   TUPLE3 (Assignment, lhs, rhs)) -> traverse lhs; traverse rhs
+| TUPLE3 (Always, TUPLE2 (Vpioptype,
+        TUPLE2 (TUPLE2 (Vpiactual,
+            TUPLE2 (Logic_net, TLIST pth)), STRING "clock")), stmt) -> ()
+| TUPLE2 (Vpiconditionop, TUPLE4 (Vpieqop, lhs, rhs, _)) -> ()
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING wire) -> ()
+| TUPLE2 ((Vpioutput|Vpiinput as dir), STRING port)	    -> ()
+| TUPLE3 (Logic_net, Vpireg, STRING reg) -> ()
+| TUPLE3 (Logic_net, Vpinet, STRING net) -> ()
+| TUPLE2 (Logic_net, STRING net) -> ()
+| STRING s -> ()
+| TLIST [] -> ()
+| (Always|Vpitopmodule|Vpitop|Vpiname) -> ()
+| oth -> otht := Some oth
+
+let _ = List.iter traverse p;;

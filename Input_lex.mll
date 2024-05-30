@@ -244,13 +244,61 @@ Work, "work";
       ];
     fun s -> Hashtbl.find h s
 
-let tok' x = "\""^Ord_input.getstr x^"\""
+let tok arg = [arg]
 
-let import_seen = ref false
+let vpi_expr = function
+|  1 -> Vpiminusop (* unary minus *)
+|  2 -> Vpiplusop (* unary plus *)
+|  3 -> Vpinotop (* unary not *)
+|  4 -> Vpibitnegop (* bitwise negation *)
+|  5 -> Vpiunaryandop (* bitwise reduction AND *)
+|  6 -> Vpiunarynandop (* bitwise reduction NAND *)
+|  7 -> Vpiunaryorop (* bitwise reduction OR *)
+|  8 -> Vpiunarynorop (* bitwise reduction NOR *)
+|  9 -> Vpiunaryxorop (* bitwise reduction XOR *)
+|  10 -> Vpiunaryxnorop (* bitwise reduction XNOR *)
+|  11 -> Vpisubop (* binary subtraction *)
+|  12 -> Vpidivop (* binary division *)
+|  13 -> Vpimodop (* binary modulus *)
+|  14 -> Vpieqop (* binary equality *)
+|  15 -> Vpineqop (* binary inequality *)
+|  16 -> Vpicaseeqop (* case (x and z) equality *)
+|  17 -> Vpicaseneqop (* case inequality *)
+|  18 -> Vpigtop (* binary greater than *)
+|  19 -> Vpigeop (* binary greater than or equal *)
+|  20 -> Vpiltop (* binary less than *)
+|  21 -> Vpileop (* binary less than or equal *)
+|  22 -> Vpilshiftop (* binary left shift *)
+|  23 -> Vpirshiftop (* binary right shift *)
+|  24 -> Vpiaddop (* binary addition *)
+|  25 -> Vpimultop (* binary multiplication *)
+|  26 -> Vpilogandop (* binary logical AND *)
+|  27 -> Vpilogorop (* binary logical OR *)
+|  28 -> Vpibitandop (* binary bitwise AND *)
+|  29 -> Vpibitorop (* binary bitwise OR *)
+|  30 -> Vpibitxorop (* binary bitwise XOR *)
+|  31 -> Vpibitxnorop (* binary bitwise XNOR *)
+|  32 -> Vpiconditionop (* ternary conditional *)
+|  33 -> Vpiconcatop (* n-ary concatenation *)
+|  34 -> Vpimulticoncatop (* repeated concatenation *)
+|  35 -> Vpieventorop (* event OR *)
+|  36 -> Vpinullop (* null operation *)
+|  37 -> Vpilistop (* list of expressions *)
+|  38 -> Vpimintypmaxop (* min:typ:max: delay expression *)
+|  39 -> Vpiposedgeop (* posedge *)
+|  40 -> Vpinegedgeop (* negedge *)
+|  41 -> Vpiarithlshiftop (* arithmetic left shift (1364-2001) *)
+|  42 -> Vpiarithrshiftop (* arithmetic right shift (1364-2001) *)
+|  43 -> Vpipowerop (* arithmetic power op (1364-2001) *)
 
-let tok arg =
-  if false then print_endline (match arg with STRING s -> s | _ -> tok' arg);
-  arg
+|  40 -> Vpiconsttype (* constant subtypes: *)
+|  41 -> Vpiblocking (* blocking assignment (Boolean) *)
+|  42 -> Vpicasetype (* case statement subtypes: *)
+|  43 -> Vpinetdeclassign (* assign part of decl (Boolean) *)
+(*
+|  82 -> Vpirhs (* right-hand side of assignment *)
+*)
+| oth -> Vpioptypeint oth
 }
 
 let ident = ['a'-'z' 'A'-'Z' '$' '_' '|' '\\'] ['a'-'z' 'A'-'Z' '_' '0'-'9' '$' ]*
@@ -264,6 +312,7 @@ let newline = ['\n'] [' ']*
 let string_const = "|STRING:"[^'\n']*
 let qstring = '"'[^'"']*'"'
 let vpimethod = "|vpiMethod:"['0'-'9']+
+let vpioptype = "|vpiOpType:"['0'-'9']+
 
 rule token = parse
 | '#' { tok ( HASH ) }
@@ -303,7 +352,10 @@ rule token = parse
   | space
       { token lexbuf }
   | newline as s
-      { let old = !oldcnt in oldcnt := String.length s; if old < !oldcnt then Indent else token lexbuf }
+      { let old = !oldcnt in oldcnt := String.length s;
+      if old < !oldcnt then List.init ((!oldcnt - old)/2) (fun _ -> Indent)
+      else if old > !oldcnt then List.init ((old - !oldcnt)/2) (fun _ -> Unindent)
+      else token lexbuf }
   | string_const as s
       { tok ( STRING_CONST s ) }
   | sized as n
@@ -318,6 +370,8 @@ rule token = parse
       { tok ( BIN (Scanf.sscanf b "|BIN:%s" (fun b->b) )) }
   | vpimethod as s
       { tok ( Vpimethodint (Scanf.sscanf s "|vpiMethod:%d" (fun n -> n))) }
+  | vpioptype as s
+      { tok ( Scanf.sscanf s "|vpiOpType:%d" vpi_expr) }
   | ident as s
       { tok ( try keyword s with Not_found -> STRING s ) }
   | qstring as s

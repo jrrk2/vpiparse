@@ -1,10 +1,19 @@
 open Input_lex
 open Input
 
+let deflate token = 
+  let q = Queue.create () in
+  fun lexbuf -> 
+    if not (Queue.is_empty q) then Queue.pop q else   
+      match token lexbuf with 
+        | [   ] -> EOF_TOKEN
+        | [tok] -> tok
+        | hd::t -> List.iter (fun tok -> Queue.add tok q) t ; hd 
+
 let parse_output_ast_from_chan ch =
   let lb = Lexing.from_channel ch in
   let output = try
-      ml_start token lb
+      ml_start (deflate token) lb
   with
     | Parsing.Parse_error ->
       let n = Lexing.lexeme_start lb in
@@ -46,45 +55,19 @@ let rec rw = function
 | TUPLE2 (Vpicontassign, Cont_assign) -> Work
 | TUPLE3 (Cont_assign, TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) ->  TUPLE3 (Cont_assign, rw lhs, rw rhs)
 | TUPLE4 (Cont_assign, TUPLE2 (Vpinetdeclassign, VpiNum "1"), TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) ->  TUPLE3 (Cont_assign, rw lhs, rw rhs)
-| TUPLE5 (Assignment, TUPLE2 (Vpioptype, Vpirhs), TUPLE2 (Vpiblocking, VpiNum "1"),
+| TUPLE5 (Assignment, Vpioptypeint 82, TUPLE2 (Vpiblocking, VpiNum "1"),
 		  TUPLE2 (Vpirhs, rhs),
 		  TUPLE2 (Vpilhs, lhs)) -> TUPLE3(Assignment, rw lhs, rw rhs)
-| TUPLE4 (Assignment, TUPLE2 (Vpioptype, Vpirhs),
+| TUPLE4 (Assignment, Vpioptypeint 82,
 		  TUPLE2 (Vpirhs, rhs),
 		  TUPLE2 (Vpilhs, lhs)) -> TUPLE3(Assignment, rw lhs, rw rhs)
 | TUPLE3 (Assignment,
 		  TUPLE2 (Vpirhs, rhs),
 		  TUPLE2 (Vpilhs, lhs)) -> TUPLE3(Assignment, rw lhs, rw rhs)
-| TUPLE2 (Operation, TLIST (TUPLE2(Vpioptype, op) :: lst)) -> TUPLE2(op, TLIST (List.map (function (TUPLE2 (Vpioperand, op)) -> rw op) lst))
-| TUPLE3 (Operation, TUPLE2 (Vpioptype, (op)),
-      TUPLE2 (Vpioperand, op1)) -> TUPLE2(op, rw op1)
-| TUPLE4 (Operation, TUPLE2 (Vpioptype, (op)),
-    TUPLE2 (Vpioperand, op1), TUPLE2 (Vpioperand, op2)) -> TUPLE3(op, rw op1, rw op2)
-| TUPLE5 (Operation, TUPLE2 (Vpioptype, (op)),
-    TUPLE2 (Vpioperand, op1), TUPLE2 (Vpioperand, op2), STRING "$signed") -> TUPLE3(op, rw op1, rw op2)
-| TUPLE5 (Operation, TUPLE2 (Vpioptype, (op)),
-    TUPLE2 (Vpioperand, op1), TUPLE2 (Vpioperand, op2), TUPLE2 (Vpioperand, op3)) -> TUPLE4(op, rw op1, rw op2, rw op3)
-| TUPLE6 (Operation, TUPLE2 (Vpioptype, (op)),
-    TUPLE2 (Vpioperand, op1), TUPLE2 (Vpioperand, op2), TUPLE2 (Vpioperand, op3), TUPLE2 (Vpioperand, op4)) -> TUPLE5(op, rw op1, rw op2, rw op3, rw op4)
-| TUPLE7 (Operation, TUPLE2 (Vpioptype, (op)),
-    TUPLE2 (Vpioperand, op1), TUPLE2 (Vpioperand, op2), TUPLE2 (Vpioperand, op3), TUPLE2 (Vpioperand, op4), TUPLE2 (Vpioperand, op5)) -> TUPLE6(op, rw op1, rw op2, rw op3, rw op4, rw op5)
-| TUPLE8 (Operation, TUPLE2 (Vpioptype, (op)),
-      TUPLE2 (Vpioperand, op1), TUPLE2 (Vpioperand, op2), TUPLE2 (Vpioperand, op3),
-      TUPLE2 (Vpioperand, op4), TUPLE2 (Vpioperand, op5), TUPLE2 (Vpioperand, op6)) -> TUPLE7(op, rw op1, rw op2, rw op3, rw op4, rw op5, rw op6)
-| TUPLE9 (Operation, TUPLE2 (Vpioptype, (op)),
-      TUPLE2 (Vpioperand, op1), TUPLE2 (Vpioperand, op2), TUPLE2 (Vpioperand, op3),
-      TUPLE2 (Vpioperand, op4), TUPLE2 (Vpioperand, op5), TUPLE2 (Vpioperand, op6), TUPLE2 (Vpioperand, op7)) ->
-  TUPLE8(op, rw op1, rw op2, rw op3, rw op4, rw op5, rw op6, rw op7)
-| TUPLE10 (Operation, TUPLE2 (Vpioptype, (op)),
-      TUPLE2 (Vpioperand, op1), TUPLE2 (Vpioperand, op2), TUPLE2 (Vpioperand, op3),
-      TUPLE2 (Vpioperand, op4), TUPLE2 (Vpioperand, op5), TUPLE2 (Vpioperand, op6),
-      TUPLE2 (Vpioperand, op7), TUPLE2 (Vpioperand, op8)) ->
-  TUPLE9(op, rw op1, rw op2, rw op3, rw op4, rw op5, rw op6, rw op7, rw op8)
-| TUPLE11 (Operation, TUPLE2 (Vpioptype, (op)),
-      TUPLE2 (Vpioperand, op1), TUPLE2 (Vpioperand, op2), TUPLE2 (Vpioperand, op3),
-      TUPLE2 (Vpioperand, op4), TUPLE2 (Vpioperand, op5), TUPLE2 (Vpioperand, op6),
-      TUPLE2 (Vpioperand, op7), TUPLE2 (Vpioperand, op8), TUPLE2 (Vpioperand, op9)) ->
-  TUPLE10(op, rw op1, rw op2, rw op3, rw op4, rw op5, rw op6, rw op7, rw op8, rw op9)
+| TUPLE2 ((Vpiposedgeop as op), op1) -> TUPLE2(op, rw op1)
+| TUPLE2 ((Vpiconcatop as op), TLIST op1) -> TUPLE2(op, TLIST (List.map rw op1))
+| TUPLE3 ((Vpiaddop|Vpieqop as op), op1, op2) -> TUPLE3(op, rw op1, rw op2)
+| TUPLE4 (Vpiconditionop as op, op1, op2, op3) -> TUPLE4(op, rw op1, rw op2, rw op3)
 | TUPLE2 ((Vpitopmodule|Vpitop|Vpiblocking|Vpicasetype as top), VpiNum "1") -> top
 (*
 | TUPLE2 (Sys_func_call,
@@ -192,9 +175,10 @@ let rec rw = function
 | TUPLE2 (Vpigenscopearray, TUPLE4 (Gen_scope_array, blk, TLIST pth, Gen_scope)) -> TUPLE2 (Gen_scope_array, blk)
 | TUPLE2 (Vpimodule, TUPLE2 (Module_inst, TLIST lst)) -> TUPLE2 (Module_inst, TLIST (List.map rw lst))
 | TUPLE2 ((Vpiforinitstmt|Vpiforincstmt as op), arg) -> TUPLE2 (op, rw arg)
-| TUPLE3 (Always, TLIST lst, TUPLE2 (Vpialwaystype, VpiNum "1")) -> TUPLE2 (Always, TLIST (List.map rw lst))
-| TUPLE2 (TUPLE2(Always, TUPLE2 (Vpialwaystype, VpiNum "1")), TUPLE3(Event_control, TUPLE2(Vpicondition, cond), stmt)) -> TUPLE3 (Always, rw cond, rw stmt)
-| TUPLE2 (TUPLE2(Always, TUPLE2 (Vpialwaystype, VpiNum "1")), TUPLE2(Event_control, stmt)) -> TUPLE2 (Always, rw stmt)
+| TUPLE3 (Always, TLIST lst, TUPLE2 (Vpialwaystype, Vpialways)) -> TUPLE2 (Always, TLIST (List.map rw lst))
+| TUPLE2 (TUPLE2(Always, TUPLE2 (Vpialwaystype, Vpialways)), TUPLE3(Event_control, TUPLE2(Vpicondition, cond), stmt)) -> TUPLE3 (Always, rw cond, rw stmt)
+| TUPLE2 (TUPLE2(Always, TUPLE2 (Vpialwaystype, Vpialways)), TUPLE2(Event_control, stmt)) -> TUPLE2 (Always, rw stmt)
+| TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpiassignstmt)), asgn) -> TUPLE3(Always, Vpiassignstmt, rw asgn)
 | TUPLE2 (Vpicaseitem, TUPLE2 (Attribute, TLIST [STRING _ as s; Vpiparent])) -> s
 | TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, TLIST [Vpiparent])) -> Vpicaseitem
 | TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, TLIST [Vpiparent])) -> Vpicaseitem
