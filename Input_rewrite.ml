@@ -66,7 +66,7 @@ let rec rw = function
 		  TUPLE2 (Vpilhs, lhs)) -> TUPLE3(Assignment, rw lhs, rw rhs)
 | TUPLE2 ((Vpiposedgeop as op), op1) -> TUPLE2(op, rw op1)
 | TUPLE2 ((Vpiconcatop as op), TLIST op1) -> TUPLE2(op, TLIST (List.map rw op1))
-| TUPLE3 ((Vpiaddop|Vpieqop as op), op1, op2) -> TUPLE3(op, rw op1, rw op2)
+| TUPLE3 ((Vpiaddop|Vpimultop|Vpieqop as op), op1, op2) -> TUPLE3(op, rw op1, rw op2)
 | TUPLE4 (Vpiconditionop as op, op1, op2, op3) -> TUPLE4(op, rw op1, rw op2, rw op3)
 | TUPLE2 ((Vpitopmodule|Vpitop|Vpiblocking|Vpicasetype as top), VpiNum "1") -> top
 (*
@@ -80,11 +80,6 @@ let rec rw = function
 | TUPLE4 (Ref_obj, nam,
       TLIST pth,
       func) ->  TUPLE2(func, rw nam)
-| TUPLE4 (Ref_obj, nam,
-      TLIST pth,
-      TUPLE2 (Vpiactual,
-        TUPLE2 (Logic_net,
-          TLIST pth2))) -> TUPLE2(Logic_net, nam)
 | TUPLE5 (Ref_obj, nam,
       TLIST pth,
       TUPLE2 (Vpiactual,
@@ -136,11 +131,6 @@ let rec rw = function
 | (TUPLE4 (Logic_net as net, Vpitypespec, netnam, TLIST pth)) -> TUPLE2(net, rw netnam)
 | (TUPLE5 (Logic_net as net, Vpitypespec, netnam, TLIST pth, TUPLE2 (Vpinettype, typ))) -> TUPLE3(net, typ, rw netnam)
 | (TUPLE5 (Array_net, TUPLE2 (Vpisize, siz), nam, TLIST pth, Vpirange)) -> TUPLE3(Array_net, siz, nam)
-| (TUPLE2 (Logic_net, TLIST [TUPLE2 (Vpinettype, STRING ("vpiReg"|"vpiAlways")); Vpitypespec; Vpiparent])) -> Logic_net
-| (TUPLE2 (Logic_net, TLIST [TUPLE2 (Vpinettype, STRING ("vpiReg"|"vpiAlways")); TLIST pth; net; Vpitypespec; Vpiparent])) -> rw net
-| (TUPLE2 (Logic_net, TLIST [TUPLE2 (Vpinettype, STRING ("vpiReg"|"vpiAlways")); TLIST pth; net; Vpiparent])) -> rw net
-| (TUPLE2 (Logic_net, TLIST [TLIST pth; net; Vpitypespec; Vpiparent])) -> rw net
-| (TUPLE2 (Logic_net, TLIST [TLIST pth; net; Vpiparent])) -> rw net
 | TUPLE4 (Bit_select, op1,
       TLIST pth,
       TUPLE2 (Vpiindex, arg1)) -> TUPLE2(rw op1, rw arg1)
@@ -180,7 +170,6 @@ let rec rw = function
 | TUPLE2 (TUPLE2(Always, TUPLE2 (Vpialwaystype, Vpialways)), TUPLE2(Event_control, stmt)) -> TUPLE2 (Always, rw stmt)
 | TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpiassignstmt)), asgn) -> TUPLE3(Always, Vpiassignstmt, rw asgn)
 | TUPLE2 (Vpicaseitem, TUPLE2 (Attribute, TLIST [STRING _ as s; Vpiparent])) -> s
-| TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, TLIST [Vpiparent])) -> Vpicaseitem
 | TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, TLIST [Vpiparent])) -> Vpicaseitem
 | TUPLE3 (Case_item,  STRING "empty_statement", Vpitask) -> Vpitask
 | TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, TLIST [TUPLE2 (Vpiexpr, expr); Vpiparent])) -> TUPLE2 (Vpicaseitem, rw expr)

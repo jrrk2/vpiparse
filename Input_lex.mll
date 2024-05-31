@@ -290,12 +290,11 @@ let vpi_expr = function
 |  41 -> Vpiarithlshiftop (* arithmetic left shift (1364-2001) *)
 |  42 -> Vpiarithrshiftop (* arithmetic right shift (1364-2001) *)
 |  43 -> Vpipowerop (* arithmetic power op (1364-2001) *)
-
+(*
 |  40 -> Vpiconsttype (* constant subtypes: *)
 |  41 -> Vpiblocking (* blocking assignment (Boolean) *)
 |  42 -> Vpicasetype (* case statement subtypes: *)
 |  43 -> Vpinetdeclassign (* assign part of decl (Boolean) *)
-(*
 |  82 -> Vpirhs (* right-hand side of assignment *)
 *)
 | oth -> Vpioptypeint oth

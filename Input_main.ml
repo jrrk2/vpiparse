@@ -15,6 +15,7 @@ type remapp =
   | Infix of string
   | Prefix of string
   | Add of remapp * remapp
+  | Mult of remapp * remapp
   | Eq of remapp * remapp
   | If_ of remapp * remapp list * remapp list
   | Asgn of remapp * remapp * remapp
@@ -26,7 +27,6 @@ type remap =
   | Sig of Hardcaml.Signal.t
   | Alw of Hardcaml.Always.t
   | Var of Hardcaml.Always.Variable.t
-  | Con of Hardcaml.Constant.t
 
 let othr = ref Invalid
 let othlhs = ref Void
@@ -41,12 +41,13 @@ let othp = ref Void
 let otht = ref None
 let othdim = ref None
 let othremap = ref []
+let alst = ref []
+
+let declare_h = Hashtbl.create 257
 
 let cnv v =
 begin
 let p = Input_rewrite.parse v in
-
-let declare_h = Hashtbl.create 257 in
 
 let sig' = function
 | Sig x -> x
@@ -71,7 +72,7 @@ let declare_input port =
 
 let declare_wire = function
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING wire) ->
-  if true then print_endline wire;
+  if false then print_endline wire;
     let wid = if Hashtbl.mem refh (STRING wire) then
       match Hashtbl.find refh (STRING wire) with
     | {lft = VpiNum lft'; rght = VpiNum rght'; lfttyp = Vpiuintconst;
@@ -83,7 +84,7 @@ let declare_wire = function
 let declare_reg = function
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING reg) -> if Hashtbl.mem declare_h reg then () else
   begin
-  if true then print_endline reg;
+  if false then print_endline reg;
     let wid = if Hashtbl.mem refh (STRING reg) then
       match Hashtbl.find refh (STRING reg) with
     | {lft = VpiNum lft'; rght = VpiNum rght'; lfttyp = Vpiuintconst;
@@ -109,8 +110,7 @@ let rec traverse pass2 = function
 | TUPLE3 (Always, TUPLE2 (Vpiposedgeop, edg), stmt) -> traverse pass2 edg; traverse pass2 stmt
 | TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> traverse pass2 cond; traverse pass2 lhs; traverse pass2 rhs
 | TUPLE4 (If_else, cond, lhs, rhs) -> traverse pass2 cond; traverse pass2 lhs; traverse pass2 rhs
-| TUPLE3 (Vpiaddop, lhs, rhs) -> traverse pass2 lhs; traverse pass2 rhs
-| TUPLE3 (Vpieqop, lhs, rhs) -> traverse pass2 lhs; traverse pass2 rhs
+| TUPLE3 ((Vpiaddop|Vpimultop|Vpieqop), lhs, rhs) -> traverse pass2 lhs; traverse pass2 rhs
 | TUPLE2 (Vpiconcatop, TLIST lst) -> List.iter (traverse pass2) lst
 | TUPLE4 (Part_select, STRING nam, VpiNum lft, VpiNum rght) -> ()
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING wire) -> ()
@@ -158,6 +158,7 @@ if Hashtbl.mem declare_h wire then Id (wire) else Void
    stmt'
 | TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> If_ (remapp cond, [remapp lhs], [remapp rhs])
 | TUPLE3 (Vpiaddop, lhs, rhs) -> Add (remapp lhs, remapp rhs)
+| TUPLE3 (Vpimultop, lhs, rhs) -> Mult (remapp lhs, remapp rhs)
 | TUPLE2 (Vpiconcatop, TLIST lst) ->
    conlst := lst;
    let lst' = List.map remapp lst in
@@ -197,11 +198,56 @@ let rec combiner = function
 let remapp'' = List.map strength_reduce remapp' in
 let remapp''' = combiner remapp'' in
 
+let add' lhs rhs =
+let wlhs = width lhs in
+let wrhs = width rhs in
+if wlhs = wrhs then
+lhs +: rhs
+else if wlhs < wrhs then
+(uresize lhs wrhs) +: rhs
+else if wlhs > wrhs then
+lhs +: (uresize rhs wlhs)
+else failwith "add'" in
+
+let mult' lhs rhs =
+let wlhs = width lhs in
+let wrhs = width rhs in
+if wlhs = wrhs then
+lhs *: rhs
+else if wlhs < wrhs then
+(uresize lhs wrhs) *: rhs
+else if wlhs > wrhs then
+lhs *: (uresize rhs wlhs)
+else failwith "mult'" in
+
+let equal' lhs rhs =
+let wlhs = width lhs in
+let wrhs = width rhs in
+if wlhs = wrhs then
+lhs ==: rhs
+else if wlhs < wrhs then
+(uresize lhs wrhs) ==: rhs
+else if wlhs > wrhs then
+lhs ==: (uresize rhs wlhs)
+else failwith "equal'" in
+
+let assign' (lhs:Hardcaml.Always.Variable.t) rhs =
+let wlhs = width lhs.value in
+let wrhs = width rhs in
+if wlhs = wrhs then
+lhs <-- rhs
+else if wlhs < wrhs then
+lhs <-- (uresize rhs wlhs)
+else if wlhs > wrhs then
+lhs <-- (uresize rhs wlhs)
+else failwith "equal'" in
+
 let rec (remap:remapp->remap) = function
 | Id wire ->
 if Hashtbl.mem declare_h wire then Hashtbl.find declare_h wire else Invalid
-| Eq (lhs, rhs) -> Sig (sig' (remap lhs) ==: sig' (remap rhs))
-| Add (lhs, rhs) -> Sig (sig' (remap lhs) +: sig' (remap rhs))
+| Eq (lhs, rhs) -> Sig (equal' (sig' (remap lhs)) (sig' (remap rhs)))
+| Add (lhs, rhs) -> Sig (add' (sig' (remap lhs)) (sig' (remap rhs)))
+| Mult (lhs, rhs) -> Sig (mult' (sig' (remap lhs)) (sig' (remap rhs)))
 | If_ (cond, lhs, rhs) ->
   let cond_ = sig' (remap cond) in
   let then_ = List.map (fun itm -> alw' (remap itm)) lhs in
@@ -214,7 +260,7 @@ if Hashtbl.mem declare_h wire then Hashtbl.find declare_h wire else Invalid
    othrmrhs' := remap rhs;
    let lhs = var' (remap lhs) in
    let rhs = sig' (remap rhs) in
-   Alw (lhs <-- rhs)
+   Alw (assign' lhs rhs)
 | Const s ->
     let cons = Signal.of_bit_string s in
     Sig cons
@@ -230,32 +276,16 @@ if Hashtbl.mem declare_h wire then Hashtbl.find declare_h wire else Invalid
 | oth -> othp := oth; failwith "remap"
  in
 
-(*
-let aa = Signal.input "aa" 8 in
-let bb = Signal.input "bb" 8 in
-let clock = Signal.input "clock" 1
-let clear = Signal.input "clear" 1
-let r_sync = Reg_spec.create ~clock ~clear ()
-let cc_reg = Always.Variable.reg ~enable:Signal.vdd r_sync ~width:8
-let cc_wire = Always.Variable.wire ~default:(Signal.zero 8)
-
-let blk' = [
-    if_ (aa ==: bb) [cc_reg <-- (select aa 6 0) @: Signal.of_bit_string "0";
-                     cc_wire <-- (select aa 6 0) @: Signal.of_bit_string "0"]
-    [cc_reg <-- aa +: bb; cc_wire <-- aa +: bb]
- ]
- 
-let () = Always.(compile blk') in
-
-let cct' = Hardcaml.Circuit.create_exn ~name:"creat'" (List.map (fun (s,v) -> output s v) ["cc_wire", cc_wire.value; "cc_reg", cc_reg.value])
-*)
-
+othremap := remapp''';
 let remap' = List.filter (function Invalid -> false | Sig _ -> false |_ -> true) (List.map remap remapp''') in
 let remap'' = List.map alw' remap' in
 let _ = Always.compile remap'' in
-othremap := remapp''';
-let oplst = ref [] in Hashtbl.iter (fun k -> function Var v ->
-					oplst := output k v.value :: !oplst | _ -> ()) declare_h;
+alst := [];
+let oplst = ref [] in Hashtbl.iter (fun k -> function
+        | Var v -> oplst := output k v.value :: !oplst
+        | Alw v -> ()
+        | Sig v -> alst := (k, v) :: !alst
+        | Invalid -> ()) declare_h;
 Hardcaml.Circuit.create_exn ~name:"creat" !oplst
 end
 

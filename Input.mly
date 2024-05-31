@@ -1898,6 +1898,7 @@ concat_lst: Vpioperand COLON oexpr { [ $3 ] }
 
 dyadic:
   | Vpiaddop { Vpiaddop }
+  | Vpimultop { Vpimultop }
   | Vpieqop { Vpieqop }
   
 vport:

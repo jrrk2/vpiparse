@@ -5,6 +5,8 @@ open Input
 open Input_main
 open Input_rewrite
 open Input_lex
+open Hardcaml
+open Signal
 
 #print_length 1000000;;
 #print_depth 1000000;;
