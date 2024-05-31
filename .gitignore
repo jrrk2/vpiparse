@@ -3,6 +3,7 @@ Input.ml
 Input.mli
 Input_lex.ml
 *.cm?
+Input
 Input_top
 Input.conflicts
 uhdm.txt

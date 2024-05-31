@@ -46,12 +46,19 @@ let cnv v =
 begin
 let p = Input_rewrite.parse v in
 
-let reflst = ref [] in
-let _ = Hashtbl.iter (fun k x -> reflst := (k,x) :: !reflst) refh in
-let reflst = !reflst in
-let declare_inputh = Hashtbl.create 255 in
-let declare_wireh = Hashtbl.create 255 in
-let declare_regh = Hashtbl.create 255 in
+let declare_h = Hashtbl.create 257 in
+
+let sig' = function
+| Sig x -> x
+| oth -> othr := oth; failwith "sig'"
+ in
+let alw' = function
+| Alw x -> x
+| oth -> othr := oth; failwith "alw'" in
+
+let var' = function
+| Var x -> x
+| oth -> othr := oth; failwith "var'" in
 
 let declare_input port =
   if false then print_endline port;
@@ -60,7 +67,7 @@ let declare_input port =
     | {lft = VpiNum lft'; rght = VpiNum rght'; lfttyp = Vpiuintconst;
    rghttyp = Vpiuintconst; lftsiz = VpiNum "64"; rghtsiz = VpiNum "64"} -> int_of_string lft' - int_of_string rght' + 1
     | oth -> othdim := Some oth; 1 else 1 in
-  Hashtbl.add declare_inputh port (Signal.input port wid) in
+  Hashtbl.add declare_h port (Sig (Signal.input port wid)) in
 
 let declare_wire = function
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING wire) ->
@@ -70,11 +77,11 @@ let declare_wire = function
     | {lft = VpiNum lft'; rght = VpiNum rght'; lfttyp = Vpiuintconst;
    rghttyp = Vpiuintconst; lftsiz = VpiNum "64"; rghtsiz = VpiNum "64"} -> int_of_string lft' - int_of_string rght' + 1
     | oth -> othdim := Some oth; 1 else 1 in
-  Hashtbl.add declare_wireh wire (Always.Variable.wire ~default:(Signal.zero wid))
+  Hashtbl.add declare_h wire (Var (Always.Variable.wire ~default:(Signal.zero wid)))
 | _ -> () in
 
 let declare_reg = function
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING reg) -> if Hashtbl.mem declare_regh reg then () else
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING reg) -> if Hashtbl.mem declare_h reg then () else
   begin
   if true then print_endline reg;
     let wid = if Hashtbl.mem refh (STRING reg) then
@@ -82,10 +89,10 @@ let declare_reg = function
     | {lft = VpiNum lft'; rght = VpiNum rght'; lfttyp = Vpiuintconst;
    rghttyp = Vpiuintconst; lftsiz = VpiNum "64"; rghtsiz = VpiNum "64"} -> int_of_string lft' - int_of_string rght' + 1
     | oth -> othdim := Some oth; 1 else 1 in
-  let clock = Hashtbl.find declare_inputh "clock" in
-  let clear = Hashtbl.find declare_inputh "clear" in
+  let clock = sig' (Hashtbl.find declare_h "clock") in
+  let clear = sig' (Hashtbl.find declare_h "clear") in
   let r_sync = Reg_spec.create ~clock ~clear () in
-  Hashtbl.add declare_regh reg (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid);
+  Hashtbl.add declare_h reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid));
   end
 | _ -> () in
 
@@ -128,10 +135,7 @@ let conlst' = ref [] in
 
 let rec (remapp:token->remapp) = function
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING wire) ->
-if Hashtbl.mem declare_inputh wire then Id (wire)
-else if Hashtbl.mem declare_regh wire then Id (wire)
-else if Hashtbl.mem declare_wireh wire then Id (wire)
-else Void
+if Hashtbl.mem declare_h wire then Id (wire) else Void
 | TUPLE3 (Vpieqop, lhs, rhs) -> Eq (remapp lhs, remapp rhs)
 | TUPLE4 (If_else, cond, lhs, rhs) ->
   let then_ =  (remapp lhs) in
@@ -193,24 +197,9 @@ let rec combiner = function
 let remapp'' = List.map strength_reduce remapp' in
 let remapp''' = combiner remapp'' in
 
-let sig' = function
-| Sig x -> x
-| oth -> othr := oth; failwith "sig'"
- in
-let alw' = function
-| Alw x -> x
-| oth -> othr := oth; failwith "alw'" in
-
-let var' = function
-| Var x -> x
-| oth -> othr := oth; failwith "var'" in
-
 let rec (remap:remapp->remap) = function
 | Id wire ->
-if Hashtbl.mem declare_inputh wire then Sig (Hashtbl.find declare_inputh wire)
-else if Hashtbl.mem declare_regh wire then Var (Hashtbl.find declare_regh wire)
-else if Hashtbl.mem declare_wireh wire then Var (Hashtbl.find declare_wireh wire)
-else Invalid
+if Hashtbl.mem declare_h wire then Hashtbl.find declare_h wire else Invalid
 | Eq (lhs, rhs) -> Sig (sig' (remap lhs) ==: sig' (remap rhs))
 | Add (lhs, rhs) -> Sig (sig' (remap lhs) +: sig' (remap rhs))
 | If_ (cond, lhs, rhs) ->
@@ -263,12 +252,11 @@ let cct' = Hardcaml.Circuit.create_exn ~name:"creat'" (List.map (fun (s,v) -> ou
 
 let remap' = List.filter (function Invalid -> false | Sig _ -> false |_ -> true) (List.map remap remapp''') in
 let remap'' = List.map alw' remap' in
-let () = Always.compile remap'' in
+let _ = Always.compile remap'' in
 othremap := remapp''';
-let c_reg = Hashtbl.find declare_regh "c_reg" in
-let c_wire = Hashtbl.find declare_wireh "c_wire" in
-let cct = Hardcaml.Circuit.create_exn ~name:"creat" (List.map (fun (s,v) -> output s v) ["c_wire", c_wire.value; "c_reg", c_reg.value]) in
-cct
+let oplst = ref [] in Hashtbl.iter (fun k -> function Var v ->
+					oplst := output k v.value :: !oplst | _ -> ()) declare_h;
+Hardcaml.Circuit.create_exn ~name:"creat" !oplst
 end
 
 let _ = if Array.length Sys.argv > 1 then Hardcaml.Rtl.print Verilog (cnv Sys.argv.(1))
