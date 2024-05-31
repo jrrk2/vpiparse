@@ -1,6 +1,9 @@
-TRACE = --explain --trace
+TRACE = --explain # --trace
 
 ############################################################################
+
+Input: Input.cmo ord_input.ml Input_lex.ml Input_rewrite.ml Input_main.ml
+	ocamlfind ocamlc -g -o $@  -package base,hardcaml,hardcaml_waveterm -linkpkg Input.cmo ord_input.ml Input_lex.ml Input_rewrite.ml Input_main.ml
 
 Input_top: Input.cmo ord_input.ml Input_lex.ml Input_rewrite.ml Input_main.ml
 	ocamlfind ocamlmktop -g -o $@  -package base,hardcaml,hardcaml_waveterm -linkpkg Input.cmo ord_input.ml Input_lex.ml Input_rewrite.ml Input_main.ml

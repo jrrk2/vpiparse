@@ -1,3 +1,6 @@
+#directory "/Users/jonathan/.opam/default/lib/hardcaml";;
+#directory "/Users/jonathan/.opam/default/lib/base";;
+
 open Input
 open Input_main
 open Input_rewrite
@@ -6,13 +9,5 @@ open Input_lex
 #print_length 1000000;;
 #print_depth 1000000;;
 
-(*
-let p = op "cond.txt";;
-let p = op "../picorv32/picorv32.txt";;
-*)
-
-let p = op "uhdm.txt";;
-
-let reflst = ref [];;
-let _ = Hashtbl.iter (fun k x -> reflst := (k,x) :: !reflst) refh;;
-let reflst = !reflst;;
+let cct = cnv "uhdm.txt";;
+let _ = Hardcaml.Rtl.print Verilog cct
