@@ -3,8 +3,11 @@ Input.ml
 Input.mli
 Input_lex.ml
 *.cm?
+*.o
 Input
+Input_opt
 Input_top
 Input.conflicts
 uhdm.txt
 slpp_all/
+*.v

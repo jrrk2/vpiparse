@@ -1,4 +1,4 @@
-module mult (
+module multiplier_test (
     input clear,
     input clock,
     input [3:0] b,

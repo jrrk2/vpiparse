@@ -12,4 +12,4 @@ open Signal
 #print_depth 1000000;;
 
 let cct = cnv "uhdm.txt";;
-let _ = Hardcaml.Rtl.print Verilog cct
+let _ = Hardcaml.Rtl.output Verilog cct

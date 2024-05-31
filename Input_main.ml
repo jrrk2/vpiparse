@@ -42,12 +42,47 @@ let otht = ref None
 let othdim = ref None
 let othremap = ref []
 let alst = ref []
+let ptree = ref []
 
 let declare_h = Hashtbl.create 257
+
+let add_fast a_sig b_sig =
+          (Hardcaml_circuits.Prefix_sum.create
+             ~config:Kogge_stone
+             (module Signal)
+             ~input1:(a_sig)
+             ~input2:(b_sig)
+             ~carry_in:(Signal.zero 1))
+
+let mult_wallace a_sig b_sig =
+          (Hardcaml_circuits.Mul.create
+             ~config:Wallace
+             (module Signal)
+             (a_sig)
+             (b_sig))
+
+let sim_mult n_bits =
+  let circuit =
+    Circuit.create_exn
+      ~name:"lfsr"
+      [ output "o" (mult_wallace (input "a" n_bits) (input "b" n_bits))]
+  in
+  let sim = Cyclesim.create circuit in
+  let a = Cyclesim.in_port sim "a" in
+  let b = Cyclesim.in_port sim "b" in
+  fun () ->
+    for i = 0 to (1 lsl n_bits) - 1 do
+      for j = 0 to (1 lsl n_bits) - 1 do
+        a := Bits.of_int ~width:n_bits i;
+        b := Bits.of_int ~width:n_bits j;
+        Cyclesim.cycle sim
+      done
+    done
 
 let cnv v =
 begin
 let p = Input_rewrite.parse v in
+ptree := p;
 
 let sig' = function
 | Sig x -> x
@@ -209,15 +244,15 @@ else if wlhs > wrhs then
 lhs +: (uresize rhs wlhs)
 else failwith "add'" in
 
-let mult' lhs rhs =
+let add'' lhs rhs =
 let wlhs = width lhs in
 let wrhs = width rhs in
 if wlhs = wrhs then
-lhs *: rhs
+add_fast lhs rhs
 else if wlhs < wrhs then
-(uresize lhs wrhs) *: rhs
+add_fast (uresize lhs wrhs) rhs
 else if wlhs > wrhs then
-lhs *: (uresize rhs wlhs)
+add_fast lhs (uresize rhs wlhs)
 else failwith "mult'" in
 
 let equal' lhs rhs =
@@ -246,8 +281,8 @@ let rec (remap:remapp->remap) = function
 | Id wire ->
 if Hashtbl.mem declare_h wire then Hashtbl.find declare_h wire else Invalid
 | Eq (lhs, rhs) -> Sig (equal' (sig' (remap lhs)) (sig' (remap rhs)))
-| Add (lhs, rhs) -> Sig (add' (sig' (remap lhs)) (sig' (remap rhs)))
-| Mult (lhs, rhs) -> Sig (mult' (sig' (remap lhs)) (sig' (remap rhs)))
+| Add (lhs, rhs) -> Sig (add'' (sig' (remap lhs)) (sig' (remap rhs)))
+| Mult (lhs, rhs) -> Sig (mult_wallace (sig' (remap lhs)) (sig' (remap rhs)))
 | If_ (cond, lhs, rhs) ->
   let cond_ = sig' (remap cond) in
   let then_ = List.map (fun itm -> alw' (remap itm)) lhs in
@@ -286,7 +321,9 @@ let oplst = ref [] in Hashtbl.iter (fun k -> function
         | Alw v -> ()
         | Sig v -> alst := (k, v) :: !alst
         | Invalid -> ()) declare_h;
-Hardcaml.Circuit.create_exn ~name:"creat" !oplst
+match p with
+| lst::STRING name::tl -> Hardcaml.Circuit.create_exn ~name !oplst
+| oth -> failwith "Could not extract circuit name"
 end
 
-let _ = if Array.length Sys.argv > 1 then Hardcaml.Rtl.print Verilog (cnv Sys.argv.(1))
+let _ = if Array.length Sys.argv > 1 then Hardcaml.Rtl.output Verilog (cnv Sys.argv.(1))
