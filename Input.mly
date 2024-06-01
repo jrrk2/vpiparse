@@ -722,8 +722,9 @@ let vpi_task_func = function
 %token  VBAR
 %token FINISHED
 %token INT
-%token <Int64.t> HEX
-%token <Int64.t> DEC
+%token <string> HEX
+%token <string> DEC
+%token <string> OCT
 %token <string> BIN
 %token KILLED
 %token Post_Elab
@@ -1295,6 +1296,7 @@ parameter_opt:
   | INT COLON VpiNum { TUPLE2(INT, VpiNum $3) }
   | HEX { HEX $1 }
   | DEC { DEC $1 }
+  | OCT { OCT $1 }
   | BIN { BIN $1 }
   | Vpisigned COLON VpiNum { Vpisigned }
   | Vpilocalparam COLON VpiNum { Vpilocalparam }
@@ -1458,7 +1460,7 @@ io_decl_opt:
   | Vpidirection COLON VpiNum { TUPLE2(Vpidirection, direction $3) }
   | Vpilowconn COLON oexpr { TUPLE2(Vpilowconn,$3) }
   | Vpihighconn COLON oexpr { TUPLE2(Vpihighconn,$3) }
-  | Vpiexpr COLON oexpr { TUPLE2(Vpiexpr,$3) }
+  | Vpiexpr COLON oexpr { $3 }
   | Vpitypedef COLON ref_typespec { $3 }
   | Vpiinstance COLON Module_inst COLON module_inst_def { TUPLE2(Vpiinstance, $5) }
 
@@ -1504,6 +1506,7 @@ constant_opt:
   | STRING_CONST { STRING_CONST $1 }
   | HEX { HEX $1 }
   | DEC { DEC $1 }
+  | OCT { OCT $1 }
   | BIN { BIN $1 }
   | Vpiconsttype COLON VpiNum { cons_typ $3 }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
@@ -1742,7 +1745,7 @@ case_item_opt:
   | Vpiname COLON vnam { $3 }
   | Vpiname COLON Work AT name { $5 }
   | Vpifullname COLON fullnam { $3 }
-  | Vpiexpr COLON oexpr { TUPLE2(Vpiexpr,$3) }
+  | Vpiexpr COLON oexpr { $3 }
   | Vpistmt COLON stmt { $3 }
 
 case_stmt_lst: { [] }

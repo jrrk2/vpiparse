@@ -35,22 +35,34 @@ type remapp =
   | Void
   | Id of string
   | Alw of Hardcaml.Always.t
-  | Const of string
+  | Bin of string * int
+  | Oct of string * int
+  | Dec of string * int
+  | Hex of string * int
   | Infix of string
   | Prefix of string
   | Add of remapp * remapp
+  | Sub of remapp * remapp
   | Mult of remapp * remapp
   | Eq of remapp * remapp
   | If_ of remapp * remapp list * remapp list
+  | Mux2 of remapp * remapp * remapp
   | Asgn of remapp * remapp * remapp
   | Concat of remapp * remapp
   | Select of remapp * string * string
+  | Seq of remapp list
 
 type remap =
   | Invalid
+  | Con of Hardcaml.Constant.t
   | Sig of Hardcaml.Signal.t
   | Alw of Hardcaml.Always.t
   | Var of Hardcaml.Always.Variable.t
+
+type attr = {
+  pass: bool;
+  clock: string option;
+}
 
 let othr = ref Invalid
 let othlhs = ref Void
@@ -67,12 +79,17 @@ let othdim = ref None
 let othremap = ref []
 let alst = ref []
 let ptree = ref []
+let othedg = ref Work
 
 let declare_h = Hashtbl.create 257
 
+let rec log2 n = if n <= 1 then 0 else 1 + log2 (n/2)
+
+let exact_log2 n = 1 lsl (log2 n) = n
+
 let add_fast a_sig b_sig =
           (Hardcaml_circuits.Prefix_sum.create
-             ~config:Kogge_stone
+             ~config:(if exact_log2 (width a_sig) && exact_log2 (width b_sig) then Kogge_stone else Sklansky)
              (module Signal)
              ~input1:(a_sig)
              ~input2:(b_sig)
@@ -109,9 +126,11 @@ let p = Input_rewrite.parse v in
 ptree := p;
 
 let sig' = function
+| Con x -> Signal.of_constant x
 | Sig x -> x
-| oth -> othr := oth; failwith "sig'"
- in
+| Var x -> x.value
+| oth -> othr := oth; failwith "sig'" in
+
 let alw' = function
 | Alw x -> x
 | oth -> othr := oth; failwith "alw'" in
@@ -140,7 +159,7 @@ let declare_wire = function
   Hashtbl.add declare_h wire (Var (Always.Variable.wire ~default:(Signal.zero wid)))
 | _ -> () in
 
-let declare_reg = function
+let declare_reg attr = function
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING reg) -> if Hashtbl.mem declare_h reg then () else
   begin
   if false then print_endline reg;
@@ -149,43 +168,50 @@ let declare_reg = function
     | {lft = VpiNum lft'; rght = VpiNum rght'; lfttyp = Vpiuintconst;
    rghttyp = Vpiuintconst; lftsiz = VpiNum "64"; rghtsiz = VpiNum "64"} -> int_of_string lft' - int_of_string rght' + 1
     | oth -> othdim := Some oth; 1 else 1 in
-  let clock = sig' (Hashtbl.find declare_h "clock") in
+  let clock = match attr.clock with Some clk -> sig' (Hashtbl.find declare_h clk) | None -> failwith ("failed to indentify clock for register: "^reg) in
+(*
   let clear = sig' (Hashtbl.find declare_h "clear") in
-  let r_sync = Reg_spec.create ~clock ~clear () in
+*) 
+  let r_sync = Reg_spec.create ~clock () in
   Hashtbl.add declare_h reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid));
   end
 | _ -> () in
 
-let rec traverse pass2 = function
+let rec traverse (attr:attr) = function
 | TUPLE3 (Always, Vpiassignstmt,
    TUPLE3 (Assignment, lhs, rhs)) ->
-   traverse pass2 lhs;
-   traverse pass2 rhs;
-   if not pass2 then declare_wire lhs
+   traverse attr lhs;
+   traverse attr rhs;
+   if not attr.pass then declare_wire lhs
 | TUPLE3 (Assignment, lhs, rhs) ->
-   traverse pass2 lhs;
-   traverse pass2 rhs;
-   if pass2 then declare_reg lhs
-| TUPLE3 (Always, TUPLE2 (Vpiposedgeop, edg), stmt) -> traverse pass2 edg; traverse pass2 stmt
-| TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> traverse pass2 cond; traverse pass2 lhs; traverse pass2 rhs
-| TUPLE4 (If_else, cond, lhs, rhs) -> traverse pass2 cond; traverse pass2 lhs; traverse pass2 rhs
-| TUPLE3 ((Vpiaddop|Vpimultop|Vpieqop), lhs, rhs) -> traverse pass2 lhs; traverse pass2 rhs
-| TUPLE2 (Vpiconcatop, TLIST lst) -> List.iter (traverse pass2) lst
-| TUPLE4 (Part_select, STRING nam, VpiNum lft, VpiNum rght) -> ()
+   traverse attr lhs;
+   traverse attr rhs;
+   if attr.pass then declare_reg attr lhs
+| TUPLE3 (Always, TUPLE2 (Vpiposedgeop, (TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING clk) as edg)), stmt) ->
+   othedg := edg;
+   if false then print_endline clk;
+   traverse {attr with clock=Some clk} stmt
+| TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> traverse attr cond; traverse attr lhs; traverse attr rhs
+| TUPLE4 (If_else, cond, lhs, rhs) -> traverse attr cond; traverse attr lhs; traverse attr rhs
+| TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpieqop), lhs, rhs) -> traverse attr lhs; traverse attr rhs
+| TUPLE2 (Vpiconcatop, TLIST lst) -> List.iter (traverse attr) lst
+| TUPLE4 (Part_select, STRING nam, lft, rght) -> ()
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TLIST pth)), STRING wire) -> ()
 | TUPLE2 (Vpioutput, STRING port)	    -> ()
-| TUPLE2 (Vpiinput, STRING port)	    -> if not pass2 then declare_input port
+| TUPLE2 (Vpiinput, STRING port)	    -> if not attr.pass then declare_input port
 | TUPLE3 (Logic_net, Vpireg, STRING reg) -> ()
 | TUPLE3 (Logic_net, Vpinet, STRING net) -> ()
 | TUPLE2 (Logic_net, STRING net) -> ()
+| TUPLE3 ((Vpibinaryconst|Vpioctconst|Vpidecconst|Vpihexconst|Vpiuintconst), (BIN _|OCT _|DEC _|HEX _|VpiNum _), VpiNum _) -> ()
+| TUPLE3 (Begin, TLIST pth, TLIST lst) -> List.iter (traverse attr) lst
 | STRING s -> ()
 | TLIST [] -> ()
 | VpiNum s -> ()
-| (Always|Vpitopmodule|Vpitop|Vpiname) -> ()
-| oth -> otht := Some oth in
+| (Always|Vpitopmodule|Vpitop|Vpiname|Vpiparent) -> ()
+| oth -> otht := Some oth; failwith "traverse failed with otht" in
 
-let _ = List.iter (traverse false) p in
-let _ = List.iter (traverse true) p in
+let _ = List.iter (traverse {pass=false; clock=None}) p in
+let _ = List.iter (traverse {pass=true; clock=None}) p in
   
 let edgstmt = ref Work in
 let edgstmt' = ref Void in
@@ -210,13 +236,14 @@ if Hashtbl.mem declare_h wire then Id (wire) else Void
    let lhs = (remapp lhs) in
    let rhs = (remapp rhs) in
    Asgn (lhs, Infix "<--", rhs)
-| TUPLE3 (Always, TUPLE2 (Vpiposedgeop, edg), TUPLE4(If_else, clear, rst, stmt)) ->
+| TUPLE3 (Always, TUPLE2 (Vpiposedgeop, edg), stmt) ->
    edgstmt := stmt; 
    let stmt' = remapp stmt in
    edgstmt' := stmt';
    stmt'
-| TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> If_ (remapp cond, [remapp lhs], [remapp rhs])
+| TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> Mux2 (remapp cond, remapp lhs, remapp rhs)
 | TUPLE3 (Vpiaddop, lhs, rhs) -> Add (remapp lhs, remapp rhs)
+| TUPLE3 (Vpisubop, lhs, rhs) -> Sub (remapp lhs, remapp rhs)
 | TUPLE3 (Vpimultop, lhs, rhs) -> Mult (remapp lhs, remapp rhs)
 | TUPLE2 (Vpiconcatop, TLIST lst) ->
    conlst := lst;
@@ -227,7 +254,8 @@ if Hashtbl.mem declare_h wire then Id (wire) else Void
      | hd :: [] -> hd
      | hd :: tl -> Concat(hd, concat tl) in
    concat lst'
-| TUPLE4 (Part_select, STRING nam, VpiNum lft, VpiNum rght) -> Select(Id nam, lft, rght)
+| TUPLE4 (Part_select, STRING nam, TUPLE3 (Vpiuintconst, VpiNum lft, VpiNum _), TUPLE3 (Vpiuintconst, VpiNum rght, VpiNum _)) ->
+   Select(Id nam, lft, rght)
 | TUPLE2 (Vpioutput, STRING port)	    -> Void
 | TUPLE2 (Vpiinput, STRING port)	    -> Void
 | TUPLE3 (Logic_net, Vpireg, STRING reg) -> Void
@@ -235,11 +263,13 @@ if Hashtbl.mem declare_h wire then Id (wire) else Void
 | TUPLE2 (Logic_net, STRING net) -> Void
 | STRING s -> Void
 | TLIST [] -> Void
-| VpiNum s ->
-    let cons = Scanf.sscanf s "%d'b%s" (fun w s -> Const s) in
-    cons
+| TUPLE3 (Vpibinaryconst, BIN s, VpiNum wid) -> Bin (s,int_of_string wid)
+| TUPLE3 (Vpioctconst, OCT s, VpiNum wid) -> Oct (s,int_of_string wid)
+| TUPLE3 (Vpiuintconst, VpiNum s, VpiNum wid) -> Dec (s,int_of_string wid)
+| TUPLE3 (Vpihexconst, HEX s, VpiNum wid) -> Hex (s,int_of_string wid)
 | (Always|Vpitopmodule|Vpitop|Vpiname) -> Void
-| oth -> otht := Some oth; Void in
+| TUPLE3 (Begin, TLIST pth, TLIST (Vpiparent :: TLIST [] :: lst)) -> Seq (List.map remapp lst)
+| oth -> otht := Some oth; failwith "remapp failed with otht"; in
 
 let remapp' = List.filter (function Void -> false |_ -> true) (List.map remapp p) in
 
@@ -252,23 +282,24 @@ let rec strength_reduce = function
 let rec combiner = function
 | If_ (Eq (a, b), c, d) ::
   If_ (Eq (a', b'), c', d') :: [] when a=a' && b=b' -> If_ (Eq (a, b), c@c', d@d') :: []
+| Seq lst :: tl -> combiner (lst @ tl)
 | oth -> oth in
 
 let remapp'' = List.map strength_reduce remapp' in
 let remapp''' = combiner remapp'' in
 
-let add' lhs rhs =
+let sub' lhs rhs =
 let wlhs = width lhs in
 let wrhs = width rhs in
 if wlhs = wrhs then
-lhs +: rhs
+lhs -: rhs
 else if wlhs < wrhs then
-(uresize lhs wrhs) +: rhs
+(uresize lhs wrhs) -: rhs
 else if wlhs > wrhs then
-lhs +: (uresize rhs wlhs)
-else failwith "add'" in
+lhs -: (uresize rhs wlhs)
+else failwith "sub'" in
 
-let add'' lhs rhs =
+let add' lhs rhs =
 let wlhs = width lhs in
 let wrhs = width rhs in
 if wlhs = wrhs then
@@ -290,6 +321,17 @@ else if wlhs > wrhs then
 lhs ==: (uresize rhs wlhs)
 else failwith "equal'" in
 
+let mux2' cond lhs rhs =
+let wlhs = width lhs in
+let wrhs = width rhs in
+if wlhs = wrhs then
+mux2 cond lhs rhs
+else if wlhs < wrhs then
+mux2 cond (uresize lhs wrhs) rhs
+else if wlhs > wrhs then
+mux2 cond lhs (uresize rhs wlhs)
+else failwith "mux2'" in
+
 let assign' (lhs:Hardcaml.Always.Variable.t) rhs =
 let wlhs = width lhs.value in
 let wrhs = width rhs in
@@ -305,13 +347,19 @@ let rec (remap:remapp->remap) = function
 | Id wire ->
 if Hashtbl.mem declare_h wire then Hashtbl.find declare_h wire else Invalid
 | Eq (lhs, rhs) -> Sig (equal' (sig' (remap lhs)) (sig' (remap rhs)))
-| Add (lhs, rhs) -> Sig (add'' (sig' (remap lhs)) (sig' (remap rhs)))
+| Add (lhs, rhs) -> Sig (add' (sig' (remap lhs)) (sig' (remap rhs)))
+| Sub (lhs, rhs) -> Sig (sub' (sig' (remap lhs)) (sig' (remap rhs)))
 | Mult (lhs, rhs) -> Sig (mult_wallace (sig' (remap lhs)) (sig' (remap rhs)))
+| Mux2 (cond, lhs, rhs) ->
+  let cond_ = sig' (remap cond) in
+  let then_ = sig' (remap lhs) in
+  let else_ = sig' (remap rhs) in
+  Sig (mux2' cond_ then_ else_)
 | If_ (cond, lhs, rhs) ->
   let cond_ = sig' (remap cond) in
   let then_ = List.map (fun itm -> alw' (remap itm)) lhs in
   let else_ = List.map (fun itm -> alw' (remap itm)) rhs in
-  Alw (if_ (cond_) then_ else_)
+  Alw (if_ cond_ then_ else_)
 | Asgn (lhs, Infix "<--", rhs) ->
    othlhs' := lhs;
    othrhs' := rhs;
@@ -320,9 +368,10 @@ if Hashtbl.mem declare_h wire then Hashtbl.find declare_h wire else Invalid
    let lhs = var' (remap lhs) in
    let rhs = sig' (remap rhs) in
    Alw (assign' lhs rhs)
-| Const s ->
-    let cons = Signal.of_bit_string s in
-    Sig cons
+| Hex (s,width) -> Con (Constant.of_hex_string ~width ~signedness:Unsigned s)
+| Dec (s,width) -> Con (Constant.of_z ~width (Z.of_string s))
+| Oct (s,width) -> Con (Constant.of_octal_string ~width ~signedness:Unsigned s)
+| Bin (s,width) -> Con (Constant.of_binary_string_hum s)
 | Concat (lhs, rhs) -> 
    othlhs' := lhs;
    othrhs' := rhs;
@@ -342,6 +391,7 @@ let _ = Always.compile remap'' in
 alst := [];
 let oplst = ref [] in Hashtbl.iter (fun k -> function
         | Var v -> oplst := output k v.value :: !oplst
+        | Con v -> ()
         | Alw v -> ()
         | Sig v -> alst := (k, v) :: !alst
         | Invalid -> ()) declare_h;

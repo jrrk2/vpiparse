@@ -88,9 +88,9 @@ let rec rw = function
 | TUPLE3 (Assignment,
 		  TUPLE2 (Vpirhs, rhs),
 		  TUPLE2 (Vpilhs, lhs)) -> TUPLE3(Assignment, rw lhs, rw rhs)
-| TUPLE2 ((Vpiposedgeop as op), op1) -> TUPLE2(op, rw op1)
-| TUPLE2 ((Vpiconcatop as op), TLIST op1) -> TUPLE2(op, TLIST (List.map rw op1))
-| TUPLE3 ((Vpiaddop|Vpimultop|Vpieqop as op), op1, op2) -> TUPLE3(op, rw op1, rw op2)
+| TUPLE2 ((Vpiposedgeop|Vpinegedgeop|Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop|Vpibitnegop|Vpiplusop|Vpiminusop|Vpinotop as op), op1) -> TUPLE2(op, rw op1)
+| TUPLE2 ((Vpiconcatop|Vpimulticoncatop as op), TLIST op1) -> TUPLE2(op, TLIST (List.map rw op1))
+| TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpilshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), op1, op2) -> TUPLE3(op, rw op1, rw op2)
 | TUPLE4 (Vpiconditionop as op, op1, op2, op3) -> TUPLE4(op, rw op1, rw op2, rw op3)
 | TUPLE2 ((Vpitopmodule|Vpitop|Vpiblocking|Vpicasetype as top), VpiNum "1") -> top
 (*
@@ -100,6 +100,7 @@ let rec rw = function
         func)) -> TUPLE2(func, rw obj1)
 	*)
 | TUPLE2 (Sys_func_call, arg) -> TUPLE2 (Sys_func_call, rw arg)
+| TUPLE3 (Sys_func_call, arg, (STRING ("$unsigned"|"$signed") as op)) -> TUPLE3 (Sys_func_call, rw arg, rw op)
 | TUPLE2 (Vpiactual, Logic_var) -> Logic_var
 | TUPLE4 (Ref_obj, nam,
       TLIST pth,
@@ -116,7 +117,7 @@ let rec rw = function
 | TUPLE2 ((Ref_module|Module_inst|Vpigenstmt|Begin|Assignment|Event_control|Always as op), TLIST ilst) -> TUPLE2(op, TLIST ( List.map rw ilst ))
 | TUPLE2 (Initial, arg) -> TUPLE2(Initial, rw arg)
 | TUPLE4 (If_else, TUPLE2 (Vpicondition, cond), if_clause, else_clause) -> TUPLE4(If_else, rw cond, rw if_clause, rw else_clause)
-| TUPLE3 (Begin, TLIST pth, TLIST lst) -> TUPLE2(TLIST pth, TLIST (List.map rw lst))
+| TUPLE3 (Begin, TLIST pth, TLIST lst) -> TUPLE3(Begin, TLIST pth, TLIST (List.map rw lst))
 | TUPLE2 (Vpilhs, TUPLE2 (Ref_obj, TLIST [TLIST pth; s; Vpiparent])) -> rw s
 | TUPLE2 (Vpioperand, op) -> rw op
 | TUPLE2 (Vpiinstance, STRING _) as s -> s
@@ -163,13 +164,19 @@ let rec rw = function
 | TUPLE2 (Ref_obj, TLIST [STRING "$signed"; TLIST pth; op; Vpiparent]) -> op
 | TUPLE2 (Ref_obj, TLIST [STRING "$signed"; TUPLE2 (Vpiactual, Logic_net); TLIST pth; op; Vpiparent]) -> op
 | TUPLE2 (Ref_obj, TLIST [TLIST pth; s; Vpiparent]) -> rw s
+| TUPLE5 (Constant, TUPLE2 (Vpidecompile, VpiNum _),
+      TUPLE2 (Vpisize, VpiNum wid), TUPLE2 (UINT, VpiNum uint), Vpiuintconst) -> TUPLE3 (Vpiuintconst, VpiNum uint, VpiNum wid)
+| TUPLE5 (Constant, TUPLE2 (Vpidecompile, VpiNum _),
+      TUPLE2 (Vpisize, VpiNum wid), (BIN _|OCT _|DEC _|HEX _ as radix), (Vpibinaryconst|Vpioctconst|Vpidecconst|Vpihexconst as kind)) -> TUPLE3 (kind, radix, VpiNum wid)
+| TUPLE4 (Constant, TUPLE2 (Vpidecompile, s), STRING_CONST c, Vpistringconst) -> TUPLE3 (Vpistringconst, STRING_CONST c, VpiNum (string_of_int (8*String.length c)))
+(*
 | TUPLE5 (Constant, TUPLE2 (Vpidecompile, n), _, _, _) -> rw n
-| TUPLE4 (Constant, TUPLE2 (Vpidecompile, s), STRING_CONST c, Vpistringconst) -> rw s
 | TUPLE6 (Constant, TUPLE2 (Vpidecompile, n),
       TUPLE2 (Vpisize, VpiNum "1"), TUPLE2 (UINT, VpiNum "0"),
       TUPLE2 (Vpitypespec, TUPLE5 (Ref_typespec, TLIST pth1, Vpiparent, TLIST pth2, TUPLE2 (Vpiactual, TUPLE2 (Int_typespec, Work)))),
       Vpiuintconst) -> rw n
 | TUPLE2 (Constant, TLIST (Vpiconsttype :: _ :: Vpisize :: TUPLE2 (Vpidecompile, n) :: _)) -> rw n
+*)
 | TUPLE2 (Vpielsestmt, arg) -> rw arg
 | TUPLE2 (Vpivariables,
       TUPLE6 (Int_var,
@@ -197,17 +204,21 @@ let rec rw = function
 | TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, TLIST [Vpiparent])) -> Vpicaseitem
 | TUPLE3 (Case_item,  STRING "empty_statement", Vpitask) -> Vpitask
 | TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, TLIST [TUPLE2 (Vpiexpr, expr); Vpiparent])) -> TUPLE2 (Vpicaseitem, rw expr)
-| TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, TUPLE2 (Vpiexpr, expr))) -> TUPLE2 (Vpicaseitem, rw expr)
+| TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, expr)) -> TUPLE2 (Vpicaseitem, rw expr)
 | TUPLE2 (Case_stmt, TLIST (Vpiparent :: lst)) -> TUPLE2(Case_stmt, TLIST (List.map (function
     | TUPLE2 (Vpicasetype, VpiNum "1") as t -> t
     | TUPLE2 (Vpicaseitem, TUPLE2 (Attribute, a)) ->  rw a
     | TUPLE2 (Vpicondition, cond) -> TUPLE2(Vpicondition, rw cond)
-    | TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, TUPLE2 (Vpiexpr, expr))) -> TUPLE2(Case_item, rw expr)
-    | TUPLE3 (Begin, TLIST pth, TLIST _) -> Begin
+    | TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, stmt)) -> TUPLE2(Case_item, rw stmt)
+    | TUPLE2 (Vpicaseitem, TUPLE2 (Case_item, expr)) -> TUPLE2(Case_item, rw expr)
+    | TUPLE2 (Vpicaseitem, TUPLE3 (Case_item, expr, stmt)) -> TUPLE3(Case_item, rw expr, rw stmt)
+    | TUPLE2 (Vpicaseitem, TUPLE4 (Case_item, expr, stmt, stmt')) -> TUPLE4(Case_item, rw expr, rw stmt, rw stmt')
+    | TUPLE3 (Begin, TLIST pth, TLIST lst) -> TUPLE3(Begin, TLIST pth, TLIST (List.map rw lst))
     | TUPLE2 (Vpicaseitem, Case_item) -> Case_item
     | TUPLE2 (Case_stmt, _) as c -> rw c
     | TUPLE4 (Assignment, _, _, _) as a -> rw a
     | TUPLE5 (Assignment, _, _, _, _) as a -> rw a
+    | TUPLE2 (Vpiattribute, TUPLE2 (Attribute, (STRING ("full_case"|"parallel_case") as attr))) -> TUPLE2 (Attribute, attr)
     | oth -> othrw := Some oth; failwith "case_stmt") lst) )
 | TUPLE6 (For_stmt, TLIST [], TUPLE2 (Vpiforinitstmt, init1), TUPLE2 (Vpiforincstmt, inc1), TUPLE2 (Vpicondition, cond), stmt) ->
   TUPLE6 (For_stmt, TLIST [], rw init1, rw inc1, rw cond, rw stmt)

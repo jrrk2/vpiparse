@@ -308,9 +308,10 @@ let vpi_expr = function
 
 let ident = ['a'-'z' 'A'-'Z' '$' '_' '|' '\\'] ['a'-'z' 'A'-'Z' '_' '0'-'9' '$' ]*
 let number = ['0'-'9' '-']['0'-'9' '_']*
-let sized = ['0'-'9']*"'"['b' 'd' 'h']['0'-'9' 'A'-'F' 'a'-'f' '_' 'x' 'X' 'z' 'Z' '?']+
+let sized = ['0'-'9']*"'"['b' 'd' 'h' 'o']['0'-'9' 'A'-'F' 'a'-'f' '_' 'x' 'X' 'z' 'Z' '?']+
 let hex = "|HEX:"['0'-'9' 'A'-'F' 'a'-'f']+
 let dec = "|DEC:"['0'-'9']+
+let oct = "|OCT:"['0'-'7']+
 let bin = "|BIN:"['0' '1' 'x' 'X' 'z' 'Z' '?']+
 let space = [' ' '\t' '\r']+
 let newline = ['\n'] [' ']*
@@ -368,9 +369,11 @@ rule token = parse
   | number as n
       { tok ( VpiNum n ) }
   | hex as h
-      { tok ( HEX (Scanf.sscanf h "|HEX:%Lx" (fun h->h) )) }
+      { tok ( HEX (Scanf.sscanf h "|HEX:%s" (fun h->h) )) }
   | dec as d
-      { tok ( DEC (Scanf.sscanf d "|DEC:%Ld" (fun d->d) )) }
+      { tok ( DEC (Scanf.sscanf d "|DEC:%s" (fun d->d) )) }
+  | oct as o
+      { tok ( OCT (Scanf.sscanf o "|OCT:%s" (fun o->o) )) }
   | bin as b
       { tok ( BIN (Scanf.sscanf b "|BIN:%s" (fun b->b) )) }
   | vpimethod as s
