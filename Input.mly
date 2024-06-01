@@ -1247,7 +1247,7 @@ parent:
   | Indexed_part_select COLON indexed_part_select_def { Indexed_part_select }
   | Array_net COLON array_net_def { Array_net }
   | Gen_scope_array COLON gen_scope_array_def { Gen_scope_array }
-  | Gen_scope COLON gen_scope_array_def { Gen_scope_array }
+  | Gen_scope COLON gen_scope_def { Gen_scope }
   | Part_select COLON part_select_def { Part_select }
   | Ref_typespec COLON type_spec { TUPLE2(Ref_typespec, $3) }
   | ref_typespec_actual { $1 }
@@ -1647,6 +1647,8 @@ gen_scope_opt:
   | Vpirange COLON Range COLON range_def Indent range_lst Unindent { Vpirange }
   | Vpinettype COLON VpiNum { TUPLE2(Vpinettype, net_type $3) }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
+  | Vpicontassign COLON cont_assign { $3 }
+  | Vpiprocess COLON process { TUPLE2(Vpiprocess, $3) }
 
 cont_assign:
   | Cont_assign COLON loc Indent cont_assign_lst Unindent { to_tuple Cont_assign $5 }
@@ -1741,6 +1743,7 @@ case_item_opt:
   | Vpiname COLON Work AT name { $5 }
   | Vpifullname COLON fullnam { $3 }
   | Vpiexpr COLON oexpr { TUPLE2(Vpiexpr,$3) }
+  | Vpistmt COLON stmt { $3 }
 
 case_stmt_lst: { [] }
   | case_stmt_opt case_stmt_lst { $1 :: $2 }
@@ -1753,7 +1756,7 @@ case_stmt_opt:
   | Vpicondition COLON oexpr { TUPLE2(Vpicondition, $3) }
   | Vpistmt COLON stmt { $3 }
   | Vpicaseitem COLON stmt { TUPLE2(Vpicaseitem, $3) }
-  | Vpiattribute COLON attr { TUPLE2(Vpicaseitem, $3) }
+  | Vpiattribute COLON attr { TUPLE2(Vpiattribute, $3) }
   | Vpicasetype COLON VpiNum { TUPLE2(Vpicasetype, VpiNum $3) }
 
 for_stmt_lst: { [] }
@@ -1912,18 +1915,53 @@ indexed_part_select_opt:
   | Vpiwidthexpr COLON oexpr { TUPLE2(Vpirightrange, $3) }
 
 operation_opt:
-  | Vpiparent COLON parent Vpiposedgeop Vpioperand COLON oexpr { TUPLE2(Vpiposedgeop, $7) }
+  | Vpiparent COLON parent unary Vpioperand COLON oexpr { TUPLE2($4, $7) }
   | Vpiparent COLON parent dyadic Vpioperand COLON oexpr Vpioperand COLON oexpr { TUPLE3($4, $7, $10) }
   | Vpiparent COLON parent Vpiconditionop Vpioperand COLON oexpr Vpioperand COLON oexpr Vpioperand COLON oexpr { TUPLE4(Vpiconditionop, $7, $10, $13) }
-  | Vpiparent COLON parent Vpiconcatop concat_lst { TUPLE2(Vpiconcatop, TLIST $5 ) }
+  | Vpiparent COLON parent concatop concat_lst { TUPLE2($4, TLIST $5 ) }
 
 concat_lst: Vpioperand COLON oexpr { [ $3 ] }
   | Vpioperand COLON oexpr concat_lst { $3 :: $4 }
 
+concatop:
+  | Vpiconcatop { Vpiconcatop }
+  | Vpimulticoncatop { Vpimulticoncatop }
+
+unary:
+  | Vpiposedgeop { Vpiposedgeop }
+  | Vpinegedgeop { Vpinegedgeop }
+  | Vpiunaryandop { Vpiunaryandop }
+  | Vpiunarynandop { Vpiunarynandop }
+  | Vpiunaryorop { Vpiunaryorop }
+  | Vpiunarynorop { Vpiunarynorop }
+  | Vpiunaryxorop { Vpiunaryxorop }
+  | Vpiunaryxnorop { Vpiunaryxnorop }
+  | Vpibitnegop { Vpibitnegop }
+  | Vpiplusop { Vpiplusop }
+  | Vpiminusop { Vpiminusop }
+  | Vpinotop { Vpinotop }
+
 dyadic:
   | Vpiaddop { Vpiaddop }
+  | Vpisubop { Vpisubop }
   | Vpimultop { Vpimultop }
+  | Vpidivop { Vpidivop }
+  | Vpimodop { Vpimodop }
+  | Vpilshiftop { Vpilshiftop }
+  | Vpirshiftop { Vpirshiftop }
+  | Vpiarithrshiftop { Vpiarithrshiftop }
+  | Vpilogandop { Vpilogandop }
+  | Vpilogorop { Vpilogorop }
+  | Vpibitandop { Vpibitandop }
+  | Vpibitorop { Vpibitorop }
+  | Vpibitxorop { Vpibitxorop }
+  | Vpibitxnorop { Vpibitxnorop }
   | Vpieqop { Vpieqop }
+  | Vpineqop { Vpineqop }
+  | Vpiltop { Vpiltop }
+  | Vpileop { Vpileop }
+  | Vpigeop { Vpigeop }
+  | Vpigtop { Vpigtop }
   
 vport:
   | Port COLON port_def Indent io_decl_lst Unindent { TUPLE2 (Port, TLIST $5) }
@@ -1957,6 +1995,7 @@ array_net_opt:
   | Vpirange COLON Range COLON range_def Indent range_lst Unindent { Vpirange }
   | Vpinettype COLON VpiNum { TUPLE2(Vpinettype, net_type $3) }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
+  | Vpinet COLON nettyp { TUPLE2(Vpinet, $3) }
 
 ret:
   | Int_var COLON int_var_def Indent int_var_lst Unindent { to_tuple Int_var $5 }
