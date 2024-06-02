@@ -1192,6 +1192,9 @@ let vpi_task_func = function
 %token Work
 %token <string> VpiNum 
 %type <token list> ml_start
+%type <token> parameter_def
+%type <token list> parameter_lst
+%type <token> parameter_opt
 %type <token> always_typ
 %start ml_start
 %%
@@ -1611,12 +1614,12 @@ module_inst_opt:
   | Vpiprocess COLON process { TUPLE2(Vpiprocess, $3) }
   | Vpitop COLON VpiNum { TUPLE2(Vpitop, VpiNum $3) }
   | Vpitopmodule COLON VpiNum { TUPLE2(Vpitopmodule, VpiNum $3) }
-  | Vpiparameter COLON Parameter parameter_def Indent parameter_lst Unindent { Vpiparameter }
-  | Vpiparamassign COLON Param_assign COLON loc Indent param_assign_lst Unindent { Vpiparamassign }
+  | Vpiparameter COLON Parameter parameter_def Indent parameter_lst Unindent { TUPLE3(Vpiparameter, $4, TLIST $6) }
+  | Vpiparamassign COLON Param_assign COLON loc Indent param_assign_lst Unindent { TUPLE2(Vpiparamassign, TLIST $7) }
   | Vpicontassign COLON cont_assign { $3 }
   | Vpitaskfunc COLON vpi_method_arg { TUPLE2(Vpitaskfunc, $3) }
   | Vpigenstmt COLON Gen_region COLON Indent gen_region_lst Unindent { to_tuple Vpigenstmt $6 }
-  | Vpirefmodule COLON stmt { Vpirefmodule }
+  | Vpirefmodule COLON stmt { TUPLE2(Vpirefmodule, $3) }
   | Vpimodule COLON module_inst { TUPLE2(Vpimodule, $3) }
   | Vpiinstance COLON Module_inst COLON module_inst_def { TUPLE2(Vpiinstance, $5) }
   | Vpigenscopearray COLON gen_scope_array { TUPLE2(Vpigenscopearray, $3) }
@@ -1664,7 +1667,7 @@ gen_region_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpistmt COLON stmt { $3 }
 
-parameter_def: COLON LPAREN Work AT pth_lst RPAREN loc { Work }
+parameter_def: COLON LPAREN Work AT pth_lst RPAREN loc { List.hd (List.rev $5) }
 
 process:
   | Always COLON always_def Indent always_lst always_typ Unindent { to_tuple (TUPLE2(Always,$6)) $5 }
@@ -1733,8 +1736,8 @@ ref_module_opt:
   | Vpifullname COLON fullnam { $3 }
   | Vpidefname COLON def_name { $3 }
   | Vpiport COLON vport { TUPLE2(Vpiport, $3) }
-  | Vpiparameter COLON Parameter parameter_def Indent parameter_lst Unindent { Vpiparameter }
-  | Vpiparamassign COLON Param_assign COLON loc Indent param_assign_lst Unindent { Vpiparamassign }
+  | Vpiparameter COLON Parameter parameter_def Indent parameter_lst Unindent { TUPLE3(Vpiparameter, $4, TLIST $6) }
+  | Vpiparamassign COLON Param_assign COLON loc Indent param_assign_lst Unindent { TUPLE2(Vpiparamassign, TLIST $7) }
   | Vpiactual COLON Module_inst COLON module_inst_def { TUPLE2(Vpiactual, $5) }
 
 case_item_lst: { [] }

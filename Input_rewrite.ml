@@ -52,25 +52,6 @@ type pattr = {
   mutable dir: token;
 }
 
-let findport pattr = function
-| Vpiparent -> ()
-| TUPLE2 (Vpiinstance, STRING inst) -> ()
-| STRING _ as port -> pattr.nam <- port
-| TUPLE2 (Vpidirection, dir) -> pattr.dir <- dir
-| TUPLE5 (Ref_typespec, TLIST pth, Vpiparent, TLIST pth', 
-              TUPLE2 (Vpiactual, TUPLE2(Logic_typespec, Work))) -> ()
-| TUPLE2 ((Vpilowconn|Vpihighconn),
-            TUPLE4 (Ref_obj, lowport, TLIST pth, 
-               TUPLE2 (Vpiactual, TUPLE2(Logic_net, TLIST pth')))) -> pattr.nam <- lowport
-| TUPLE2 (Vpihighconn,
-      TUPLE3 (Ref_obj, (STRING _ as port), TLIST pth)) -> pattr.nam <- port
-| TUPLE3
-     (Ref_typespec, TLIST pth,
-      TLIST
-       [TUPLE2 (Vpiactual, Logic_typespec);
-        TLIST pth'; Vpiparent]) -> ()	
-| oth -> othrw := Some oth; failwith "findport"
-
 let rec rw = function
 | TUPLE2 (Vpinet, arg) -> rw arg
 | TUPLE3 (If_stmt, TUPLE2 (Vpicondition, expr), stmt) -> TUPLE3 (If_stmt, rw expr, rw stmt)
@@ -158,7 +139,7 @@ let rec rw = function
 | (TUPLE5 (Array_net, TUPLE2 (Vpisize, siz), nam, TLIST pth, Vpirange)) -> TUPLE3(Array_net, siz, nam)
 | TUPLE4 (Bit_select, op1,
       TLIST pth,
-      TUPLE2 (Vpiindex, arg1)) -> TUPLE2(rw op1, rw arg1)
+      TUPLE2 (Vpiindex, arg1)) -> TUPLE3(Bit_select, rw op1, rw arg1)
 | TUPLE2 (Vpiindex, op) -> TUPLE2(Vpiindex, rw op)
 | TUPLE2 ((Vpileftrange|Vpirightrange as op), arg) -> TUPLE2 (op, rw arg)
 | TUPLE2 (Ref_obj, TLIST [STRING "$signed"; TLIST pth; op; Vpiparent]) -> op
@@ -169,6 +150,11 @@ let rec rw = function
 | TUPLE5 (Constant, TUPLE2 (Vpidecompile, VpiNum _),
       TUPLE2 (Vpisize, VpiNum wid), (BIN _|OCT _|DEC _|HEX _ as radix), (Vpibinaryconst|Vpioctconst|Vpidecconst|Vpihexconst as kind)) -> TUPLE3 (kind, radix, VpiNum wid)
 | TUPLE4 (Constant, TUPLE2 (Vpidecompile, s), STRING_CONST c, Vpistringconst) -> TUPLE3 (Vpistringconst, STRING_CONST c, VpiNum (string_of_int (8*String.length c)))
+| TUPLE5 (Constant, TUPLE2 (Vpidecompile, s), TUPLE2 (Vpisize, VpiNum wid), STRING_CONST c, Vpistringconst) -> TUPLE3 (Vpistringconst, STRING_CONST c, VpiNum wid)
+| TUPLE6 (Constant, TUPLE2 (Vpidecompile, s),
+      TUPLE2 (Vpisize, VpiNum wid), (TUPLE2 (UINT, VpiNum n) | HEX n | BIN n),
+      TUPLE2 (Vpitypespec, TUPLE5 (Ref_typespec, (TLIST _|STRING _), Vpiparent, TLIST pth2, TUPLE2 (Vpiactual, TUPLE2 ((Int_typespec|Integer_typespec), Work)))),
+      kind) -> TUPLE3 (kind, VpiNum n, VpiNum wid)
 (*
 | TUPLE5 (Constant, TUPLE2 (Vpidecompile, n), _, _, _) -> rw n
 | TUPLE6 (Constant, TUPLE2 (Vpidecompile, n),
@@ -195,6 +181,7 @@ let rec rw = function
 | TUPLE2 (Vpiprocess, arg) -> rw arg
 | TUPLE2 (Vpigenscopearray, TUPLE4 (Gen_scope_array, blk, TLIST pth, Gen_scope)) -> TUPLE2 (Gen_scope_array, blk)
 | TUPLE2 (Vpimodule, TUPLE2 (Module_inst, TLIST lst)) -> TUPLE2 (Module_inst, TLIST (List.map rw lst))
+| TUPLE2 (Vpirefmodule, TUPLE2 (Ref_module, TLIST (Vpiparent::nam1::nam2::act::portlst))) -> TUPLE4 (Ref_module, nam1, nam2, TLIST (List.map rw portlst))
 | TUPLE2 ((Vpiforinitstmt|Vpiforincstmt as op), arg) -> TUPLE2 (op, rw arg)
 | TUPLE3 (Always, TLIST lst, TUPLE2 (Vpialwaystype, Vpialways)) -> TUPLE2 (Always, TLIST (List.map rw lst))
 | TUPLE2 (TUPLE2(Always, TUPLE2 (Vpialwaystype, Vpialways)), TUPLE3(Event_control, TUPLE2(Vpicondition, cond), stmt)) -> TUPLE3 (Always, rw cond, rw stmt)
@@ -232,7 +219,45 @@ let pattr = {nam=Work; dir=Work} in
 List.iter (findport pattr) plst;
 TUPLE2(pattr.dir, pattr.nam)
 | TUPLE2 (Vpitaskfunc, Task) -> Task
+| TUPLE3 (Vpiparameter, STRING param, TLIST lst) -> let pattr = {nam=Work; dir=Work} in
+List.iter (findport pattr) lst; TUPLE2(Parameter, pattr.nam)
+| TUPLE2 (Vpiparamassign, TLIST lst) -> let pattr = {nam=Work; dir=Work} in
+List.iter (findport pattr) lst; TUPLE2(Parameter, pattr.nam)
 | oth -> othrw := Some oth; failwith "rw"
+
+and findport pattr = function
+| TUPLE2 (UINT, VpiNum n) -> ()
+| Vpiparent -> ()
+| Vpisigned -> ()
+| Vpitypespec -> ()
+| Vpilocalparam -> ()
+| TUPLE2 (Vpilhs, Parameter) -> ()
+| TUPLE2 (Vpiinstance, STRING inst) -> ()
+| STRING _ as port -> pattr.nam <- port
+| TUPLE2 (Vpidirection, dir) -> pattr.dir <- dir
+| TUPLE5 (Ref_typespec, (TLIST _|STRING _), Vpiparent, TLIST pth', 
+              TUPLE2 (Vpiactual, TUPLE2((Logic_typespec|Int_typespec|Integer_typespec), Work))) -> ()
+| TUPLE2 ((Vpilowconn|Vpihighconn),
+            TUPLE4 (Ref_obj, lowport, TLIST pth, 
+               TUPLE2 (Vpiactual, TUPLE2(Logic_net, TLIST pth')))) -> pattr.nam <- lowport
+| TUPLE2 (Vpihighconn,
+      TUPLE3 (Ref_obj, (STRING _ as port), TLIST pth)) -> pattr.nam <- port
+| TUPLE3 (Ref_typespec, TLIST pth,
+      TLIST
+       [TUPLE2 (Vpiactual, Logic_typespec);
+        TLIST pth'; Vpiparent]) -> ()
+| TLIST pth -> pattr.nam <- List.hd (List.rev pth)
+| HEX h -> ()
+| BIN h -> ()
+| TUPLE2 (Vpirhs, cnst) -> (match rw cnst with
+   | TUPLE3 ((Vpiuintconst|Vpihexconst|Vpibinaryconst), VpiNum n, VpiNum wid) -> ()
+   | TUPLE4 (Vpiconditionop, TUPLE2 (Logic_net, STRING cond),
+      TUPLE3 (Vpiuintconst, VpiNum then_, VpiNum wid),
+      TUPLE3 (Vpiuintconst, VpiNum else_, VpiNum wid')) -> ()
+   | TUPLE3 ((Vpiaddop|Vpimultop|Vpilogorop), lhs, rhs) -> ()
+   | TUPLE2 (Vpiconcatop, TLIST lst) -> ()
+   | oth -> othrw := Some oth; failwith "Vpirhs")
+| oth -> othrw := Some oth; failwith "findport"
 
 let p' = ref []
 
