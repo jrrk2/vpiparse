@@ -717,7 +717,7 @@ let vpi_task_func = function
 %token <token*token*token*token*token*token*token*token*token*token*token*token*token*token*token*token> TUPLE16
 %token <token*token*token*token*token*token*token*token*token*token*token*token*token*token*token*token*token> TUPLE17
 %token <int> Vpimethodint
-%token <int> Vpioptypeint
+%token <int*int*int*int> LOC
 %token  UNDERSCORE
 %token  VBAR
 %token FINISHED
@@ -1257,7 +1257,7 @@ parent:
   | ref_typespec_actual { $1 }
   
 loc: { Work }
-  | COMMA Line COLON VpiNum COLON VpiNum COMMA Endln COLON VpiNum COLON VpiNum { Work }
+  | COMMA Line COLON VpiNum COLON VpiNum COMMA Endln COLON VpiNum COLON VpiNum { LOC(int_of_string $4, int_of_string $6, int_of_string $10, int_of_string $12) }
 
 ref_module_def:
   | Work AT STRING LPAREN name RPAREN loc { Work }
@@ -1559,7 +1559,7 @@ weak_opt:
   | Int_typespec COLON int_typespec_def Indent int_typespec_lst Unindent { to_tuple Int_typespec $5 }
   | Integer_typespec COLON integer_typespec_def Indent integer_typespec_lst Unindent { to_tuple Integer_typespec $5 }
   | Logic_typespec COLON logic_typespec_def { Logic_typespec }
-  | Logic_typespec COLON logic_typespec_def Indent misc_lst Unindent {to_tuple Logic_typespec $5 }
+  | Logic_typespec COLON logic_typespec_def Indent misc_lst Unindent { TUPLE3(Logic_typespec, $3, to_tuple Logic_typespec $5) }
   | Function COLON function_def Indent weak_function_lst Unindent { to_tuple Function $5 }
   | Task COLON task_def Indent task_lst Unindent { to_tuple Task $5 }
   | Enum_typespec COLON enum_typespec_decl Indent enum_typespec_lst Unindent { to_tuple Enum_typespec $5 }
@@ -1812,7 +1812,8 @@ assignment_lst: { [] }
 assignment_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpiname COLON vnam { $3 }
-  | Vpioptypeint { Vpioptypeint $1 }
+  | dyadic { $1 }
+  | Vpirhs { Vpirhs }
   | Vpiblocking COLON VpiNum { TUPLE2(Vpiblocking, VpiNum $3) }
   | Vpiname COLON Work AT name { Vpiname }
   | Vpifullname COLON fullnam { $3 }
@@ -1955,6 +1956,7 @@ dyadic:
   | Vpimodop { Vpimodop }
   | Vpilshiftop { Vpilshiftop }
   | Vpirshiftop { Vpirshiftop }
+  | Vpiarithlshiftop { Vpiarithlshiftop }
   | Vpiarithrshiftop { Vpiarithrshiftop }
   | Vpilogandop { Vpilogandop }
   | Vpilogorop { Vpilogorop }
@@ -1968,9 +1970,9 @@ dyadic:
   | Vpileop { Vpileop }
   | Vpigeop { Vpigeop }
   | Vpigtop { Vpigtop }
-  
+
 vport:
-  | Port COLON port_def Indent io_decl_lst Unindent { TUPLE2 (Port, TLIST $5) }
+  | Port COLON port_def Indent io_decl_lst Unindent { TUPLE3 (Port, $3, TLIST $5) }
 
 nettyp: 
   | Logic_net COLON logic_net_def Indent logic_net_lst Unindent { to_tuple Logic_net $5 }
@@ -2035,7 +2037,7 @@ function_def: LPAREN Builtin COLON COLON vnam RPAREN { Work }
   | LPAREN Work AT name type_lst RPAREN loc { Work }
 
 logic_net_def: { Work }
-  | LPAREN Work AT pth_lst type_lst RPAREN loc { TLIST $4 }
+  | LPAREN Work AT pth_lst type_lst RPAREN loc { TUPLE2(TLIST $4, $7) }
 
 array_net_def: { Work }
   | LPAREN Work AT pth_lst type_lst RPAREN loc { Work }
@@ -2074,7 +2076,7 @@ pth_lst: STRING { [STRING $1] }
   | STRING DOT pth_lst { STRING $1 :: $3 }
   
 port_def: { Work }
-  | LPAREN STRING RPAREN loc { Work }
+  | LPAREN STRING RPAREN loc { $4 }
   
 enum_var_def: LPAREN Builtin COLON COLON vnam RPAREN { Work }
   | LPAREN Work AT name type_lst RPAREN loc { Work }
@@ -2143,8 +2145,8 @@ type_lst: { [] }
 class_typespec: { Work }
   | loc { Work }
   
-logic_typespec_def: { Work }
-  | loc { Work }
+logic_typespec_def:
+  | loc { $1 }
 
 path: { [] }
   | DOT path { DOT :: $2}

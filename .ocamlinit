@@ -11,4 +11,4 @@ open Signal
 #print_length 1000000;;
 #print_depth 1000000;;
 
-let _ = cnv "uhdm.txt";;
+let _ = parseall "uhdm.txt";;

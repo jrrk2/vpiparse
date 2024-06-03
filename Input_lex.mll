@@ -301,9 +301,9 @@ let vpi_expr = function
 |  41 -> Vpiblocking (* blocking assignment (Boolean) *)
 |  42 -> Vpicasetype (* case statement subtypes: *)
 |  43 -> Vpinetdeclassign (* assign part of decl (Boolean) *)
-|  82 -> Vpirhs (* right-hand side of assignment *)
 *)
-| oth -> Vpioptypeint oth
+|  82 -> Vpirhs (* right-hand side of assignment *)
+| oth -> STRING ("Vpioptypeint "^string_of_int oth)
 }
 
 let ident = ['a'-'z' 'A'-'Z' '$' '_' '|' '\\'] ['a'-'z' 'A'-'Z' '_' '0'-'9' '$' ]*

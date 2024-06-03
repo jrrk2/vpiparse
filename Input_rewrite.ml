@@ -52,6 +52,32 @@ type pattr = {
   mutable dir: token;
 }
 
+type refh = {
+line: int;
+col: int;
+endln: int;
+endcol: int;
+lft: token;
+rght: token;
+lfttyp: token;
+rghttyp: token;
+lftsiz: token;
+rghtsiz: token;
+}
+
+let (refh:refh list ref) = ref []
+
+let pwid nam = function LOC (line', col', endln', endcol') ->
+    let found = ref 1 in
+    List.iter (fun ({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;line; col; endln; endcol}) ->
+			 if line' >= line && col' >= col && endln' <= endln && endcol' <= endcol+80 then
+			 let lft' = match lft with VpiNum lft' -> lft' | _ -> failwith "lft'" in
+			 let rght' = match rght with VpiNum rght' -> rght' | _ -> failwith "rght'" in
+		        found := int_of_string lft' - int_of_string rght' + 1
+		      ) !refh;
+    !found
+| _ -> failwith "pwid"
+
 let rec rw = function
 | TUPLE2 (Vpinet, arg) -> rw arg
 | TUPLE3 (If_stmt, TUPLE2 (Vpicondition, expr), stmt) -> TUPLE3 (If_stmt, rw expr, rw stmt)
@@ -60,26 +86,20 @@ let rec rw = function
 | TUPLE2 (Vpicontassign, Cont_assign) -> Work
 | TUPLE3 (Cont_assign, TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) ->  TUPLE3 (Cont_assign, rw lhs, rw rhs)
 | TUPLE4 (Cont_assign, TUPLE2 (Vpinetdeclassign, VpiNum "1"), TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) ->  TUPLE3 (Cont_assign, rw lhs, rw rhs)
-| TUPLE5 (Assignment, Vpioptypeint 82, TUPLE2 (Vpiblocking, VpiNum "1"),
+| TUPLE5 (Assignment, optype, TUPLE2 (Vpiblocking, VpiNum "1"),
 		  TUPLE2 (Vpirhs, rhs),
-		  TUPLE2 (Vpilhs, lhs)) -> TUPLE3(Assignment, rw lhs, rw rhs)
-| TUPLE4 (Assignment, Vpioptypeint 82,
+		  TUPLE2 (Vpilhs, lhs)) -> TUPLE4(Vpiblocking, optype, rw lhs, rw rhs)
+| TUPLE4 (Assignment, optype,
 		  TUPLE2 (Vpirhs, rhs),
-		  TUPLE2 (Vpilhs, lhs)) -> TUPLE3(Assignment, rw lhs, rw rhs)
+		  TUPLE2 (Vpilhs, lhs)) -> TUPLE4(Assignment, optype, rw lhs, rw rhs)
 | TUPLE3 (Assignment,
 		  TUPLE2 (Vpirhs, rhs),
-		  TUPLE2 (Vpilhs, lhs)) -> TUPLE3(Assignment, rw lhs, rw rhs)
+		  TUPLE2 (Vpilhs, lhs)) -> TUPLE4(Assignment, Vpirhs, rw lhs, rw rhs)
 | TUPLE2 ((Vpiposedgeop|Vpinegedgeop|Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop|Vpibitnegop|Vpiplusop|Vpiminusop|Vpinotop as op), op1) -> TUPLE2(op, rw op1)
 | TUPLE2 ((Vpiconcatop|Vpimulticoncatop as op), TLIST op1) -> TUPLE2(op, TLIST (List.map rw op1))
 | TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpilshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), op1, op2) -> TUPLE3(op, rw op1, rw op2)
 | TUPLE4 (Vpiconditionop as op, op1, op2, op3) -> TUPLE4(op, rw op1, rw op2, rw op3)
 | TUPLE2 ((Vpitopmodule|Vpitop|Vpiblocking|Vpicasetype as top), VpiNum "1") -> top
-(*
-| TUPLE2 (Sys_func_call,
-      TUPLE4 (Ref_obj, obj1,
-        TLIST pth,
-        func)) -> TUPLE2(func, rw obj1)
-	*)
 | TUPLE2 (Sys_func_call, arg) -> TUPLE2 (Sys_func_call, rw arg)
 | TUPLE3 (Sys_func_call, arg, (STRING ("$unsigned"|"$signed") as op)) -> TUPLE3 (Sys_func_call, rw arg, rw op)
 | TUPLE2 (Vpiactual, Logic_var) -> Logic_var
@@ -213,11 +233,11 @@ let rec rw = function
   TUPLE6 (For_stmt, TLIST [], rw init1, rw inc1, rw cond, TLIST [rw stmt1; rw stmt2; rw stmt3; stmt4])
 | TUPLE2 (Vpigenstmt, arg) -> TUPLE2 (Vpigenstmt, rw arg)
 | TUPLE2 (Vpiport,
-      TUPLE2 (Port,
+      TUPLE3 (Port, loc,
         TLIST plst)) ->
 let pattr = {nam=Work; dir=Work} in
 List.iter (findport pattr) plst;
-TUPLE2(pattr.dir, pattr.nam)
+TUPLE3(pattr.dir, pattr.nam, VpiNum (string_of_int (pwid pattr.nam loc)))
 | TUPLE2 (Vpitaskfunc, Task) -> Task
 | TUPLE3 (Vpiparameter, STRING param, TLIST lst) -> let pattr = {nam=Work; dir=Work} in
 List.iter (findport pattr) lst; TUPLE2(Parameter, pattr.nam)
@@ -236,10 +256,10 @@ and findport pattr = function
 | STRING _ as port -> pattr.nam <- port
 | TUPLE2 (Vpidirection, dir) -> pattr.dir <- dir
 | TUPLE5 (Ref_typespec, (TLIST _|STRING _), Vpiparent, TLIST pth', 
-              TUPLE2 (Vpiactual, TUPLE2((Logic_typespec|Int_typespec|Integer_typespec), Work))) -> ()
+              TUPLE2 (Vpiactual, TUPLE2((Logic_typespec|Int_typespec|Integer_typespec), LOC (line, col, endln, endcol)))) -> ()
 | TUPLE2 ((Vpilowconn|Vpihighconn),
             TUPLE4 (Ref_obj, lowport, TLIST pth, 
-               TUPLE2 (Vpiactual, TUPLE2(Logic_net, TLIST pth')))) -> pattr.nam <- lowport
+               TUPLE2 (Vpiactual, TUPLE2(Logic_net, TUPLE2(TLIST pth', LOC (line, col, endln, endcol)))))) -> pattr.nam <- lowport
 | TUPLE2 (Vpihighconn,
       TUPLE3 (Ref_obj, (STRING _ as port), TLIST pth)) -> pattr.nam <- port
 | TUPLE3 (Ref_typespec, TLIST pth,
@@ -259,40 +279,54 @@ and findport pattr = function
    | oth -> othrw := Some oth; failwith "Vpirhs")
 | oth -> othrw := Some oth; failwith "findport"
 
-let p' = ref []
-
-type refh = {
-lft: token;
-rght: token;
-lfttyp: token;
-rghttyp: token;
-lftsiz: token;
-rghtsiz: token;
-}
-
-let refh = Hashtbl.create 257
-
 let hash_itm = function
 | TUPLE3 (Logic_typespec,
-         TUPLE2 (Logic_net, TLIST pth),
-         TUPLE3 (Vpirange,
-           TUPLE2 (Vpileftrange,
-             TUPLE5 (Constant, TUPLE2 (Vpidecompile, lft), TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
-           TUPLE2 (Vpirightrange,
-		   TUPLE5 (Constant, TUPLE2 (Vpidecompile, rght), TUPLE2 (Vpisize, rghtsiz), _, rghttyp)))) ->
-Hashtbl.add refh (List.hd (List.rev pth)) {lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz}
-| _ -> ()
+         LOC (line, col, endln, endcol),
+         TUPLE2 (Logic_typespec,
+	   TUPLE3 (Vpirange,
+	     TUPLE2 (Vpileftrange,
+	       TUPLE5 (Constant, TUPLE2 (Vpidecompile, lft), TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
+	     TUPLE2 (Vpirightrange,
+		     TUPLE5 (Constant, TUPLE2 (Vpidecompile, rght), TUPLE2 (Vpisize, rghtsiz), _, rghttyp))))) ->
+({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;line; col; endln; endcol})
+| TUPLE3 (Logic_typespec,
+         LOC (line, col, _, _),
+         TUPLE3 (Logic_typespec,
+	   TUPLE2 (Logic_net, TUPLE2(TLIST pth, LOC (_, _, endln, endcol))),
+	   TUPLE3 (Vpirange,
+	     TUPLE2 (Vpileftrange,
+	       TUPLE5 (Constant, TUPLE2 (Vpidecompile, lft), TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
+	     TUPLE2 (Vpirightrange,
+		     TUPLE5 (Constant, TUPLE2 (Vpidecompile, rght), TUPLE2 (Vpisize, rghtsiz), _, rghttyp))))) ->
+({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;line; col; endln; endcol})
+| TUPLE3 (Logic_typespec, LOC (line, col, _, _),
+      TUPLE2 (Logic_typespec,
+        TUPLE2 (Logic_net,
+          TUPLE2 (TLIST pth,
+            LOC (_, _, endln, endcol))))) -> 
+({lft=VpiNum "0";rght=VpiNum "0";lfttyp=Work;rghttyp=Work;lftsiz=Work;rghtsiz=Work;line; col; endln; endcol})
+| oth -> othrw := Some oth; failwith "hash_itm"
+
+let compare_hash_itm {line; col; endln; endcol} {line=line'; col=col'; endln=endln'; endcol=endcol'} =
+if line < line' then -1 else
+if line > line' then 1 else
+if col < col' then -1 else
+if col > col' then 1 else
+0
 
 let parse arg =
   let ch = open_in arg in
   let p = parse_output_ast_from_chan ch in
   close_in ch;
-  p' := p;
-  List.flatten (List.map (function
-    | TUPLE4 (DESIGN, STRING _, TUPLE2 (Vpielaborated, VpiNum _), Vpiname) -> []
-    | TUPLE2 ((Uhdmallpackages|Uhdmtoppackages), _) -> []
-    | TUPLE2 (Weaklyreferenced, TLIST lst) -> List.iter (hash_itm) lst; []
-    | TUPLE2 ((Uhdmtopmodules|Uhdmallclasses), _) -> []
-    | TUPLE2(Uhdmallmodules, TUPLE2(Module_inst, TLIST arg)) -> List.map rw arg
-    | Work -> []
-    | oth -> othrw := Some oth; failwith "map") p)
+  let modlst = ref [] in
+  List.iter (function
+    | TUPLE4 (DESIGN, STRING _, TUPLE2 (Vpielaborated, VpiNum _), Vpiname) -> ()
+    | TUPLE2 ((Uhdmallpackages|Uhdmtoppackages), _) -> ()
+    | TUPLE2 (Weaklyreferenced, TLIST lst) ->
+    let lst' = List.filter (function Class_typespec -> false | TUPLE2 (Int_typespec, _) -> false | TUPLE2 (Logic_typespec, LOC _) -> false | _ -> true) lst in
+    refh := List.sort_uniq compare_hash_itm (List.map hash_itm lst')
+    | TUPLE2 ((Uhdmtopmodules|Uhdmallclasses), _) -> ()
+    | TUPLE2(Uhdmallmodules, TUPLE2(Module_inst, TLIST (TLIST [] :: STRING nam :: lst))) -> modlst := (nam, List.map rw lst) :: !modlst
+    | Work -> ()
+    | oth -> othrw := Some oth; failwith "map") p;
+  p, !modlst
