@@ -22,6 +22,27 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *)
 
+let eqv gold stem =
+  let name = (gold^".v") in
+  let script = stem^".eqy" in
+  let fd = open_out script in
+  output_string fd ("[options]\n");
+  output_string fd ("\n");
+  output_string fd ("[gold]\n");
+  output_string fd ("read -sv "^gold^"\n");
+  output_string fd ("prep -top "^stem^"\n");
+  output_string fd ("\n");
+  output_string fd ("[gate]\n");
+  output_string fd ("read -sv "^stem^".v\n");
+  output_string fd ("prep -top "^stem^"\n");
+  output_string fd ("\n");
+  output_string fd ("[strategy simple]\n");
+  output_string fd ("use sat\n");
+  output_string fd ("depth 10\n");
+  output_string fd ("\n");
+  close_out fd;
+  print_endline ("Status = "^string_of_int (Sys.command ("eqy -f "^script)))
+
 open Input
 open Input_rewrite
 open Hardcaml
@@ -448,8 +469,9 @@ let oplst = ref [] in Hashtbl.iter (fun k -> function
         | Sig v -> alst := (k, v) :: !alst
         | Invalid -> ()) declare_h;
 match p with
-| lst::STRING name::tl -> Hardcaml.Circuit.create_exn ~name !oplst
+| lst::STRING name::tl -> Hardcaml.Rtl.output Verilog (Hardcaml.Circuit.create_exn ~name !oplst);
+    if Array.length Sys.argv > 2 then eqv Sys.argv.(2) name
 | oth -> failwith "Could not extract circuit name"
 end
 
-let _ = if Array.length Sys.argv > 1 then Hardcaml.Rtl.output Verilog (cnv Sys.argv.(1))
+let _ = if Array.length Sys.argv > 1 then cnv Sys.argv.(1)
