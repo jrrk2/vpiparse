@@ -48,6 +48,7 @@ open Input_rewrite
 open Hardcaml
 open Always
 open Signal
+
 open Input
 open Input_rewrite
 open Input_lex
@@ -60,9 +61,6 @@ type remapp =
   | Oct of string * int
   | Dec of string * int
   | Hex of string * int
-  | Add of remapp * remapp
-  | Sub of remapp * remapp
-  | Mult of remapp * remapp
   | Eq of remapp * remapp
   | If_ of remapp * remapp list * remapp list
   | Mux2 of remapp * remapp * remapp
@@ -124,6 +122,12 @@ let mult_wallace a_sig b_sig =
              (module Signal)
              (a_sig)
              (b_sig))
+
+(*
+let div =
+      Hardcaml_circuits.Divider.Div.create
+        (Scope.create ~flatten_design:true ~auto_label_hierarchical_ports:true ())
+	*)
 
 let sim_mult n_bits =
   let circuit =
@@ -282,13 +286,11 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
 | TUPLE2 (Always,
    TUPLE3 (Begin, TLIST pth, TLIST (Vpiparent:: TLIST [] :: stmtlst))) -> Seq (List.map (function
     | TUPLE4 (Vpiblocking, Vpirhs, lhs, rhs) -> Block (remapp lhs, remapp rhs)
-    | TUPLE4 (Vpiblocking, Vpiaddop, lhs, rhs) -> Block (remapp lhs, Add (remapp lhs, remapp rhs))
     | TUPLE4 (Vpiblocking, unhandled, lhs, rhs) -> Block (remapp lhs, Dyadic (unhandled, remapp lhs, remapp rhs))
     | TUPLE4 (Assignment, optype, lhs, rhs) as a -> remapp a
     | oth -> otht := Some oth; failwith "remapp failed with otht") stmtlst)
 | TUPLE3 (Always, Vpiassignstmt, stmt) -> remapp stmt
 | TUPLE4 (Assignment, Vpirhs, lhs, rhs) -> Asgn (remapp lhs, remapp rhs)
-| TUPLE4 (Assignment, Vpiaddop, lhs, rhs) -> Asgn (remapp lhs, Add (remapp lhs, remapp rhs))
 | TUPLE4 (Assignment, unhandled, lhs, rhs) -> Asgn (remapp lhs, Dyadic (unhandled, remapp lhs, remapp rhs))
 | TUPLE3 (Always, TUPLE2 (Vpiposedgeop, edg), stmt) ->
    edgstmt := stmt; 
@@ -299,9 +301,6 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
 -> Unary (op, remapp rhs)
 
 | TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> Mux2 (remapp cond, remapp lhs, remapp rhs)
-| TUPLE3 (Vpiaddop, lhs, rhs) -> Add (remapp lhs, remapp rhs)
-| TUPLE3 (Vpisubop, lhs, rhs) -> Sub (remapp lhs, remapp rhs)
-| TUPLE3 (Vpimultop, lhs, rhs) -> Mult (remapp lhs, remapp rhs)
 | TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpilshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), lhs, rhs) -> Dyadic (op, remapp lhs, remapp rhs)
 | TUPLE2 (Vpiconcatop, TLIST lst) ->
    conlst := lst;
@@ -352,8 +351,8 @@ let rec strength_reduce = function
 let rec combiner = function
 | If_ (Eq (a, b), c, d) ::
   If_ (Eq (a', b'), c', d') :: [] when a=a' && b=b' -> If_ (Eq (a, b), c@c', d@d') :: []
-| Seq (Block (Id blk, exp1) :: Block (Id blk', Add (Id blk'', exp2)) :: tl) :: tl' when blk=blk' && blk'=blk'' ->
-  combiner (Asgn(Id blk', Add (exp1, exp2)) :: tl @ tl')
+| Seq (Block (Id blk, exp1) :: Block (Id blk', Dyadic (op, Id blk'', exp2)) :: tl) :: tl' when blk=blk' && blk'=blk'' ->
+  combiner (Asgn(Id blk', Dyadic(op, exp1, exp2)) :: tl @ tl')
 | Seq lst :: tl -> combiner (lst @ tl)
 | oth -> oth in
 
@@ -419,13 +418,48 @@ else if wlhs > wrhs then
 lhs <-- (uresize rhs wlhs)
 else failwith "equal'" in
 
+let unimp' lhs rhs = failwith "unimp'" in
+
+let unimp lhs rhs =
+let wlhs = width lhs in
+let wrhs = width rhs in
+if wlhs = wrhs then
+unimp' lhs rhs
+else if wlhs < wrhs then
+unimp' (uresize lhs wrhs) rhs
+else if wlhs > wrhs then
+unimp' lhs (uresize rhs wlhs)
+else failwith "unimp" in
+
+let remapop = function
+|Vpiaddop -> add'
+|Vpisubop -> sub'
+|Vpimultop -> mult_wallace
+|Vpidivop -> unimp
+|Vpimodop -> unimp
+|Vpilshiftop -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
+|Vpirshiftop -> (fun lhs rhs -> Signal.log_shift srl rhs lhs)
+|Vpiarithrshiftop -> (fun lhs rhs -> Signal.log_shift sra rhs lhs)
+|Vpiarithlshiftop -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
+|Vpilogandop -> unimp
+|Vpilogorop -> unimp
+|Vpibitandop -> (&:)
+|Vpibitorop -> (|:)
+|Vpibitxorop -> (^:)
+|Vpibitxnorop -> (fun lhs rhs -> lhs ^: (~: rhs))
+|Vpieqop -> unimp
+|Vpineqop -> unimp
+|Vpiltop -> unimp
+|Vpileop -> unimp
+|Vpigeop -> unimp
+|Vpigtop -> unimp
+|oth -> otht := Some oth; failwith "remapop" in
+
 let rec (remap:remapp->remap) = function
 | Id wire ->
 if exists wire then find_decl wire else Invalid
 | Eq (lhs, rhs) -> Sig (equal' (sig' (remap lhs)) (sig' (remap rhs)))
-| Add (lhs, rhs) -> Sig (add' (sig' (remap lhs)) (sig' (remap rhs)))
-| Sub (lhs, rhs) -> Sig (sub' (sig' (remap lhs)) (sig' (remap rhs)))
-| Mult (lhs, rhs) -> Sig (mult_wallace (sig' (remap lhs)) (sig' (remap rhs)))
+| Dyadic (op, lhs, rhs) -> Sig (remapop op (sig' (remap lhs)) (sig' (remap rhs)))
 | Mux2 (cond, lhs, rhs) ->
   let cond_ = sig' (remap cond) in
   let then_ = sig' (remap lhs) in
