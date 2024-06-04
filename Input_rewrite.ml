@@ -65,15 +65,23 @@ lftsiz: token;
 rghtsiz: token;
 }
 
-let (refh:refh list ref) = ref []
+let (refh:refh array ref) = ref [||]
 
-let pwid nam = function LOC (line', col', endln', endcol') ->
+let pwid = function LOC (line', col', endln', endcol') ->
     let found = ref 1 in
-    List.iter (fun ({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;line; col; endln; endcol}) ->
-			 if line' >= line && col' >= col && endln' <= endln && endcol' <= endcol+80 then
-			 let lft' = match lft with VpiNum lft' -> lft' | _ -> failwith "lft'" in
-			 let rght' = match rght with VpiNum rght' -> rght' | _ -> failwith "rght'" in
-		        found := int_of_string lft' - int_of_string rght' + 1
+    Array.iteri (fun ix ->
+		   fun ({lft; rght; line; col; endln; endcol}) ->
+		      let nxtln = if ix+1 >= Array.length !refh then 9999 else (!refh).(ix+1).line in
+		      let nxtcol = if ix+1 >= Array.length !refh then 9999 else (!refh).(ix+1).col in
+		      if false then print_endline (string_of_int ix^": "^string_of_int line^" "^string_of_int col^" "^string_of_int endln^" "^string_of_int endcol);
+
+		      if (line' > endln || (line'=endln && col' >= endcol)) && (endln' < nxtln || (endln'=nxtln && endcol' < nxtcol)) then
+		      begin
+		      if false then print_endline (string_of_int ix);
+		      let lft' = match lft with VpiNum lft' -> lft' | _ -> failwith "lft'" in
+		      let rght' = match rght with VpiNum rght' -> rght' | _ -> failwith "rght'" in
+	              found := int_of_string lft' - int_of_string rght' + 1;
+		      end
 		      ) !refh;
     !found
 | _ -> failwith "pwid"
@@ -105,7 +113,10 @@ let rec rw = function
 | TUPLE2 (Vpiactual, Logic_var) -> Logic_var
 | TUPLE4 (Ref_obj, nam,
       TLIST pth,
-      func) ->  TUPLE2(func, rw nam)
+      func) ->  TUPLE2(rw func, rw nam)
+| TUPLE2 (Vpiactual,
+      TUPLE2 (Logic_net,
+              TUPLE2 (TLIST pth, loc))) -> TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2 (TLIST pth, VpiNum (string_of_int (pwid loc)))))
 | TUPLE5 (Ref_obj, nam,
       TLIST pth,
       TUPLE2 (Vpiactual,
@@ -233,11 +244,13 @@ let rec rw = function
   TUPLE6 (For_stmt, TLIST [], rw init1, rw inc1, rw cond, TLIST [rw stmt1; rw stmt2; rw stmt3; stmt4])
 | TUPLE2 (Vpigenstmt, arg) -> TUPLE2 (Vpigenstmt, rw arg)
 | TUPLE2 (Vpiport,
-      TUPLE3 (Port, loc,
+      TUPLE3 (Port, (LOC (line', col', endln', endcol') as loc),
         TLIST plst)) ->
 let pattr = {nam=Work; dir=Work} in
 List.iter (findport pattr) plst;
-TUPLE3(pattr.dir, pattr.nam, VpiNum (string_of_int (pwid pattr.nam loc)))
+if false then print_endline (string_of_int line'^" "^string_of_int col'^" "^string_of_int endln'^" "^string_of_int endcol'^" "^match pattr.nam with STRING s -> s);
+let wid = string_of_int (pwid loc) in
+TUPLE3(pattr.dir, pattr.nam, VpiNum wid)
 | TUPLE2 (Vpitaskfunc, Task) -> Task
 | TUPLE3 (Vpiparameter, STRING param, TLIST lst) -> let pattr = {nam=Work; dir=Work} in
 List.iter (findport pattr) lst; TUPLE2(Parameter, pattr.nam)
@@ -324,7 +337,7 @@ let parse arg =
     | TUPLE2 ((Uhdmallpackages|Uhdmtoppackages), _) -> ()
     | TUPLE2 (Weaklyreferenced, TLIST lst) ->
     let lst' = List.filter (function Class_typespec -> false | TUPLE2 (Int_typespec, _) -> false | TUPLE2 (Logic_typespec, LOC _) -> false | _ -> true) lst in
-    refh := List.sort_uniq compare_hash_itm (List.map hash_itm lst')
+    refh := Array.of_list (List.sort_uniq compare_hash_itm (List.map hash_itm lst'))
     | TUPLE2 ((Uhdmtopmodules|Uhdmallclasses), _) -> ()
     | TUPLE2(Uhdmallmodules, TUPLE2(Module_inst, TLIST (TLIST [] :: STRING nam :: lst))) -> modlst := (nam, List.map rw lst) :: !modlst
     | Work -> ()

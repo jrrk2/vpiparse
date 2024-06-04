@@ -182,17 +182,17 @@ let declare_input wid port =
   add_decl port (Sig (Signal.input port wid)) in
 
 let declare_wire = function
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, loc))), STRING wire) ->
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, VpiNum wid'))), STRING wire) ->
   if false then print_endline wire;
-  let wid = pwid (STRING wire) loc in
+  let wid = int_of_string wid' in
   add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid)))
 | oth -> othrw := Some oth; failwith "declare_wire" in
 
 let declare_reg attr = function
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, loc))), STRING reg) -> if exists reg then () else
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, VpiNum wid'))), STRING reg) -> if exists reg then () else
   begin
   if false then print_endline reg;
-  let wid = pwid (STRING reg) loc in
+  let wid = int_of_string wid' in
   let clock = match attr.clock with Some clk -> sig' (find_decl clk) | None -> failwith ("failed to indentify clock for register: "^reg) in
 (*
   let clear = sig' (find_decl "clear") in
@@ -234,7 +234,7 @@ let rec traverse (attr:attr) = function
 | TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpilshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop), lhs, rhs) -> traverse attr lhs; traverse attr rhs
 | TUPLE2 ((Vpiconcatop|Vpimulticoncatop), TLIST lst) -> List.iter (traverse attr) lst
 | TUPLE4 (Part_select, STRING nam, lft, rght) -> ()
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, LOC _))), STRING wire) -> ()
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, VpiNum _))), STRING wire) -> ()
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Part_select, Work)), STRING wire) -> ()
 | TUPLE3 (Vpioutput, STRING port, VpiNum wid)	    -> ()
 | TUPLE3 (Vpiinput, STRING port, VpiNum wid)	    -> if not attr.pass then declare_input (int_of_string wid) port
@@ -267,7 +267,7 @@ let conlst = ref [] in
 let conlst' = ref [] in
 
 let rec (remapp:token->remapp) = function
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, LOC _))), STRING wire) ->
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, VpiNum _))), STRING wire) ->
 if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
 | TUPLE3 (Vpieqop, lhs, rhs) -> Eq (remapp lhs, remapp rhs)
 | TUPLE3 (If_stmt, cond, lhs) ->
