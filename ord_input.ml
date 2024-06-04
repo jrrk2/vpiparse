@@ -85,7 +85,7 @@ let getstr = function
 | Vpiclassdefn -> "vpiClassDefn";
 | Vpicondition -> "vpiCondition";
 | Vpiconsttype -> "vpiConstType";
-| Vpidecompile -> "vpiDecompile";
+| Vpidecompile _ -> "vpiDecompile";
 | Vpidefname -> "vpiDefName";
 | Vpidirection -> "vpiDirection";
 | Vpielaborated -> "vpiElaborated";

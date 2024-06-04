@@ -152,7 +152,6 @@ Vpicondition, "|vpiCondition";
 Vpiconsttype, "|vpiConstType";
 Vpiconstantselect, "|vpiConstantSelect";
 Vpicontassign, "|vpiContAssign";
-Vpidecompile, "|vpiDecompile";
 Vpideffile, "|vpiDefFile";
 Vpideflineno, "|vpiDefLineNo";
 Vpidefname, "|vpiDefName";
@@ -211,7 +210,6 @@ Vpialwaystype, "|vpiAlwaysType";
 Vpiclassdefn, "|vpiClassDefn";
 Vpicondition, "|vpiCondition";
 Vpiconsttype, "|vpiConstType";
-Vpidecompile, "|vpiDecompile";
 Vpidefname, "|vpiDefName";
 Vpidirection, "|vpiDirection";
 Vpielaborated, "|vpiElaborated";
@@ -319,6 +317,7 @@ let string_const = "|STRING:"[^'\n']*
 let qstring = '"'[^'"']*'"'
 let vpimethod = "|vpiMethod:"['0'-'9']+
 let vpioptype = "|vpiOpType:"['0'-'9']+
+let vpidecompile = "|vpiDecompile:"[^'\n']+
 
 rule token = parse
 | '#' { tok ( HASH ) }
@@ -367,7 +366,7 @@ rule token = parse
   | sized as n
       { tok ( VpiNum n ) }
   | number as n
-      { tok ( VpiNum n ) }
+      { tok ( try Int (int_of_string n) with _ -> VpiNum n ) }
   | hex as h
       { tok ( HEX (Scanf.sscanf h "|HEX:%s" (fun h->h) )) }
   | dec as d
@@ -376,6 +375,8 @@ rule token = parse
       { tok ( OCT (Scanf.sscanf o "|OCT:%s" (fun o->o) )) }
   | bin as b
       { tok ( BIN (Scanf.sscanf b "|BIN:%s" (fun b->b) )) }
+  | vpidecompile as d
+      { tok ( Vpidecompile (Scanf.sscanf d "|vpiDecompile:%s" (fun d->d) )) }
   | vpimethod as s
       { tok ( Vpimethodint (Scanf.sscanf s "|vpiMethod:%d" (fun n -> n))) }
   | vpioptype as s

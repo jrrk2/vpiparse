@@ -67,7 +67,8 @@ type remapp =
   | Asgn of remapp * remapp
   | Block of remapp * remapp
   | Concat of remapp * remapp
-  | Select of remapp * string * string
+  | Selection of remapp * int * int * int * int
+  | Update of remapp * int * int * int * int
   | Bitsel of remapp * remapp
   | Seq of remapp list
   | Unary of token * remapp
@@ -147,6 +148,65 @@ let sim_mult n_bits =
       done
     done
 
+let sub' lhs rhs =
+let wlhs = width lhs in
+let wrhs = width rhs in
+if wlhs = wrhs then
+lhs -: rhs
+else if wlhs < wrhs then
+(uresize lhs wrhs) -: rhs
+else if wlhs > wrhs then
+lhs -: (uresize rhs wlhs)
+else failwith "sub'"
+
+let add' lhs rhs =
+let wlhs = width lhs in
+let wrhs = width rhs in
+if wlhs = wrhs then
+add_fast lhs rhs
+else if wlhs < wrhs then
+add_fast (uresize lhs wrhs) rhs
+else if wlhs > wrhs then
+add_fast lhs (uresize rhs wlhs)
+else failwith "mult'"
+
+let equal' lhs rhs =
+let wlhs = width lhs in
+let wrhs = width rhs in
+if wlhs = wrhs then
+lhs ==: rhs
+else if wlhs < wrhs then
+(uresize lhs wrhs) ==: rhs
+else if wlhs > wrhs then
+lhs ==: (uresize rhs wlhs)
+else failwith "equal'"
+
+let mux2' cond lhs rhs =
+let wlhs = width lhs in
+let wrhs = width rhs in
+if wlhs = wrhs then
+mux2 cond lhs rhs
+else if wlhs < wrhs then
+mux2 cond (uresize lhs wrhs) rhs
+else if wlhs > wrhs then
+mux2 cond lhs (uresize rhs wlhs)
+else failwith "mux2'"
+
+let mux' sel inputs =
+let wid = width inputs in
+mux sel (List.init wid (bit inputs))
+
+let assign' (lhs:Hardcaml.Always.Variable.t) rhs =
+let wlhs = width lhs.value in
+let wrhs = width rhs in
+if wlhs = wrhs then
+lhs <-- rhs
+else if wlhs < wrhs then
+lhs <-- (uresize rhs wlhs)
+else if wlhs > wrhs then
+lhs <-- (uresize rhs wlhs)
+else failwith "equal'"
+
 let cnv (modnam, p) =
 begin
 let declare_lst = ref [] in
@@ -182,22 +242,24 @@ let declare_input wid port =
   add_decl port (Sig (Signal.input port wid)) in
 
 let declare_wire = function
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, VpiNum wid'))), STRING wire) ->
-  if false then print_endline wire;
-  let wid = int_of_string wid' in
-  add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid)))
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, Width(hi,lo)))), STRING wire) ->
+  add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero (hi-lo+1))))
+| TUPLE5 (Part_select, STRING wire,
+      TUPLE3 (Vpiuintconst, Int lft, Int _),
+      TUPLE3 (Vpiuintconst, Int rght, Int _), Width(hi, lo)) ->
+  add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero (hi-lo+1))))
 | oth -> othrw := Some oth; failwith "declare_wire" in
 
 let declare_reg attr = function
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, VpiNum wid'))), STRING reg) -> if exists reg then () else
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, Width(hi,lo)))), STRING reg) -> if exists reg then () else
   begin
   if false then print_endline reg;
-  let wid = int_of_string wid' in
   let clock = match attr.clock with Some clk -> sig' (find_decl clk) | None -> failwith ("failed to indentify clock for register: "^reg) in
 (*
   let clear = sig' (find_decl "clear") in
 *) 
   let r_sync = Reg_spec.create ~clock () in
+  let wid = hi-lo+1 in
   add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid));
   end
 | oth -> othrw := Some oth; failwith "declare_reg" in
@@ -233,20 +295,20 @@ let rec traverse (attr:attr) = function
 | TUPLE2 ((Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop|Vpibitnegop|Vpiplusop|Vpiminusop|Vpinotop as op), rhs) -> traverse attr rhs
 | TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpilshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop), lhs, rhs) -> traverse attr lhs; traverse attr rhs
 | TUPLE2 ((Vpiconcatop|Vpimulticoncatop), TLIST lst) -> List.iter (traverse attr) lst
-| TUPLE4 (Part_select, STRING nam, lft, rght) -> ()
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, VpiNum _))), STRING wire) -> ()
+| TUPLE5 (Part_select, STRING nam, lft, rght, Width(hi,lo)) -> ()
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, Width _))), STRING wire) -> ()
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Part_select, Work)), STRING wire) -> ()
-| TUPLE3 (Vpioutput, STRING port, VpiNum wid)	    -> ()
-| TUPLE3 (Vpiinput, STRING port, VpiNum wid)	    -> if not attr.pass then declare_input (int_of_string wid) port
+| TUPLE3 (Vpioutput, STRING port, Width(lft,rght))	    -> ()
+| TUPLE3 (Vpiinput, STRING port, Width(lft,rght))	    -> if not attr.pass then declare_input (lft-rght+1) port
 | TUPLE3 (Logic_net, Vpireg, STRING reg) -> ()
 | TUPLE3 (Logic_net, Vpinet, STRING net) -> ()
 | TUPLE3 (Logic_net, Vpialways, STRING net) -> ()
 | TUPLE2 (Logic_net, STRING net) -> ()
-| TUPLE3 ((Vpibinaryconst|Vpioctconst|Vpidecconst|Vpihexconst|Vpiuintconst), (BIN _|OCT _|DEC _|HEX _|VpiNum _), VpiNum _) -> ()
+| TUPLE3 ((Vpibinaryconst|Vpioctconst|Vpidecconst|Vpihexconst|Vpiuintconst), (BIN _|OCT _|DEC _|HEX _|Int _), Int _) -> ()
 | TUPLE3 (Begin, TLIST pth, TLIST lst) -> List.iter (traverse attr) lst
 | STRING s -> ()
 | TLIST [] -> ()
-| VpiNum s -> ()
+| Int s -> ()
 | (Always|Vpitopmodule|Vpitop|Vpiname|Vpiparent|Vpitask|Task) -> ()
 | TUPLE2 (Parameter, STRING p) -> ()
 | TUPLE2 (Parameter, Work) -> ()
@@ -260,14 +322,14 @@ let rec traverse (attr:attr) = function
 
 let _ = List.iter (traverse {pass=false; clock=None}) p in
 let _ = List.iter (traverse {pass=true; clock=None}) p in
-  
+
 let edgstmt = ref Work in
 let edgstmt' = ref Void in
 let conlst = ref [] in
 let conlst' = ref [] in
 
 let rec (remapp:token->remapp) = function
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, VpiNum _))), STRING wire) ->
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, Width(hi,lo)))), STRING wire) ->
 if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
 | TUPLE3 (Vpieqop, lhs, rhs) -> Eq (remapp lhs, remapp rhs)
 | TUPLE3 (If_stmt, cond, lhs) ->
@@ -280,8 +342,10 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
   let cond_ =  (remapp cond) in
   If_ (cond_, [then_], [else_])
 | TUPLE3 (Cont_assign, lhs, rhs) ->
-   let lhs = (remapp lhs) in
    let rhs = (remapp rhs) in
+   let lhs = match remapp lhs with
+      | Selection(id, lft, rght, hi, lo) -> Update(id, lft, rght, hi, lo)
+      | oth -> othlhs := oth; failwith "remapp cont_assign failed with otht"; in
    Asgn (lhs, rhs)
 | TUPLE2 (Always,
    TUPLE3 (Begin, TLIST pth, TLIST (Vpiparent:: TLIST [] :: stmtlst))) -> Seq (List.map (function
@@ -311,20 +375,20 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
      | hd :: [] -> hd
      | hd :: tl -> Concat(hd, concat tl) in
    concat lst'
-| TUPLE4 (Part_select, STRING nam, TUPLE3 (Vpiuintconst, VpiNum lft, VpiNum _), TUPLE3 (Vpiuintconst, VpiNum rght, VpiNum _)) ->
-   Select(Id nam, lft, rght)
-| TUPLE3 (Vpioutput, STRING port, VpiNum wid)	    -> Void
-| TUPLE3 (Vpiinput, STRING port, VpiNum wid)	    -> Void
+| TUPLE5 (Part_select, STRING nam, TUPLE3 (Vpiuintconst, Int lft, Int _), TUPLE3 (Vpiuintconst, Int rght, Int _), Width(hi,lo)) ->
+   Selection(Id nam, lft, rght, hi, lo)
+| TUPLE3 (Vpioutput, STRING port, Width(hi,lo))	    -> Void
+| TUPLE3 (Vpiinput, STRING port, Width(hi,lo))	    -> Void
 | TUPLE3 (Logic_net, Vpireg, STRING reg) -> Void
 | TUPLE3 (Logic_net, Vpinet, STRING net) -> Void
 | TUPLE3 (Logic_net, Vpialways, STRING net) -> Void
 | TUPLE2 (Logic_net, STRING net) -> Void
 | STRING s -> Void
 | TLIST [] -> Void
-| TUPLE3 (Vpibinaryconst, BIN s, VpiNum wid) -> Bin (s,int_of_string wid)
-| TUPLE3 (Vpioctconst, OCT s, VpiNum wid) -> Oct (s,int_of_string wid)
-| TUPLE3 (Vpiuintconst, VpiNum s, VpiNum wid) -> Dec (s,int_of_string wid)
-| TUPLE3 (Vpihexconst, HEX s, VpiNum wid) -> Hex (s,int_of_string wid)
+| TUPLE3 (Vpibinaryconst, BIN s, Int wid) -> Bin (s,wid)
+| TUPLE3 (Vpioctconst, OCT s, Int wid) -> Oct (s,wid)
+| TUPLE3 (Vpiuintconst, DEC s, Int wid) -> Dec (s,wid)
+| TUPLE3 (Vpihexconst, HEX s, Int wid) -> Hex (s,wid)
 | (Always|Vpitopmodule|Vpitop|Vpiname) -> Void
 | TUPLE3 (Begin, TLIST pth, TLIST (Vpiparent :: TLIST [] :: lst)) -> Seq (List.map remapp lst)
 | TUPLE2 (Parameter, STRING p) -> Void
@@ -354,69 +418,12 @@ let rec combiner = function
 | Seq (Block (Id blk, exp1) :: Block (Id blk', Dyadic (op, Id blk'', exp2)) :: tl) :: tl' when blk=blk' && blk'=blk'' ->
   combiner (Asgn(Id blk', Dyadic(op, exp1, exp2)) :: tl @ tl')
 | Seq lst :: tl -> combiner (lst @ tl)
+| Asgn (Update (Id dest, lfthi, lftlo, hi, lo), a) :: Asgn (Update (Id dest', rghthi, rghtlo, hi', lo'), b) :: tl
+    when dest=dest' && lfthi=hi && lftlo=rghthi+1 && rghtlo=lo && hi=hi' && lo=lo' -> Asgn(Id dest, Concat ( a, b )) :: combiner tl
 | oth -> oth in
 
 let remapp'' = List.map strength_reduce remapp' in
 let remapp''' = combiner remapp'' in
-
-let sub' lhs rhs =
-let wlhs = width lhs in
-let wrhs = width rhs in
-if wlhs = wrhs then
-lhs -: rhs
-else if wlhs < wrhs then
-(uresize lhs wrhs) -: rhs
-else if wlhs > wrhs then
-lhs -: (uresize rhs wlhs)
-else failwith "sub'" in
-
-let add' lhs rhs =
-let wlhs = width lhs in
-let wrhs = width rhs in
-if wlhs = wrhs then
-add_fast lhs rhs
-else if wlhs < wrhs then
-add_fast (uresize lhs wrhs) rhs
-else if wlhs > wrhs then
-add_fast lhs (uresize rhs wlhs)
-else failwith "mult'" in
-
-let equal' lhs rhs =
-let wlhs = width lhs in
-let wrhs = width rhs in
-if wlhs = wrhs then
-lhs ==: rhs
-else if wlhs < wrhs then
-(uresize lhs wrhs) ==: rhs
-else if wlhs > wrhs then
-lhs ==: (uresize rhs wlhs)
-else failwith "equal'" in
-
-let mux2' cond lhs rhs =
-let wlhs = width lhs in
-let wrhs = width rhs in
-if wlhs = wrhs then
-mux2 cond lhs rhs
-else if wlhs < wrhs then
-mux2 cond (uresize lhs wrhs) rhs
-else if wlhs > wrhs then
-mux2 cond lhs (uresize rhs wlhs)
-else failwith "mux2'" in
-
-let mux' sel inputs =
-let wid = width inputs in
-mux sel (List.init wid (bit inputs)) in
-
-let assign' (lhs:Hardcaml.Always.Variable.t) rhs =
-let wlhs = width lhs.value in
-let wrhs = width rhs in
-if wlhs = wrhs then
-lhs <-- rhs
-else if wlhs < wrhs then
-lhs <-- (uresize rhs wlhs)
-else if wlhs > wrhs then
-lhs <-- (uresize rhs wlhs)
-else failwith "equal'" in
 
 let unimp' lhs rhs = failwith "unimp'" in
 
@@ -470,11 +477,16 @@ if exists wire then find_decl wire else Invalid
   let then_ = List.map (fun itm -> alw' (remap itm)) lhs in
   let else_ = List.map (fun itm -> alw' (remap itm)) rhs in
   Alw (if_ cond_ then_ else_)
-| Asgn (lhs, rhs) ->
+| Asgn (Update(lhs, lft, rght, hi, lo), rhs) ->
    othlhs' := lhs;
    othrhs' := rhs;
    othrmlhs' := remap lhs;
    othrmrhs' := remap rhs;
+   let lhs = var' (remap lhs) in
+   let rhs = sig' (remap rhs) in
+   let rhs' = rhs @: select lhs.value lft rght in (* placeholder, not working yet *)
+   Alw (assign' lhs rhs')
+| Asgn (lhs, rhs) ->
    let lhs = var' (remap lhs) in
    let rhs = sig' (remap rhs) in
    Alw (assign' lhs rhs)
@@ -490,7 +502,7 @@ if exists wire then find_decl wire else Invalid
    let lhs = sig' (remap lhs) in
    let rhs = sig' (remap rhs) in
    Sig (lhs @: rhs)
-| Select(nam, lft, rght) -> Sig (select (sig' (remap nam)) (int_of_string lft) (int_of_string rght))
+| Selection(nam, lft, rght, hi, lo) -> Sig (select (sig' (remap nam)) (lft) (rght))
 | Bitsel(nam, sel) -> Sig (mux' (sig' (remap sel)) (sig' (remap nam)))
 | oth -> othp := oth; failwith "remap"
  in
