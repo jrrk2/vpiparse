@@ -108,7 +108,7 @@ let rec rw = function
 		  TUPLE2 (Vpilhs, lhs)) -> TUPLE4(Assignment, Vpirhs, rw lhs, rw rhs)
 | TUPLE2 ((Vpiposedgeop|Vpinegedgeop|Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop|Vpibitnegop|Vpiplusop|Vpiminusop|Vpinotop as op), op1) -> TUPLE2(op, rw op1)
 | TUPLE2 ((Vpiconcatop|Vpimulticoncatop as op), TLIST op1) -> TUPLE2(op, TLIST (List.map rw op1))
-| TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), op1, op2) -> TUPLE3(op, rw op1, rw op2)
+| TUPLE3 ((Vpieventorop|Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), op1, op2) -> TUPLE3(op, rw op1, rw op2)
 | TUPLE4 (Vpiconditionop as op, op1, op2, op3) -> TUPLE4(op, rw op1, rw op2, rw op3)
 | TUPLE2 ((Vpitopmodule|Vpitop|Vpiblocking|Vpicasetype as top), Int 1) -> top
 | TUPLE2 (Sys_func_call, arg) -> TUPLE2 (Sys_func_call, rw arg)

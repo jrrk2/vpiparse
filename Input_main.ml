@@ -86,6 +86,7 @@ type remap =
 type attr = {
   pass: bool;
   clock: string option;
+  reset: string option;
 }
 
 let othr = ref Invalid
@@ -104,7 +105,8 @@ let othremapp'' = ref []
 let othremapp''' = ref []
 let othdecl = ref []
 let alst = ref []
-let othedg = ref Work
+let othckedg = ref Work
+let othrstedg = ref Work
 let p' = ref []
 
 let rec log2 n = if n <= 1 then 0 else 1 + log2 (n/2)
@@ -262,12 +264,15 @@ let declare_reg attr = function
   begin
   if false then print_endline reg;
   let clock = match attr.clock with Some clk -> sig' (find_decl clk) | None -> failwith ("failed to indentify clock for register: "^reg) in
-(*
-  let clear = sig' (find_decl "clear") in
-*) 
-  let r_sync = Reg_spec.create ~clock () in
-  let wid = hi-lo+1 in
-  add_decl reg wid (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid));
+  match attr.reset with
+  | Some rst -> let reset = sig' (find_decl rst) in
+    let r_sync = Reg_spec.create ~clock ~reset () in
+    let wid = hi-lo+1 in
+    add_decl reg wid (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid));
+  | None -> 
+    let r_sync = Reg_spec.create ~clock () in
+    let wid = hi-lo+1 in
+    add_decl reg wid (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid));
   end
 | oth -> othrw := Some oth; failwith "declare_reg" in
 
@@ -293,9 +298,16 @@ let rec traverse (attr:attr) = function
    traverse attr rhs;
    if attr.pass then declare_wire lhs
 | TUPLE3 (Always, TUPLE2 (Vpiposedgeop, (TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, loc))), STRING clk) as edg)), stmt) ->
-   othedg := edg;
+   othckedg := edg;
    if false then print_endline clk;
    traverse {attr with clock=Some clk} stmt
+| TUPLE3 (Always, TUPLE3(Vpieventorop,
+			 TUPLE2 (Vpiposedgeop, (TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST ckpth, ckloc))), STRING clk) as ckedg)),
+			 TUPLE2 (Vpiposedgeop, (TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST rstpth, rstloc))), STRING rst) as rstedg))), stmt) ->
+   othckedg := ckedg;
+   othrstedg := rstedg;
+   if false then print_endline clk;
+   traverse {attr with clock=Some clk; reset=Some rst} stmt
 | TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> traverse attr cond; traverse attr lhs; traverse attr rhs
 | TUPLE3 (If_stmt, cond, lhs) -> traverse attr cond; traverse attr lhs
 | TUPLE4 (If_else, cond, lhs, rhs) -> traverse attr cond; traverse attr lhs; traverse attr rhs
@@ -334,8 +346,8 @@ let rec traverse (attr:attr) = function
 | TUPLE2 (Vpigenstmt, stmts) -> ()
 | oth -> otht := Some oth; failwith "traverse failed with otht" in
 
-let _ = List.iter (traverse {pass=false; clock=None}) p in
-let _ = List.iter (traverse {pass=true; clock=None}) p in
+let _ = List.iter (traverse {pass=false; clock=None; reset=None}) p in
+let _ = List.iter (traverse {pass=true; clock=None; reset=None}) p in
 
 let edgstmt = ref Work in
 let edgstmt' = ref (Void 0) in
@@ -373,6 +385,13 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
 | TUPLE4 (Assignment, optype, lhs, rhs) as a -> remapp a
 *)
 | TUPLE3 (Always, TUPLE2 (Vpiposedgeop, edg), stmt) ->
+   edgstmt := stmt; 
+   let stmt' = remapp stmt in
+   edgstmt' := stmt';
+   stmt'
+| TUPLE3 (Always, TUPLE3(Vpieventorop,
+			 TUPLE2 (Vpiposedgeop, ckedg),
+			 TUPLE2 (Vpiposedgeop, rstedg)), stmt) ->
    edgstmt := stmt; 
    let stmt' = remapp stmt in
    edgstmt' := stmt';

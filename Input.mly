@@ -1952,6 +1952,7 @@ unary:
   | Vpinotop { Vpinotop }
 
 dyadic:
+  | Vpieventorop { Vpieventorop }
   | Vpiaddop { Vpiaddop }
   | Vpisubop { Vpisubop }
   | Vpimultop { Vpimultop }
