@@ -312,14 +312,21 @@ let rec traverse (attr:attr) = function
 | TUPLE3 (Logic_net, Vpialways, STRING net) -> ()
 | TUPLE2 (Logic_net, STRING net) -> ()
 | TUPLE3 ((Vpibinaryconst|Vpioctconst|Vpidecconst|Vpihexconst|Vpiuintconst), (BIN _|OCT _|DEC _|HEX _|Int _), Int _) -> ()
-| TUPLE3 (Begin, TLIST pth, TLIST lst) -> List.iter (traverse attr) lst
+| TUPLE3 (Begin, TLIST pth, TLIST lst) -> List.iteri (fun ix itm -> traverse attr itm) lst
 | STRING s -> ()
 | TLIST [] -> ()
 | Int s -> ()
 | (Always|Vpitopmodule|Vpitop|Vpiname|Vpiparent|Vpitask|Task) -> ()
 | TUPLE2 (Parameter, STRING p) -> ()
 | TUPLE2 (Parameter, Work) -> ()
-| TUPLE2 (Case_stmt, TLIST lst) -> ()
+| TUPLE2 (Case_stmt, TLIST (TUPLE2 (Vpicasetype, Int 1) :: TUPLE2 (Vpicondition, cond) :: lst)) ->
+    traverse attr cond;
+    List.iteri (fun ix -> function
+      | TUPLE3 (Case_item, cons, stmt) ->
+        traverse attr cons;
+        traverse attr stmt;
+        otht := Some stmt;
+      | oth -> otht := Some oth; failwith "traverse case") lst
 | TUPLE3 (Bit_select, STRING nam, idx) -> traverse attr idx
 | TUPLE4 (Ref_module, STRING nam1, STRING nam2, TLIST lst) -> ()
 | TUPLE3 (Sys_func_call, actual, STRING ("$signed"|"$unsigned")) -> ()
