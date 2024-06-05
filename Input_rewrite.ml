@@ -50,6 +50,7 @@ let othrw = ref None
 type pattr = {
   mutable nam: token;
   mutable dir: token;
+  mutable loc: token;
 }
 
 type refh = {
@@ -67,22 +68,24 @@ rghtsiz: token;
 
 let (refh:refh array ref) = ref [||]
 
-let pwid = function LOC (line', col', endln', endcol') ->
-    let found = ref (Width(0,0)) in
+let pwid = let wcache = ref [] in fun nam -> function LOC (line', col', endln', endcol') ->
+    let found = ref (if List.mem_assoc nam !wcache then List.assoc nam !wcache else Width(0,0)) in
     Array.iteri (fun ix ->
 		   fun ({lft; rght; line; col; endln; endcol}) ->
 		      let nxtln = if ix+1 >= Array.length !refh then 9999 else (!refh).(ix+1).line in
 		      let nxtcol = if ix+1 >= Array.length !refh then 9999 else (!refh).(ix+1).col in
 		      if false then print_endline (string_of_int ix^": "^string_of_int line^" "^string_of_int col^" "^string_of_int endln^" "^string_of_int endcol);
 
-		      if (line' > endln || (line'=endln && col' >= endcol)) && (endln' < nxtln || (endln'=nxtln && endcol' < nxtcol)) then
+		      if (line' >= line || (line'=line && col' >= col)) && (endln' < nxtln || (endln'=nxtln && endcol' <= nxtcol)) then
 		      begin
 		      if false then print_endline (string_of_int ix);
 		      let lft' = int_of_string lft in
 		      let rght' = int_of_string rght in
 	              found := Width (lft', rght');
+		      wcache := (nam, !found) :: !wcache
 		      end
 		      ) !refh;
+if false then print_endline ((match nam, !found with STRING s, Width(hi,lo) -> s^" "^string_of_int hi^":"^string_of_int lo | _ -> ""));
     !found
 | _ -> failwith "pwid"
 
@@ -105,7 +108,7 @@ let rec rw = function
 		  TUPLE2 (Vpilhs, lhs)) -> TUPLE4(Assignment, Vpirhs, rw lhs, rw rhs)
 | TUPLE2 ((Vpiposedgeop|Vpinegedgeop|Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop|Vpibitnegop|Vpiplusop|Vpiminusop|Vpinotop as op), op1) -> TUPLE2(op, rw op1)
 | TUPLE2 ((Vpiconcatop|Vpimulticoncatop as op), TLIST op1) -> TUPLE2(op, TLIST (List.map rw op1))
-| TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpilshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), op1, op2) -> TUPLE3(op, rw op1, rw op2)
+| TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), op1, op2) -> TUPLE3(op, rw op1, rw op2)
 | TUPLE4 (Vpiconditionop as op, op1, op2, op3) -> TUPLE4(op, rw op1, rw op2, rw op3)
 | TUPLE2 ((Vpitopmodule|Vpitop|Vpiblocking|Vpicasetype as top), Int 1) -> top
 | TUPLE2 (Sys_func_call, arg) -> TUPLE2 (Sys_func_call, rw arg)
@@ -116,7 +119,7 @@ let rec rw = function
       func) ->  TUPLE2(rw func, rw nam)
 | TUPLE2 (Vpiactual,
       TUPLE2 (Logic_net,
-              TUPLE2 (TLIST pth, loc))) -> TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2 (TLIST pth, pwid loc)))
+              TUPLE2 (TLIST pth, loc))) -> TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2 (TLIST pth, pwid (List.hd (List.rev pth)) loc)))
 | TUPLE5 (Ref_obj, nam,
       TLIST pth,
       TUPLE2 (Vpiactual,
@@ -139,7 +142,7 @@ let rec rw = function
 		       TUPLE2 (Vpidefname, STRING netnam'),
 		       TUPLE2 (Vpiconstantselect, Int 1),
       TUPLE2 (Vpileftrange, lftrng),
-      TUPLE2 (Vpirightrange, rghtrng)), loc) -> TUPLE5(Part_select, rw netnam, rw lftrng, rw rghtrng, pwid loc)
+      TUPLE2 (Vpirightrange, rghtrng)), loc) -> TUPLE5(Part_select, rw netnam, rw lftrng, rw rghtrng, pwid netnam loc)
 | TUPLE8 (Indexed_part_select, nam, TLIST pth, nam', _, _, TUPLE2 (Vpileftrange, lftexp), TUPLE2 (Vpirightrange, rghtexp)) ->
   TUPLE4 (Indexed_part_select, rw nam, rw lftexp, rw rghtexp)
 | TUPLE2 (Vpiport, TUPLE5 (Port, port, TUPLE2 (Vpidirection, dir), loconn, rts)) -> TUPLE3(Port, port, dir)
@@ -250,14 +253,14 @@ let rec rw = function
 | TUPLE2 (Vpiport,
       TUPLE3 (Port, (LOC (line', col', endln', endcol') as loc),
         TLIST plst)) ->
-let pattr = {nam=Work; dir=Work} in
+let pattr = {nam=Work; dir=Work; loc} in
 List.iter (findport pattr) plst;
-if false then print_endline (string_of_int line'^" "^string_of_int col'^" "^string_of_int endln'^" "^string_of_int endcol'^" "^match pattr.nam with STRING s -> s | _ -> "");
-TUPLE3(pattr.dir, pattr.nam, pwid loc)
+let wid = pwid pattr.nam pattr.loc in
+TUPLE3(pattr.dir, pattr.nam, wid)
 | TUPLE2 (Vpitaskfunc, Task) -> Task
-| TUPLE3 (Vpiparameter, STRING param, TLIST lst) -> let pattr = {nam=Work; dir=Work} in
+| TUPLE3 (Vpiparameter, STRING param, TLIST lst) -> let pattr = {nam=Work; dir=Work; loc=Work} in
 List.iter (findport pattr) lst; TUPLE2(Parameter, pattr.nam)
-| TUPLE2 (Vpiparamassign, TLIST lst) -> let pattr = {nam=Work; dir=Work} in
+| TUPLE2 (Vpiparamassign, TLIST lst) -> let pattr = {nam=Work; dir=Work; loc=Work} in
 List.iter (findport pattr) lst; TUPLE2(Parameter, pattr.nam)
 | oth -> othrw := Some oth; failwith "rw"
 
@@ -272,10 +275,10 @@ and findport pattr = function
 | STRING _ as port -> pattr.nam <- port
 | TUPLE2 (Vpidirection, dir) -> pattr.dir <- dir
 | TUPLE5 (Ref_typespec, (TLIST _|STRING _), Vpiparent, TLIST pth', 
-              TUPLE2 (Vpiactual, TUPLE2((Logic_typespec|Int_typespec|Integer_typespec), LOC (line, col, endln, endcol)))) -> ()
+              TUPLE2 (Vpiactual, TUPLE2((Logic_typespec|Int_typespec|Integer_typespec), (LOC _ as loc)))) -> pattr.loc <- loc
 | TUPLE2 ((Vpilowconn|Vpihighconn),
             TUPLE4 (Ref_obj, lowport, TLIST pth, 
-               TUPLE2 (Vpiactual, TUPLE2(Logic_net, TUPLE2(TLIST pth', LOC (line, col, endln, endcol)))))) -> pattr.nam <- lowport
+               TUPLE2 (Vpiactual, TUPLE2(Logic_net, TUPLE2(TLIST pth', (LOC _ as loc)))))) -> pattr.nam <- lowport; pattr.loc <- loc
 | TUPLE2 (Vpihighconn,
       TUPLE3 (Ref_obj, (STRING _ as port), TLIST pth)) -> pattr.nam <- port
 | TUPLE3 (Ref_typespec, TLIST pth,
@@ -306,6 +309,15 @@ let hash_itm = function
 		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp))))) ->
 ({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;line; col; endln; endcol})
 | TUPLE3 (Logic_typespec,
+         LOC (line, col, endln, endcol),
+         TUPLE3 (Logic_typespec,
+	   TUPLE3 (Vpirange,
+	     TUPLE2 (Vpileftrange,
+	       TUPLE5 (Constant, Vpidecompile lft, TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
+	     TUPLE2 (Vpirightrange,
+		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp))), Vpisigned)) ->
+({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;line; col; endln; endcol})
+| TUPLE3 (Logic_typespec,
          LOC (line, col, _, _),
          TUPLE3 (Logic_typespec,
 	   TUPLE2 (Logic_net, TUPLE2(TLIST pth, LOC (_, _, endln, endcol))),
@@ -314,6 +326,16 @@ let hash_itm = function
 	       TUPLE5 (Constant, Vpidecompile lft, TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
 	     TUPLE2 (Vpirightrange,
 		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp))))) ->
+({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;line; col; endln; endcol})
+| TUPLE3 (Logic_typespec,
+         LOC (line, col, _, _),
+         TUPLE4 (Logic_typespec,
+	   TUPLE2 (Logic_net, TUPLE2(TLIST pth, LOC (_, _, endln, endcol))),
+	   TUPLE3 (Vpirange,
+	     TUPLE2 (Vpileftrange,
+	       TUPLE5 (Constant, Vpidecompile lft, TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
+	     TUPLE2 (Vpirightrange,
+		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp))), Vpisigned)) ->
 ({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;line; col; endln; endcol})
 | TUPLE3 (Logic_typespec, LOC (line, col, _, _),
       TUPLE2 (Logic_typespec,

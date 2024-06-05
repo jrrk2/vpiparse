@@ -54,25 +54,26 @@ open Input_rewrite
 open Input_lex
 
 type remapp =
-  | Void
+  | Void of int
   | Id of string
   | Alw of Hardcaml.Always.t
   | Bin of string * int
   | Oct of string * int
   | Dec of string * int
   | Hex of string * int
-  | Eq of remapp * remapp
   | If_ of remapp * remapp list * remapp list
   | Mux2 of remapp * remapp * remapp
   | Asgn of remapp * remapp
   | Block of remapp * remapp
-  | Concat of remapp * remapp
+  | Concat of token * remapp * remapp
   | Selection of remapp * int * int * int * int
   | Update of remapp * int * int * int * int
   | Bitsel of remapp * remapp
   | Seq of remapp list
   | Unary of token * remapp
   | Dyadic of token * remapp * remapp
+  | Case of remapp * remapp list
+  | Item of remapp * remapp * remapp
 
 type remap =
   | Invalid
@@ -80,6 +81,7 @@ type remap =
   | Sig of Hardcaml.Signal.t
   | Alw of Hardcaml.Always.t
   | Var of Hardcaml.Always.Variable.t
+  | Itm of (Hardcaml.Signal.t * Hardcaml.Always.t list)
 
 type attr = {
   pass: bool;
@@ -87,15 +89,15 @@ type attr = {
 }
 
 let othr = ref Invalid
-let othlhs = ref Void
-let othrhs = ref Void
+let othlhs = ref (Void 0)
+let othrhs = ref (Void 0)
 let othrmlhs = ref Invalid
 let othrmrhs = ref Invalid
-let othlhs' = ref Void
-let othrhs' = ref Void
+let othlhs' = ref (Void 0)
+let othrhs' = ref (Void 0)
 let othrmlhs' = ref Invalid
 let othrmrhs' = ref Invalid
-let othp = ref Void
+let othp = ref (Void 0)
 let otht = ref None
 let othremapp' = ref []
 let othremapp'' = ref []
@@ -170,16 +172,16 @@ else if wlhs > wrhs then
 add_fast lhs (uresize rhs wlhs)
 else failwith "mult'"
 
-let equal' lhs rhs =
+let relational relation lhs rhs =
 let wlhs = width lhs in
 let wrhs = width rhs in
 if wlhs = wrhs then
-lhs ==: rhs
+relation lhs rhs
 else if wlhs < wrhs then
-(uresize lhs wrhs) ==: rhs
+relation (uresize lhs wrhs) rhs
 else if wlhs > wrhs then
-lhs ==: (uresize rhs wlhs)
-else failwith "equal'"
+relation lhs (uresize rhs wlhs)
+else failwith "relational"
 
 let mux2' cond lhs rhs =
 let wlhs = width lhs in
@@ -192,8 +194,12 @@ else if wlhs > wrhs then
 mux2 cond lhs (uresize rhs wlhs)
 else failwith "mux2'"
 
+let othsel = ref None
+
 let mux' sel inputs =
 let wid = width inputs in
+othsel := Some sel;
+print_endline ("mux width: "^string_of_int wid);
 mux sel (List.init wid (bit inputs))
 
 let assign' (lhs:Hardcaml.Always.Variable.t) rhs =
@@ -205,20 +211,21 @@ else if wlhs < wrhs then
 lhs <-- (uresize rhs wlhs)
 else if wlhs > wrhs then
 lhs <-- (uresize rhs wlhs)
-else failwith "equal'"
+else failwith "assign'"
 
 let cnv (modnam, p) =
 begin
 let declare_lst = ref [] in
 let exists k = List.mem_assoc k !declare_lst in
-let add_decl k x =
+let add_decl k wid x =
   if exists k then print_endline (k^": redeclared") else
   begin
     declare_lst := (k, x) :: !declare_lst;
-    othdecl := (k, match x with
+    othdecl := (k, wid, match x with
       | Con _ -> x
       | Var _ -> Var (Always.Variable.wire ~default:(Signal.zero 1))
-      | Sig _ -> x) :: !othdecl
+      | Sig _ -> x
+      | Alw _ | Invalid -> failwith "add_decl") :: !othdecl
   end in
 let find_decl k = List.assoc k !declare_lst in
 let iter_decl fn = List.iter (fun (k,x) -> fn k x) !declare_lst in
@@ -239,15 +246,15 @@ let var' = function
 
 let declare_input wid port =
   if false then print_endline port;
-  add_decl port (Sig (Signal.input port wid)) in
+  add_decl port wid (Sig (Signal.input port wid)) in
 
 let declare_wire = function
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, Width(hi,lo)))), STRING wire) ->
-  add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero (hi-lo+1))))
+| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, Width(hi,lo)))), STRING wire) -> let wid=hi-lo+1 in
+  add_decl wire wid (Var (Always.Variable.wire ~default:(Signal.zero wid)))
 | TUPLE5 (Part_select, STRING wire,
       TUPLE3 (Vpiuintconst, Int lft, Int _),
-      TUPLE3 (Vpiuintconst, Int rght, Int _), Width(hi, lo)) ->
-  add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero (hi-lo+1))))
+      TUPLE3 (Vpiuintconst, Int rght, Int _), Width(hi, lo)) -> let wid = hi-lo+1 in
+  add_decl wire wid (Var (Always.Variable.wire ~default:(Signal.zero wid)))
 | oth -> othrw := Some oth; failwith "declare_wire" in
 
 let declare_reg attr = function
@@ -260,7 +267,7 @@ let declare_reg attr = function
 *) 
   let r_sync = Reg_spec.create ~clock () in
   let wid = hi-lo+1 in
-  add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid));
+  add_decl reg wid (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid));
   end
 | oth -> othrw := Some oth; failwith "declare_reg" in
 
@@ -271,13 +278,13 @@ let rec traverse (attr:attr) = function
         traverse attr lhs;
         traverse attr rhs;
         if not attr.pass then declare_wire lhs
-    | oth -> otht := Some oth; failwith "traverse failed with otht") stmtlst
+    | oth -> otht := Some oth; failwith "always traverse failed with otht") stmtlst
 | TUPLE3 (Always, Vpiassignstmt,
-   TUPLE4 (Assignment, optype, lhs, rhs)) ->
+   TUPLE4 ((Assignment|Vpiblocking), optype, lhs, rhs)) ->
    traverse attr lhs;
    traverse attr rhs;
    if not attr.pass then declare_wire lhs
-| TUPLE4 (Assignment, optype, lhs, rhs) ->
+| TUPLE4 ((Assignment|Vpiblocking), optype, lhs, rhs) ->
    traverse attr lhs;
    traverse attr rhs;
    if attr.pass then declare_reg attr lhs
@@ -293,7 +300,7 @@ let rec traverse (attr:attr) = function
 | TUPLE3 (If_stmt, cond, lhs) -> traverse attr cond; traverse attr lhs
 | TUPLE4 (If_else, cond, lhs, rhs) -> traverse attr cond; traverse attr lhs; traverse attr rhs
 | TUPLE2 ((Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop|Vpibitnegop|Vpiplusop|Vpiminusop|Vpinotop as op), rhs) -> traverse attr rhs
-| TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpilshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop), lhs, rhs) -> traverse attr lhs; traverse attr rhs
+| TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop), lhs, rhs) -> traverse attr lhs; traverse attr rhs
 | TUPLE2 ((Vpiconcatop|Vpimulticoncatop), TLIST lst) -> List.iter (traverse attr) lst
 | TUPLE5 (Part_select, STRING nam, lft, rght, Width(hi,lo)) -> ()
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, Width _))), STRING wire) -> ()
@@ -324,14 +331,13 @@ let _ = List.iter (traverse {pass=false; clock=None}) p in
 let _ = List.iter (traverse {pass=true; clock=None}) p in
 
 let edgstmt = ref Work in
-let edgstmt' = ref Void in
+let edgstmt' = ref (Void 0) in
 let conlst = ref [] in
 let conlst' = ref [] in
 
 let rec (remapp:token->remapp) = function
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, Width(hi,lo)))), STRING wire) ->
 if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
-| TUPLE3 (Vpieqop, lhs, rhs) -> Eq (remapp lhs, remapp rhs)
 | TUPLE3 (If_stmt, cond, lhs) ->
   let cond_ =  (remapp cond) in
   let then_ =  (remapp lhs) in
@@ -348,14 +354,17 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
       | oth -> othlhs := oth; failwith "remapp cont_assign failed with otht"; in
    Asgn (lhs, rhs)
 | TUPLE2 (Always,
-   TUPLE3 (Begin, TLIST pth, TLIST (Vpiparent:: TLIST [] :: stmtlst))) -> Seq (List.map (function
-    | TUPLE4 (Vpiblocking, Vpirhs, lhs, rhs) -> Block (remapp lhs, remapp rhs)
-    | TUPLE4 (Vpiblocking, unhandled, lhs, rhs) -> Block (remapp lhs, Dyadic (unhandled, remapp lhs, remapp rhs))
-    | TUPLE4 (Assignment, optype, lhs, rhs) as a -> remapp a
-    | oth -> otht := Some oth; failwith "remapp failed with otht") stmtlst)
+   TUPLE3 (Begin, TLIST pth, TLIST (Vpiparent:: TLIST [] :: stmtlst))) -> Seq (List.map remapp stmtlst)
 | TUPLE3 (Always, Vpiassignstmt, stmt) -> remapp stmt
 | TUPLE4 (Assignment, Vpirhs, lhs, rhs) -> Asgn (remapp lhs, remapp rhs)
-| TUPLE4 (Assignment, unhandled, lhs, rhs) -> Asgn (remapp lhs, Dyadic (unhandled, remapp lhs, remapp rhs))
+| TUPLE4 (Vpiblocking, Vpirhs, lhs, rhs) -> Block (remapp lhs, remapp rhs)
+| TUPLE4 (Assignment, op, lhs, rhs) -> Asgn (remapp lhs, Dyadic (op, remapp lhs, remapp rhs))
+| TUPLE4 (Vpiblocking, op, lhs, rhs) -> Block (remapp lhs, Dyadic (op, remapp lhs, remapp rhs))
+(*
+| TUPLE4 (Vpiblocking, Vpirhs, lhs, rhs) -> Block (remapp lhs, remapp rhs)
+| TUPLE4 (Vpiblocking, unhandled, lhs, rhs) -> Block (remapp lhs, Dyadic (unhandled, remapp lhs, remapp rhs))
+| TUPLE4 (Assignment, optype, lhs, rhs) as a -> remapp a
+*)
 | TUPLE3 (Always, TUPLE2 (Vpiposedgeop, edg), stmt) ->
    edgstmt := stmt; 
    let stmt' = remapp stmt in
@@ -365,46 +374,49 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
 -> Unary (op, remapp rhs)
 
 | TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> Mux2 (remapp cond, remapp lhs, remapp rhs)
-| TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpilshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), lhs, rhs) -> Dyadic (op, remapp lhs, remapp rhs)
-| TUPLE2 (Vpiconcatop, TLIST lst) ->
+| TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), lhs, rhs) -> Dyadic (op, remapp lhs, remapp rhs)
+| TUPLE2 ((Vpiconcatop|Vpimulticoncatop as op), TLIST lst) ->
    conlst := lst;
    let lst' = List.map remapp lst in
    conlst' := lst';
    let rec concat = function
      | [] -> failwith "concat"
      | hd :: [] -> hd
-     | hd :: tl -> Concat(hd, concat tl) in
+     | hd :: tl -> Concat(op, hd, concat tl) in
    concat lst'
 | TUPLE5 (Part_select, STRING nam, TUPLE3 (Vpiuintconst, Int lft, Int _), TUPLE3 (Vpiuintconst, Int rght, Int _), Width(hi,lo)) ->
    Selection(Id nam, lft, rght, hi, lo)
-| TUPLE3 (Vpioutput, STRING port, Width(hi,lo))	    -> Void
-| TUPLE3 (Vpiinput, STRING port, Width(hi,lo))	    -> Void
-| TUPLE3 (Logic_net, Vpireg, STRING reg) -> Void
-| TUPLE3 (Logic_net, Vpinet, STRING net) -> Void
-| TUPLE3 (Logic_net, Vpialways, STRING net) -> Void
-| TUPLE2 (Logic_net, STRING net) -> Void
-| STRING s -> Void
-| TLIST [] -> Void
+| TUPLE3 (Vpioutput, STRING port, Width(hi,lo))	    -> Void 382
+| TUPLE3 (Vpiinput, STRING port, Width(hi,lo))	    -> Void 383
+| TUPLE3 (Logic_net, Vpireg, STRING reg) -> Void 384
+| TUPLE3 (Logic_net, Vpinet, STRING net) -> Void 385
+| TUPLE3 (Logic_net, Vpialways, STRING net) -> Void 386
+| TUPLE2 (Logic_net, STRING net) -> Void 387
+| STRING s -> Void 388
+| TLIST [] -> Void 389
 | TUPLE3 (Vpibinaryconst, BIN s, Int wid) -> Bin (s,wid)
 | TUPLE3 (Vpioctconst, OCT s, Int wid) -> Oct (s,wid)
-| TUPLE3 (Vpiuintconst, DEC s, Int wid) -> Dec (s,wid)
+| TUPLE3 ((Vpidecconst|Vpiuintconst), DEC s, Int wid) -> Dec (s,wid)
 | TUPLE3 (Vpihexconst, HEX s, Int wid) -> Hex (s,wid)
-| (Always|Vpitopmodule|Vpitop|Vpiname) -> Void
+| TUPLE3 (Vpiuintconst, Int n, Int wid) -> Dec(string_of_int n, wid)
+| (Always|Vpitopmodule|Vpitop|Vpiname) -> Void 394
 | TUPLE3 (Begin, TLIST pth, TLIST (Vpiparent :: TLIST [] :: lst)) -> Seq (List.map remapp lst)
-| TUPLE2 (Parameter, STRING p) -> Void
-| TUPLE2 (Parameter, Work) -> Void
-| TUPLE2 (Case_stmt, TLIST lst) -> Void
-| TUPLE3 (Bit_select, STRING nam, idx) -> if exists nam then Bitsel (Id nam, remapp idx) else Void
+| TUPLE2 (Parameter, STRING p) -> Void 396
+| TUPLE2 (Parameter, Work) -> Void 397
+| TUPLE2 (Case_stmt, TLIST (TUPLE2 (Vpicasetype, Int 1) :: TUPLE2 (Vpicondition, cond) :: lst)) ->
+    let cond' = remapp cond in
+    Case (cond', List.map (function TUPLE3 (Case_item, cons, stmt) -> Item (cond', remapp cons, remapp stmt) | oth -> failwith "Case") lst)
+| TUPLE3 (Bit_select, STRING nam, idx) -> if exists nam then Bitsel (Id nam, remapp idx) else Void 399
 
-| TUPLE4 (Ref_module, STRING nam1, STRING nam2, TLIST lst) -> Void
-| TUPLE3 (Sys_func_call, actual, STRING ("$signed"|"$unsigned")) -> Void
-| TUPLE2 (Initial, stmts) -> Void
-| TUPLE2 (Vpigenstmt, stmts) -> Void
-| Vpiparent -> Void
-| TUPLE6 (For_stmt, TLIST [], _, _, _, _) -> Void
+| TUPLE4 (Ref_module, STRING nam1, STRING nam2, TLIST lst) -> Void 401
+| TUPLE3 (Sys_func_call, actual, STRING ("$signed"|"$unsigned")) -> Void 402
+| TUPLE2 (Initial, stmts) -> Void 403
+| TUPLE2 (Vpigenstmt, stmts) -> Void 404
+| Vpiparent -> Void 405
+| TUPLE6 (For_stmt, TLIST [], _, _, _, _) -> Void 406
 | oth -> otht := Some oth; failwith "remapp failed with otht"; in
 
-let remapp' = List.filter (function Void -> false |_ -> true) (List.map remapp p) in
+let remapp' = List.filter (function Void _ -> false |_ -> true) (List.map remapp p) in
 
 let rec strength_reduce = function
 | Asgn (Id c, 
@@ -413,59 +425,83 @@ let rec strength_reduce = function
 | oth -> oth in
 
 let rec combiner = function
-| If_ (Eq (a, b), c, d) ::
-  If_ (Eq (a', b'), c', d') :: [] when a=a' && b=b' -> If_ (Eq (a, b), c@c', d@d') :: []
+| [] -> []
+| If_ (Dyadic (Vpieqop, a, b), c, d) ::
+  If_ (Dyadic (Vpieqop, a', b'), c', d') :: [] when a=a' && b=b' -> If_ (Dyadic (Vpieqop, a, b), c@c', d@d') :: []
 | Seq (Block (Id blk, exp1) :: Block (Id blk', Dyadic (op, Id blk'', exp2)) :: tl) :: tl' when blk=blk' && blk'=blk'' ->
   combiner (Asgn(Id blk', Dyadic(op, exp1, exp2)) :: tl @ tl')
 | Seq lst :: tl -> combiner (lst @ tl)
 | Asgn (Update (Id dest, lfthi, lftlo, hi, lo), a) :: Asgn (Update (Id dest', rghthi, rghtlo, hi', lo'), b) :: tl
-    when dest=dest' && lfthi=hi && lftlo=rghthi+1 && rghtlo=lo && hi=hi' && lo=lo' -> Asgn(Id dest, Concat ( a, b )) :: combiner tl
-| oth -> oth in
+when dest=dest' && lfthi=hi && lftlo=rghthi+1 && rghtlo=lo && hi=hi' && lo=lo' -> Asgn(Id dest, Concat ( Vpiconcatop, a, b )) :: combiner tl
+| Block(id, expr) :: tl -> Asgn(id, expr) :: combiner tl
+| hd :: tl -> hd :: combiner tl in
 
 let remapp'' = List.map strength_reduce remapp' in
 let remapp''' = combiner remapp'' in
 
-let unimp' lhs rhs = failwith "unimp'" in
+let unimpld = let seen = ref [] in fun lbl lhs rhs ->
+if not (List.mem lbl !seen) then print_endline ("unimpld: "^lbl); seen := lbl :: !seen; lhs ^: rhs in
 
-let unimp lhs rhs =
+let unimp lbl lhs rhs =
 let wlhs = width lhs in
 let wrhs = width rhs in
 if wlhs = wrhs then
-unimp' lhs rhs
+unimpld lbl lhs rhs
 else if wlhs < wrhs then
-unimp' (uresize lhs wrhs) rhs
+unimpld lbl (uresize lhs wrhs) rhs
 else if wlhs > wrhs then
-unimp' lhs (uresize rhs wlhs)
+unimpld lbl lhs (uresize rhs wlhs)
 else failwith "unimp" in
+
+let negate fn = fun lhs rhs -> fn lhs (~: rhs) in
 
 let remapop = function
 |Vpiaddop -> add'
 |Vpisubop -> sub'
 |Vpimultop -> mult_wallace
-|Vpidivop -> unimp
-|Vpimodop -> unimp
+|Vpidivop -> unimp "div"
+|Vpimodop -> unimp "mod"
+|Vpipowerop -> unimp "power"
 |Vpilshiftop -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
 |Vpirshiftop -> (fun lhs rhs -> Signal.log_shift srl rhs lhs)
 |Vpiarithrshiftop -> (fun lhs rhs -> Signal.log_shift sra rhs lhs)
 |Vpiarithlshiftop -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
-|Vpilogandop -> unimp
-|Vpilogorop -> unimp
+|Vpilogandop -> (&&:)
+|Vpilogorop -> (||:)
 |Vpibitandop -> (&:)
 |Vpibitorop -> (|:)
 |Vpibitxorop -> (^:)
-|Vpibitxnorop -> (fun lhs rhs -> lhs ^: (~: rhs))
-|Vpieqop -> unimp
-|Vpineqop -> unimp
-|Vpiltop -> unimp
-|Vpileop -> unimp
-|Vpigeop -> unimp
-|Vpigtop -> unimp
+|Vpibitxnorop -> negate (^:)
+|Vpieqop -> relational (==:)
+|Vpineqop -> relational (<>:)
+|Vpiltop -> relational (<:)
+|Vpileop -> relational (<=:)
+|Vpigeop -> relational (>=:)
+|Vpigtop -> relational (>:)
 |oth -> otht := Some oth; failwith "remapop" in
+
+let unimplu = let seen = ref [] in fun lbl rhs ->
+if not (List.mem lbl !seen) then print_endline ("unimplu: "^lbl); seen := lbl :: !seen; ~: rhs in
+
+let fold' fn rhs = let expl = List.init (width rhs) (bit rhs) in List.fold_left fn (List.hd expl) (List.tl expl) in
+
+let remapop' = function
+|Vpiplusop -> (fun rhs -> rhs)
+|Vpiminusop -> (fun rhs -> Signal.zero (width rhs) -: rhs)
+|Vpiunaryandop -> fold' (&:)
+|Vpiunarynandop -> fold' (negate (&:))
+|Vpiunaryorop -> fold' (|:)
+|Vpiunarynorop -> fold' (negate (|:))
+|Vpiunaryxorop -> fold' (^:)
+|Vpiunaryxnorop -> fold' (negate (^:))
+|Vpibitnegop -> (~:)
+|Vpinotop -> (~:)
+|oth -> otht := Some oth; failwith "remapop'" in
 
 let rec (remap:remapp->remap) = function
 | Id wire ->
 if exists wire then find_decl wire else Invalid
-| Eq (lhs, rhs) -> Sig (equal' (sig' (remap lhs)) (sig' (remap rhs)))
+| Unary (op, rhs) -> Sig (remapop' op (sig' (remap rhs)))
 | Dyadic (op, lhs, rhs) -> Sig (remapop op (sig' (remap lhs)) (sig' (remap rhs)))
 | Mux2 (cond, lhs, rhs) ->
   let cond_ = sig' (remap cond) in
@@ -494,7 +530,7 @@ if exists wire then find_decl wire else Invalid
 | Dec (s,width) -> Con (Constant.of_z ~width (Z.of_string s))
 | Oct (s,width) -> Con (Constant.of_octal_string ~width ~signedness:Unsigned s)
 | Bin (s,width) -> Con (Constant.of_binary_string_hum s)
-| Concat (lhs, rhs) -> 
+| Concat (op, lhs, rhs) -> 
    othlhs' := lhs;
    othrhs' := rhs;
    othrmlhs' := remap lhs;
@@ -503,9 +539,11 @@ if exists wire then find_decl wire else Invalid
    let rhs = sig' (remap rhs) in
    Sig (lhs @: rhs)
 | Selection(nam, lft, rght, hi, lo) -> Sig (select (sig' (remap nam)) (lft) (rght))
-| Bitsel(nam, sel) -> Sig (mux' (sig' (remap sel)) (sig' (remap nam)))
-| oth -> othp := oth; failwith "remap"
- in
+| Bitsel(nam, Dec (n, _)) -> Sig (bit (sig' (remap nam)) (int_of_string n))
+| Bitsel(nam, sel) as b -> othp := b; Sig (mux' (sig' (remap sel)) (sig' (remap nam)))
+| Item (cond, Dec (n, _), stmt) -> let wid = width (sig' (remap cond)) in Itm (of_int ~width:wid (int_of_string n), [ alw' (remap stmt) ])
+| Case (mode, lst) -> Alw (Always.switch (sig' (remap mode)) (List.map (fun itm -> match remap itm with Itm c -> c | _ -> failwith "itm") lst))
+| oth -> othp := oth; failwith "remap" in
 
 othremapp' := remapp';
 othremapp'' := remapp'';

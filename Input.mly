@@ -1589,6 +1589,7 @@ misc_lst: { [] }
 misc:
   | Vpirange COLON Range COLON range_def Indent range_lst Unindent { to_tuple Vpirange $7 }
   | Vpiparent COLON parent { $3 }
+  | Vpisigned COLON Int { Vpisigned }
   
 range_lst: { [] }
   | range_opt range_lst { $1 :: $2 }
@@ -1972,7 +1973,8 @@ dyadic:
   | Vpileop { Vpileop }
   | Vpigeop { Vpigeop }
   | Vpigtop { Vpigtop }
-
+  | Vpipowerop { Vpipowerop }
+  
 vport:
   | Port COLON port_def Indent io_decl_lst Unindent { TUPLE3 (Port, $3, TLIST $5) }
 
@@ -1989,6 +1991,7 @@ logic_net_opt:
   | Vpifullname COLON fullnam { $3 }
   | Vpinettype COLON Int { TUPLE2(Vpinettype, net_type $3) }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
+  | Vpisigned COLON Int { Vpisigned }
 
 arraynettyp:
   | Array_net COLON array_net_def Indent array_net_lst Unindent { to_tuple Array_net $5 }
