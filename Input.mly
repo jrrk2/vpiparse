@@ -719,7 +719,7 @@ let vpi_task_func = function
 %token <int> Vpimethodint
 %token <int> Int
 %token <int*int*int*int> LOC
-%token <int*int> Width
+%token <int*int*bool> Width
 %token  UNDERSCORE
 %token  VBAR
 %token FINISHED
