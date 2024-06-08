@@ -139,6 +139,7 @@ let getstr = function
 | Vpitopmodule -> "vpiTopModule";
 | Vpitypedef -> "vpiTypedef";
 | Vpitypespec -> "vpiTypespec";
+| Vpibasetypespec -> "vpiBaseTypespec";
 | Vpivariables -> "vpiVariables";
 | Vpivisibility -> "vpiVisibility";
 | Work -> "work";
@@ -837,6 +838,7 @@ let vpi_task_func = function
 %token Vpitypedef
 %token Vpienumconst
 %token Vpivisibility
+%token Vpibasetypespec
 %token Vpitypespec
 %token Vpisigned
 %token Vpioverriden
@@ -1191,6 +1193,13 @@ let vpi_task_func = function
 %token Vpixnorprim (* xnor gate *)
 %token Vpixorprim (* xor gate *)
 
+%token Vpiarraytype
+%token Vpielemtypespec
+%token Array_typespec
+%token Array_var
+%token Gen_case
+%token Named_begin
+
 %token Work
 %token <string> VpiNum 
 %type <token list> ml_start
@@ -1198,6 +1207,7 @@ let vpi_task_func = function
 %type <token list> parameter_lst
 %type <token> parameter_opt
 %type <token> always_typ
+%type <token> input
 %start ml_start
 %%
 
@@ -1210,12 +1220,13 @@ package_opt:
   | Vpidefname COLON def_name { $3 }
   | Vpitop COLON Int { TUPLE2(Vpitop, Int $3) }
   | Vpiclassdefn COLON class_intro { TUPLE2(Vpiclassdefn, $3) }
-
+  | Design COLON design_nam { $3 }
+  
 class_intro: Class_defn COLON class_def Indent class_lst Unindent { to_tuple Class_defn $5 }
 
 parent:
   | Package COLON Builtin LPAREN Builtin COLON COLON RPAREN { Package }
-  | Design COLON LPAREN Work AT STRING RPAREN { Design }
+  | Design COLON design_nam { Design }
   | Class_defn COLON class_def { Class_defn }
   | Function COLON function_def { Function }
   | Task COLON task_def { Task }
@@ -1223,15 +1234,17 @@ parent:
   | Int_var COLON int_var_def { Int_var }
   | Integer_var COLON integer_var_def { Int_var }
   | Logic_var COLON logic_var_def { Logic_var }
+  | Array_var COLON array_var_def { Logic_var }
   | Io_decl COLON io_decl_def { Io_decl }
   | Enum_var COLON enum_var_def { Enum_var }
-  | Module_inst COLON module_inst_def { Module_inst }
+  | Module_inst COLON module_inst_def { TUPLE2(Module_inst, $3) }
   | Logic_net COLON logic_net_def { TUPLE2(Logic_net, $3) }
   | Port COLON port_def { Port }
   | Always COLON always_def { Always }
   | Event_control COLON event_control_def { Event_control }
   | Operation COLON operation_def { Operation }
   | Begin COLON begin_def { TUPLE2(Begin, $3) }
+  | Named_begin COLON named_begin_def { TUPLE2(Named_begin, $3) }
   | Assignment COLON assignment_def { Assignment }
   | Var_select COLON var_select_def { Var_select }
   | Range COLON range_def { Range }
@@ -1246,8 +1259,9 @@ parent:
   | Case_stmt COLON loc { Case_stmt }
   | Case_item COLON loc { Case_item }
   | Sys_func_call COLON sys_func_call_def { Sys_func_call }
-  | Cont_assign COLON loc { Cont_assign }
+  | Cont_assign COLON loc { TUPLE2 (Cont_assign, $3) }
   | Gen_region COLON loc { Gen_region }
+  | Gen_case COLON loc { Gen_case }
   | Gen_if_else COLON loc { Gen_if_else }
   | Ref_module COLON ref_module_def { Ref_module }
   | Indexed_part_select COLON indexed_part_select_def { Indexed_part_select }
@@ -1262,7 +1276,7 @@ loc: { Work }
   | COMMA Line COLON Int COLON Int COMMA Endln COLON Int COLON Int { LOC($4, $6, $10, $12) }
 
 ref_module_def:
-  | Work AT STRING LPAREN name RPAREN loc { Work }
+  | Work AT STRING LPAREN name RPAREN loc { TUPLE3(STRING $3, $5, $7) }
 
 class_var_def:
   | LPAREN Work AT name type_lst RPAREN loc { Work }
@@ -1276,7 +1290,8 @@ class_opt:
   | Vpitypedef COLON typespec { TUPLE2(Vpitypedef, $3) }
 
 typespec:
-  | Enum_typespec COLON enum_typespec_decl Indent enum_typespec_lst Unindent { to_tuple  Enum_typespec $5 }
+  | Enum_typespec COLON enum_typespec_decl Indent enum_typespec_lst Unindent { to_list Enum_typespec $5 }
+  | Enum_typespec COLON enum_typespec_decl { Enum_typespec }
 
 enum_typespec_lst: { [] }
   | enum_typespec_opt enum_typespec_lst { $1 :: $2 }
@@ -1285,8 +1300,9 @@ enum_typespec_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpiname COLON vnam { $3 }
   | Vpifullname COLON fullnam { $3 }
-  | Vpienumconst COLON { Vpienumconst }
-  | Enum_const COLON enum_const_decl Indent enum_constant_lst Unindent { to_tuple Enum_const $5 }
+  | Vpienumconst COLON Enum_const COLON enum_const_decl Indent enum_constant_lst Unindent { to_tuple Enum_const $7 }
+  | Vpiinstance COLON Module_inst COLON module_inst_def { TUPLE2(Vpiinstance, $5) }
+  | Vpibasetypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
 
 parameter_lst: { [] }
   | parameter_opt parameter_lst { $1 :: $2 }
@@ -1341,7 +1357,9 @@ enum_var_lst: { [] }
 enum_var_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
+  | Vpiname COLON vnam { $3 }
   | Vpifullname COLON fullnam { $3 }
+  | Vpivisibility COLON vis { TUPLE2(Vpivisibility, $3) }
 
 int_var_lst: { [] }
   | int_var_opt int_var_lst { $1 :: $2 }
@@ -1399,7 +1417,7 @@ logic_var_opt:
   | Vpivisibility COLON vis { TUPLE2(Vpivisibility, $3) }
 
 ref_typespec:
-  | Ref_typespec COLON type_spec Indent ref_typespec_lst Unindent { to_tuple Ref_typespec ($3::$5) }
+  | Ref_typespec COLON type_spec Indent ref_typespec_lst Unindent { to_list Ref_typespec ($3::$5) }
 
 ref_typespec_lst: { [] }
   | ref_typespec_opt ref_typespec_lst { $1 :: $2 }
@@ -1415,7 +1433,21 @@ ref_typespec_actual:
   | Integer_typespec COLON integer_typespec_def { TUPLE2(Integer_typespec, $3) }
   | Enum_typespec COLON enum_typespec_decl { TUPLE2(Enum_typespec, $3) }
   | Logic_typespec COLON logic_typespec_def { TUPLE2(Logic_typespec, $3) }
-  
+  | Array_typespec COLON loc { TUPLE2(Logic_typespec, $3) }
+  | Array_typespec COLON loc Indent array_typespec_lst Unindent { TUPLE2(Logic_typespec, $3) }
+
+array_typespec_lst: { [] }
+  | array_typespec_opt array_typespec_lst { $1 :: $2 }
+
+array_typespec_opt:
+  | Vpiparent COLON parent { Vpiparent }
+  | Vpiname COLON vnam { $3 }
+  | Vpifullname COLON fullnam { $3 }
+  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { Vpirange }
+  | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
+  | Vpisigned COLON Int { TUPLE2(Vpisigned, Int $3) }
+  | Vpielemtypespec COLON ref_typespec { TUPLE2(Vpielemtypespec, $3) }
+
 function_lst: { [] }
   | function_opt function_lst { $1 :: $2 }
 
@@ -1497,7 +1529,9 @@ ref_obj_opt:
 
 ref_obj_actual:
   | Logic_net COLON logic_net_def { TUPLE2(Logic_net, $3) }
+  | Logic_var COLON logic_var_def { TUPLE2(Logic_var, $3) }
   | Part_select COLON part_select_def { TUPLE2(Part_select, $3) }
+  | Enum_const COLON enum_const_decl { TUPLE2(Enum_const, $3) }
 
 constant_lst: { [] }
   | constant_opt constant_lst { $1 :: $2 }
@@ -1532,7 +1566,7 @@ packlst: { [] }
 pack: Package COLON Builtin LPAREN Builtin COLON COLON RPAREN Indent package_lst Unindent { to_tuple Package $10 }
 
 module_inst:
-  | Module_inst COLON module_inst_def Indent module_inst_lst Unindent { to_list Module_inst $5 }
+  | Module_inst COLON module_inst_def Indent module_inst_lst Unindent { TLIST $5 }
 
 modlst: { [] }
   | module_inst modlst { $1 :: $2 }
@@ -1542,16 +1576,20 @@ elab: { TUPLE2(Vpielaborated, Int 0) }
 
 modnam:
   | Vpiname COLON Work AT name { Vpiname }
+  | Vpiname COLON name { Vpiname }
+
+design_nam: LPAREN Work AT STRING RPAREN { STRING $4 }
+  | LPAREN STRING RPAREN { STRING $2 }
 
 input:
-  | path COLON { [] }
-  | DESIGN COLON LPAREN Work AT STRING RPAREN elab modnam { [] (* TUPLE4(DESIGN, STRING $6, $8, $9) *) }
-  | Uhdmallclasses COLON class_intro { [] (* TUPLE2(Uhdmallclasses, $3) *) }
-  | Uhdmallpackages COLON packlst { [] (* to_tuple Uhdmallpackages $3 *) }
-  | Uhdmtopmodules COLON module_inst { [] (* TUPLE2 (Uhdmtopmodules, $3) *) }
-  | Uhdmtoppackages COLON packlst { [] (* to_tuple Uhdmtoppackages $3 *) }
-  | Uhdmallmodules COLON module_inst { [ TUPLE2 (Uhdmallmodules, $3) ] }
-  | Weaklyreferenced COLON weak_lst { [ TUPLE2 (Weaklyreferenced, TLIST $3) ] }
+  | path COLON { Work }
+  | DESIGN COLON design_nam elab modnam {  TUPLE4(DESIGN, $3, $4, $5) }
+  | Uhdmallclasses COLON class_intro { TUPLE2(Uhdmallclasses, $3) }
+  | Uhdmallpackages COLON packlst { to_tuple Uhdmallpackages $3 }
+  | Uhdmtopmodules COLON module_inst { TUPLE2 (Uhdmtopmodules, $3) }
+  | Uhdmtoppackages COLON packlst { to_tuple Uhdmtoppackages $3 }
+  | Uhdmallmodules COLON module_inst { TUPLE2 (Uhdmallmodules, $3) }
+  | Weaklyreferenced COLON weak_lst { TUPLE2 (Weaklyreferenced, TLIST $3) }
 
 weak_lst: { [] }
   | weak_opt weak_lst { $1 :: $2 }
@@ -1619,14 +1657,22 @@ module_inst_opt:
   | Vpitopmodule COLON Int { TUPLE2(Vpitopmodule, Int $3) }
   | Vpiparameter COLON Parameter parameter_def Indent parameter_lst Unindent { TUPLE3(Vpiparameter, $4, TLIST $6) }
   | Vpiparamassign COLON Param_assign COLON loc Indent param_assign_lst Unindent { TUPLE2(Vpiparamassign, TLIST $7) }
-  | Vpicontassign COLON cont_assign { $3 }
+  | Vpicontassign COLON Cont_assign COLON loc end_assign { to_tuple Cont_assign $6 }
   | Vpitaskfunc COLON vpi_method_arg { TUPLE2(Vpitaskfunc, $3) }
-  | Vpigenstmt COLON Gen_region COLON Indent gen_region_lst Unindent { to_tuple Vpigenstmt $6 }
-  | Vpirefmodule COLON stmt { TUPLE2(Vpirefmodule, $3) }
+  | Vpigenstmt COLON genstmt { TUPLE2(Vpigenstmt, $3) }
+  | Vpirefmodule COLON Ref_module COLON ref_module_def Indent ref_module_lst Unindent { TUPLE3 (Ref_module, $5, TLIST $7) }
   | Vpimodule COLON module_inst { TUPLE2(Vpimodule, $3) }
   | Vpiinstance COLON Module_inst COLON module_inst_def { TUPLE2(Vpiinstance, $5) }
   | Vpigenscopearray COLON gen_scope_array { TUPLE2(Vpigenscopearray, $3) }
+  | Vpitypedef COLON typespec { TUPLE2 (Vpitypedef, $3 ) }
 
+end_assign: { [] }
+  | Indent cont_assign_lst Unindent { $2 }
+
+genstmt:
+  | Gen_region COLON Indent gen_region_lst Unindent { to_tuple Gen_region $4 }
+  | Gen_case COLON Indent gen_case_lst Unindent { to_list Gen_case $4 }
+  
 gen_scope_array:
   | Gen_scope_array COLON gen_scope_array_def Indent gen_scope_array_lst Unindent { to_tuple Gen_scope_array $5 }
 
@@ -1658,17 +1704,34 @@ gen_scope_opt:
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
   | Vpicontassign COLON cont_assign { $3 }
   | Vpiprocess COLON process { TUPLE2(Vpiprocess, $3) }
+  | Vpiarraynet COLON arraynettyp { TUPLE2(Vpinet, $3) }
+  | Vpimodule COLON module_inst { TUPLE2(Vpimodule, $3) }
 
 cont_assign:
   | Cont_assign COLON loc Indent cont_assign_lst Unindent { to_tuple Cont_assign $5 }
-  | Cont_assign COLON loc { Cont_assign }
-  
+(*
+| Cont_assign COLON loc { TUPLE2(Cont_assign, $3) }
+*)
+
 gen_region_lst: { [] }
   | gen_region_opt gen_region_lst { $1 :: $2 }
 
 gen_region_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpistmt COLON stmt { $3 }
+
+gen_case_lst: { [] }
+  | gen_case_opt gen_case_lst { $1 :: $2 }
+
+gen_case_opt:
+  | Vpiparent COLON parent { Vpiparent }
+  | Vpicondition COLON oexpr { TUPLE2(Vpicondition, $3) }
+  | Vpiname COLON vnam { $3 }
+  | Vpiname COLON Work AT name { $5 }
+  | Vpifullname COLON fullnam { $3 }
+  | Vpicondition COLON oexpr { TUPLE2(Vpicondition, $3) }
+  | Vpistmt COLON stmt { $3 }
+  | Vpicaseitem COLON stmt { TUPLE2(Vpicaseitem, $3) }
 
 parameter_def: COLON LPAREN Work AT pth_lst RPAREN loc { List.hd (List.rev $5) }
 
@@ -1717,6 +1780,7 @@ attribute_opt:
 stmt:
   | Event_control COLON event_control_def Indent event_control_lst Unindent { to_tuple Event_control $5 }
   | Begin COLON begin_def Indent begin_lst Unindent { TUPLE3 (Begin, $3, TLIST $5) }
+  | Named_begin COLON named_begin_def Indent named_begin_lst Unindent { TUPLE3 (Named_begin, $3, TLIST $5) }
   | Assignment COLON assignment_def Indent assignment_lst Unindent { to_tuple Assignment $5 }
   | If_stmt COLON loc Indent if_stmt_opt Unindent { $5 }
   | If_else COLON loc Indent if_else_opt Unindent { $5 }
@@ -1725,7 +1789,7 @@ stmt:
   | Case_item COLON loc Indent case_item_lst Unindent { to_tuple Case_item $5 }
   | Task_call COLON task_call_def Indent task_call_lst Unindent { to_tuple Case_item $5 }
   | Gen_if_else COLON loc Indent gen_if_else_lst Unindent { to_tuple If_else $5 }
-  | Ref_module COLON ref_module_def Indent ref_module_lst Unindent { TUPLE2 (Ref_module, TLIST $5) }
+  | Ref_module COLON ref_module_def Indent ref_module_lst Unindent { TUPLE3 (Ref_module, $3, TLIST $5) }
   | Cont_assign COLON loc Indent cont_assign_lst Unindent { to_tuple Cont_assign $5 }
   | Always COLON always_def Indent always_lst always_typ Unindent { to_tuple (TUPLE2(Always,$6)) $5 }
   
@@ -1809,6 +1873,17 @@ begin_opt:
   | Vpifullname COLON fullnam { $3 }
   | Vpistmt COLON stmt { $3 }
 
+named_begin_lst: { [] }
+  | named_begin_opt named_begin_lst { $1 :: $2 }
+
+named_begin_opt:
+  | Vpiparent COLON parent { Vpiparent }
+  | Vpiname COLON vnam { $3 }
+  | Vpiname COLON Work AT name { Vpiname }
+  | Vpifullname COLON fullnam { $3 }
+  | Vpistmt COLON stmt { $3 }
+  | Vpivariables COLON ret { TUPLE2(Vpivariables,$3) }  
+
 assignment_lst: { [] }
   | assignment_opt assignment_lst { $1 :: $2 }
 
@@ -1888,7 +1963,8 @@ oexpr:
   | Sys_func_call COLON sys_func_call_def Indent sys_func_call_lst Unindent { to_tuple Sys_func_call $5 }
   | Logic_net COLON logic_net_def { TUPLE2(Logic_net, $3) }
   | nettyp { $1 }
-
+  | Array_var COLON array_var_def Indent array_var_lst Unindent { to_tuple Array_var $5 }
+  
 sys_func_call_lst: { [] }
   | sys_func_call_opt sys_func_call_lst { $1 :: $2 }
 
@@ -1929,6 +2005,7 @@ operation_opt:
   | Vpiparent COLON parent dyadic Vpioperand COLON oexpr Vpioperand COLON oexpr { TUPLE3($4, $7, $10) }
   | Vpiparent COLON parent Vpiconditionop Vpioperand COLON oexpr Vpioperand COLON oexpr Vpioperand COLON oexpr { TUPLE4(Vpiconditionop, $7, $10, $13) }
   | Vpiparent COLON parent concatop concat_lst { TUPLE2($4, TLIST $5 ) }
+  | Vpiparent COLON parent Vpinullop { Vpinullop }
 
 concat_lst: Vpioperand COLON oexpr { [ $3 ] }
   | Vpioperand COLON oexpr concat_lst { $3 :: $4 }
@@ -1978,6 +2055,7 @@ dyadic:
   
 vport:
   | Port COLON port_def Indent io_decl_lst Unindent { TUPLE3 (Port, $3, TLIST $5) }
+  | Port COLON port_def { TUPLE2(Port, $3) }
 
 nettyp: 
   | Logic_net COLON logic_net_def Indent logic_net_lst Unindent { to_tuple Logic_net $5 }
@@ -1993,6 +2071,20 @@ logic_net_opt:
   | Vpinettype COLON Int { TUPLE2(Vpinettype, net_type $3) }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
   | Vpisigned COLON Int { Vpisigned }
+
+array_var_lst: { [] }
+  | array_var_opt array_var_lst { $1 :: $2 }
+
+array_var_opt:
+  | Vpiparent COLON parent { Vpiparent }
+  | Vpiname COLON vnam { $3 }
+  | Vpiname COLON Work AT name { Vpiname }
+  | Vpifullname COLON fullnam { $3 }
+  | Vpinettype COLON Int { TUPLE2(Vpinettype, net_type $3) }
+  | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
+  | Vpisigned COLON Int { Vpisigned }
+  | Vpiarraytype COLON Int { Vpiarraytype }
+  | Vpireg COLON ret { TUPLE2(Vpireg, $3) }
 
 arraynettyp:
   | Array_net COLON array_net_def Indent array_net_lst Unindent { to_tuple Array_net $5 }
@@ -2021,6 +2113,7 @@ ret:
 def_name: Builtin { Builtin }
   | Work AT STRING { STRING $3 }
   | STRING { STRING $1 }
+  | Work AT pth_lst type_lst { TLIST (List.rev $3) }
 
 name: STRING { STRING $1 }
   | Mailbox { Mailbox }
@@ -2035,9 +2128,12 @@ gen_scope_array_def:
 
 class_def: LPAREN Builtin COLON COLON vnam RPAREN { Work }
   | LPAREN Work AT name RPAREN COMMA File COLON path loc { Work }
+
+path_def:
+  | Work AT pth_lst type_lst { TLIST $3 }
   
 module_inst_def: { Work }
-  | Work AT STRING LPAREN Work AT pth_lst RPAREN COMMA File COLON path loc { STRING $3 }
+  | path_def LPAREN Work AT pth_lst RPAREN COMMA File COLON path loc { $1 }
   
 function_def: LPAREN Builtin COLON COLON vnam RPAREN { Work }
   | LPAREN Work AT name type_lst RPAREN loc { Work }
@@ -2053,6 +2149,7 @@ var_select_def: { Work }
 
 part_select_def: { Work }
   | STRING LPAREN Work AT pth_lst RPAREN loc { $7 }
+  | STRING LPAREN pth_lst RPAREN loc { $5 }
 
 indexed_part_select_def: { Work }
   | STRING LPAREN Work AT pth_lst RPAREN loc { Work }
@@ -2062,6 +2159,11 @@ sys_func_call_def: { Work }
 
 begin_def: { Work }
   | LPAREN Work AT pth_lst RPAREN loc { TLIST $4 }
+  | LPAREN pth_lst RPAREN loc { TLIST $2 }
+
+named_begin_def: { Work }
+  | LPAREN Work AT pth_lst RPAREN loc { TLIST $4 }
+  | LPAREN STRING RPAREN { STRING $2 }
 
 for_stmt_def: { Work }
   | LPAREN Work AT pth_lst RPAREN loc { Work }
@@ -2069,7 +2171,7 @@ for_stmt_def: { Work }
 attribute_def: { Work }
   | LPAREN STRING RPAREN loc { Work }
 
-ref_obj_def: LPAREN STRING RPAREN loc { STRING $2 }
+ref_obj_def: LPAREN pth_lst RPAREN loc { TLIST $2 }
   | LPAREN Work AT pth_lst RPAREN loc { Work }
 
 ref_var_def: { Work }
@@ -2077,15 +2179,17 @@ ref_var_def: { Work }
 
 bit_sel_def: { Work }
   | LPAREN Work AT pth_lst RPAREN loc { Work }
+  | LPAREN pth_lst RPAREN loc { Work }
 
 pth_lst: STRING { [STRING $1] }
   | STRING DOT pth_lst { STRING $1 :: $3 }
   
-port_def: { Work }
-  | LPAREN STRING RPAREN loc { $4 }
+port_def: loc { $1 }
+  | LPAREN STRING RPAREN loc { TUPLE2 (STRING $2, $4) }
   
 enum_var_def: LPAREN Builtin COLON COLON vnam RPAREN { Work }
-  | LPAREN Work AT name type_lst RPAREN loc { Work }
+| LPAREN Work AT name type_lst RPAREN loc { Work }
+| LPAREN Work AT pth_lst RPAREN loc { Work }
 
 int_var_def: { Work }
   | LPAREN Work AT name type_lst RPAREN loc { Work }
@@ -2093,10 +2197,14 @@ int_var_def: { Work }
 integer_var_def: { Work }
   | LPAREN Work AT name type_lst RPAREN loc { Work }
   | LPAREN Work AT pth_lst RPAREN loc { Work }
-  
+
 logic_var_def: { Work }
   | LPAREN Work AT name type_lst RPAREN { Work }
   | LPAREN Work AT pth_lst RPAREN loc { Work }
+  | LPAREN pth_lst RPAREN loc { Work }
+
+array_var_def: { Work }
+  | LPAREN pth_lst RPAREN loc { Work }
   
 task_def: { Work }
   | LPAREN Work AT name type_lst RPAREN loc { Work }
@@ -2144,6 +2252,7 @@ enum_const_decl: { Work }
 type_spec: { Work }
   | LPAREN Work AT name type_lst RPAREN { $4 }
   | LPAREN Work AT pth_lst RPAREN { TLIST $4 }
+  | LPAREN pth_lst RPAREN { TLIST $2 }
 
 type_lst: { [] }
   | COLON COLON vnam type_lst { $3 :: $4 }
@@ -2203,10 +2312,11 @@ vnam: { STRING "" }
   
 fullnam: Builtin COLON COLON vnam { $4 }
   | Work AT name type_lst { TLIST (List.rev $4) }
-  | Work AT pth_lst { TLIST (List.rev $3) }
+  | Work AT pth_lst type_lst { TLIST (List.rev $3) }
+  | pth_lst { TLIST (List.rev $1) }
   
 input_lst: { [] }
-  | input_lst input { $2 @ $1 }
+  | input_lst input { $2 :: $1 }
   
 unreachable:
 | ACCEPT { Work }

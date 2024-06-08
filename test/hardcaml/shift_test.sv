@@ -1,10 +1,10 @@
 module shift_test (
     input clk,
-    input [7:0] a,
+    input signed [7:0] a,
     input [2:0] b,
     output reg [7:0] c);
 
     always @(posedge clk)
-          c <= a << b;
+          c <= a >> b;
 
 endmodule

@@ -91,6 +91,7 @@ type attr = {
   reset: string option;
 }
 
+let othasgn = ref Work
 let othr = ref Invalid
 let othlhs = ref (Void 0)
 let othrhs = ref (Void 0)
@@ -109,6 +110,7 @@ let othdecl = ref []
 let alst = ref []
 let othckedg = ref Work
 let othrstedg = ref Work
+let othop = ref (Work, Invalid, Invalid)
 let p' = ref []
 
 let rec log2 n = if n <= 1 then 0 else 1 + log2 (n/2)
@@ -155,7 +157,7 @@ let mult_wallace_signed a_sig b_sig =
              (module Signal)
              (mux2' (nega) (to_signal (signednegate a_sig)) (to_signal a_sig))
              (mux2' (negb) (to_signal (signednegate b_sig)) (to_signal b_sig))
-          in (mux2' (nega ^: negb) (arithnegate mult') mult')
+          in (of_signal (mux2' (nega ^: negb) (arithnegate mult') mult'))
 
 (*
 let div =
@@ -207,12 +209,26 @@ let relational relation lhs rhs =
 let wlhs = width lhs in
 let wrhs = width rhs in
 if wlhs = wrhs then
-relation lhs rhs
+Sig (relation lhs rhs)
 else if wlhs < wrhs then
-relation (uresize lhs wrhs) rhs
+Sig (relation (uresize lhs wrhs) rhs)
 else if wlhs > wrhs then
-relation lhs (uresize rhs wlhs)
+Sig (relation lhs (uresize rhs wlhs))
 else failwith "relational"
+
+let relationalc relation lhs rhs = Sig (relation lhs rhs)
+let relationalc' relation lhs rhs = Sigs (relation lhs rhs)
+
+let relational' relation lhs rhs =
+let wlhs = signedwidth lhs in
+let wrhs = signedwidth rhs in
+if wlhs = wrhs then
+Sigs (relation lhs rhs)
+else if wlhs < wrhs then
+Sigs (relation (Signed.resize lhs wrhs) rhs)
+else if wlhs > wrhs then
+Sigs (relation lhs (Signed.resize rhs wlhs))
+else failwith "relational'"
 
 let othsel = ref None
 
@@ -233,21 +249,27 @@ else if wlhs > wrhs then
 lhs <-- (uresize rhs wlhs)
 else failwith "assign'"
 
+let summary = function
+      | Con x -> Con x
+      | Var _ -> Var (Always.Variable.wire ~default:(Signal.zero 1))
+      | Sig _ -> Sig (Signal.zero 1)
+      | Sigs _ -> Sigs (signed_zero 1)
+      | Itm _ 
+      | Alw _ | Invalid -> failwith "summary"
+
 let cnv (modnam, p) =
 begin
 let declare_lst = ref [] in
 let exists k = List.mem_assoc k !declare_lst in
-let add_decl k x = function (Width(hi,lo,signed) as wid) ->
+let add_decl k x = function
+| Width(hi,lo,signed) as wid ->
   if exists k then print_endline (k^": redeclared") else
   begin
     declare_lst := (k, x) :: !declare_lst;
-    othdecl := (k, wid, match x with
-      | Con _ -> x
-      | Var _ -> Var (Always.Variable.wire ~default:(Signal.zero (hi-lo+1)))
-      | Sig _ -> x
-      | Sigs _ -> x
-      | Alw _ | Invalid -> failwith "add_decl") :: !othdecl
-  end in
+    othdecl := (k, (wid, summary x)) :: !othdecl
+  end
+| oth -> otht := Some oth; failwith "add_decl" in
+
 let find_decl k = List.assoc k !declare_lst in
 let iter_decl fn = List.iter (fun (k,x) -> fn k x) !declare_lst in
 
@@ -275,31 +297,93 @@ let declare_input port = function
   add_decl port (if signed then Sigs (Signed.of_signal s) else Sig s) w
 | oth -> otht := Some oth; failwith "declare_input" in
 
+let logf = open_out "logfile.txt" in
+
 let declare_wire = function
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, (Width(hi,lo,signed) as wid)))), STRING wire) -> let wid' = hi-lo+1 in
+  output_string logf ("wire "^wire^"\n");
+  add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid'))) wid
+| TUPLE3 (Work, STRING wire, (Width(hi,lo,signed) as wid)) -> let wid' = hi-lo+1 in
+  output_string logf ("wire "^wire^"\n");
   add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid'))) wid
 | TUPLE5 (Part_select, STRING wire,
       TUPLE3 (Vpiuintconst, Int lft, Int _),
       TUPLE3 (Vpiuintconst, Int rght, Int _), (Width(hi, lo, signed) as wid)) -> let wid' = hi-lo+1 in
   add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid'))) wid
+| TUPLE3 (Bit_select, STRING wire, TUPLE3 (Vpiuintconst, Int lft, Int _)) -> let wid' = 1 in
+  output_string logf ("wire "^wire^"\n");
+  add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid'))) (Width(0,0,false))
 | oth -> othrw := Some oth; failwith "declare_wire" in
+
+let declare_orphan = function
+| TUPLE2 (Vpitypespec, TUPLE3 (Ref_typespec, TLIST pth,
+					     TUPLE2 (Vpiactual, TUPLE2 (Logic_typespec, (Width(hi, lo, signed) as wid))))) ->
+  let wire = List.hd (List.rev (List.map (function STRING s -> s | oth -> failwith "declare_wire'") pth)) in
+  let wid' = hi-lo+1 in
+  output_string logf ("orphan "^wire^"\n");
+ let s = Signal.input wire (hi-lo+1) in
+  add_decl wire (if signed then Sigs (Signed.of_signal s) else Sig s) wid
+| oth -> othrw := Some oth; failwith "declare_orphan" in
+
+let clock attr = match attr.clock with
+| Some clk -> if true then print_endline ("clock: "^clk); sig' (find_decl clk)
+| None -> failwith ("failed to identify clock for declare_reg") in
+
+let r_sync attr = match attr.reset with
+  | Some rst -> let reset = sig' (find_decl rst) in
+    let clock = clock attr in
+    Reg_spec.create ~clock ~reset ()
+  | None -> 
+    let clock = clock attr in
+    Reg_spec.create ~clock () in
 
 let declare_reg attr = function
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, (Width(hi,lo, signed) as wid)))), STRING reg) -> if exists reg then () else
   begin
-  if false then print_endline reg;
-  let clock = match attr.clock with Some clk -> sig' (find_decl clk) | None -> failwith ("failed to indentify clock for register: "^reg) in
-  let wid' = hi-lo+1 in
-  let r_sync = match attr.reset with
-  | Some rst -> let reset = sig' (find_decl rst) in
-    Reg_spec.create ~clock ~reset ()
-  | None -> 
-    Reg_spec.create ~clock () in
-  add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid')) wid;
+  let width = hi-lo+1 in let r_sync = r_sync attr in
+  if true then print_endline (reg^": "^string_of_int width);
+  add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width)) wid;
   end
+| TUPLE5 (Part_select, STRING reg,
+      TUPLE3 (Vpiuintconst, Int lft, Int _),
+      TUPLE3 (Vpiuintconst, Int rght, Int _), (Width(hi, lo, signed) as wid)) -> let wid' = hi-lo+1 in let r_sync = r_sync attr in
+  add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid')) wid;
+| TUPLE3 (Bit_select, STRING reg, TUPLE3 (Vpiuintconst, Int lft, Int _)) -> let wid' = 1 in let r_sync = r_sync attr in
+  add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid')) (Width(0,0,false))
 | oth -> othrw := Some oth; failwith "declare_reg" in
 
 let rec traverse (attr:attr) = function
+| TUPLE2 (Vpimodule, TLIST lst) -> List.iter (function
+    | Enum_typespec -> ()
+    | STRING nam -> ()
+    | TUPLE2 (Vpiinstance, STRING inst) -> ()
+    | TUPLE2 (Parameter, (Work|STRING _)) -> ()
+    | TUPLE3 ((Vpiinput|Vpioutput), STRING port, Width (hi, lo, signed)) -> ()
+    | Vpideffile | Vpideflineno | Always | Cont_assign -> ()
+    | TUPLE2 ((Vpimodule|Gen_scope_array|Cont_assign), _) -> ()
+    | TUPLE2 (Enum_var, STRING _) -> ()
+    | TUPLE5 (Cont_assign, lhs, rhs, STRING topmod, STRING dest) ->
+       print_endline ("Cont_assign_vpimodule: "^topmod^" "^dest);
+       traverse attr lhs;
+       traverse attr rhs;
+       if not (attr.pass) then declare_wire lhs
+    | TUPLE4 ((Vpialways|Vpinet|Vpireg),
+          TUPLE2 (Vpitypespec,
+            TUPLE3 (Ref_typespec,
+              TLIST pth,
+              TUPLE2 (Vpiactual, TUPLE2 (Logic_typespec, Width (hi, lo, signed))))),
+          STRING pin,
+          TLIST pth') -> print_endline pin
+    | oth -> otht := Some oth; failwith "Vpimodule") lst
+| TUPLE2 (Enum_typespec, TLIST lst) -> List.iter (function
+  | TUPLE3(STRING enum, Int n, Int width) -> add_decl enum (Con (Constant.of_int ~width n)) (Width(width-1, 0, false))
+  | TUPLE2 (Vpitypespec,
+      TUPLE3 (Ref_typespec, TLIST pth,
+        TUPLE2 (Vpiactual, TUPLE2 (Logic_typespec, Width (hi, lo, signed))))) -> ()
+  | oth -> othrw := Some oth; failwith "enum") lst
+| TUPLE4 (Vpireg, (TUPLE2 (Vpitypespec, _) as spec), _, _) -> if attr.pass then declare_orphan spec
+| TUPLE4 ((Logic_net|Vpialways|Vpinet), TUPLE2 (Vpitypespec, TUPLE3 (Ref_typespec, TLIST pth, TUPLE2 (Vpiactual, spec))),
+      STRING nam, TLIST pth') -> ()
 | TUPLE2 (Always,
    TUPLE3 (Begin, TLIST pth, TLIST (Vpiparent:: TLIST [] :: stmtlst))) -> List.iter (function
     | TUPLE4 ((Assignment|Vpiblocking), optype, lhs, rhs) ->
@@ -312,34 +396,46 @@ let rec traverse (attr:attr) = function
    traverse attr lhs;
    traverse attr rhs;
    if not attr.pass then declare_wire lhs
-| TUPLE4 ((Assignment|Vpiblocking), optype, lhs, rhs) ->
+| TUPLE4 ((Assignment|Vpiblocking), optype, lhs, rhs) as asgn ->
+   otht := Some asgn;
    traverse attr lhs;
    traverse attr rhs;
-   if attr.pass then declare_reg attr lhs
-| TUPLE3 (Cont_assign, lhs, rhs) ->
+   if attr.pass then (match attr.clock with Some _ -> declare_reg attr lhs | None -> declare_wire lhs)
+| TUPLE5 (Cont_assign, lhs, rhs, STRING topmod, STRING dest) ->
+   print_endline ("Cont_assign_other: "^topmod^" "^dest);
    traverse attr lhs;
    traverse attr rhs;
-   if attr.pass then declare_wire lhs
+   if not (attr.pass) then declare_wire lhs
 | TUPLE3 (Always, TUPLE2 (Vpiposedgeop, (TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, loc))), STRING clk) as edg)), stmt) ->
    othckedg := edg;
-   if false then print_endline clk;
+   if true then print_endline ("Always clk: "^clk);
    traverse {attr with clock=Some clk} stmt
 | TUPLE3 (Always, TUPLE3(Vpieventorop,
 			 TUPLE2 (Vpiposedgeop, (TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST ckpth, ckloc))), STRING clk) as ckedg)),
 			 TUPLE2 (Vpiposedgeop, (TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST rstpth, rstloc))), STRING rst) as rstedg))), stmt) ->
    othckedg := ckedg;
    othrstedg := rstedg;
-   if false then print_endline clk;
+   if true then print_endline ("Always clk or rst: "^clk);
    traverse {attr with clock=Some clk; reset=Some rst} stmt
+| TUPLE3 (Always, TUPLE2 (Vpieventorop, TLIST lst), stmt) -> List.iter (traverse attr) lst; traverse attr stmt
 | TUPLE4 (Vpiconditionop, cond, lhs, rhs) -> traverse attr cond; traverse attr lhs; traverse attr rhs
 | TUPLE3 (If_stmt, cond, lhs) -> traverse attr cond; traverse attr lhs
-| TUPLE4 (If_else, cond, lhs, rhs) -> traverse attr cond; traverse attr lhs; traverse attr rhs
-| TUPLE2 ((Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop|Vpibitnegop|Vpiplusop|Vpiminusop|Vpinotop as op), rhs) -> traverse attr rhs
+| TUPLE4 (If_else, cond, lhs, rhs) as tup -> 
+    traverse attr cond;
+    print_endline "lhs";
+    otht := Some tup;
+    traverse attr lhs;
+    print_endline "rhs";
+    traverse attr rhs
+| TUPLE2 ((Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop|Vpibitnegop|Vpiplusop|Vpiminusop|Vpinotop), rhs) -> traverse attr rhs
 | TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop), lhs, rhs) -> traverse attr lhs; traverse attr rhs
 | TUPLE2 ((Vpiconcatop|Vpimulticoncatop), TLIST lst) -> List.iter (traverse attr) lst
 | TUPLE5 (Part_select, STRING nam, lft, rght, Width(hi,lo, signed)) -> ()
+| TUPLE4 (Ref_obj, STRING nam, TLIST pth, actual) -> traverse attr actual
+| TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2 (TLIST pth, loc))) -> ()
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, Width _))), STRING wire) -> ()
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Part_select, Work)), STRING wire) -> ()
+| TUPLE2 (TUPLE2 (Vpiactual, Enum_const), STRING e) -> if false then print_endline e
 | TUPLE3 (Vpioutput, STRING port, Width(lft,rght, signed))	    -> ()
 | TUPLE3 (Vpiinput, STRING port, (Width(lft,rght, signed) as wid))  -> if not attr.pass then declare_input port wid
 | TUPLE3 (Logic_net, Vpireg, STRING reg) -> ()
@@ -361,12 +457,21 @@ let rec traverse (attr:attr) = function
         traverse attr cons;
         traverse attr stmt;
         otht := Some stmt;
+      | TUPLE2 (Case_item, stmt) ->
+        traverse attr stmt;
+        otht := Some stmt;
       | oth -> otht := Some oth; failwith "traverse case") lst
 | TUPLE3 (Bit_select, STRING nam, idx) -> traverse attr idx
-| TUPLE4 (Ref_module, STRING nam1, STRING nam2, TLIST lst) -> ()
+| TUPLE4 (Ref_module, STRING nam1, STRING nam2, TLIST lst) -> List.iter (function
+    | TUPLE3 (Port, LOC _, conn) -> if not attr.pass then declare_wire conn
+    | TUPLE3 (Work, STRING _, Width _) as conn -> if not attr.pass then declare_wire conn
+    | TUPLE2 (Port, LOC _) -> ()
+    | oth -> otht := Some oth; failwith "traverse ref mod") lst
 | TUPLE3 (Sys_func_call, actual, STRING ("$signed"|"$unsigned")) -> ()
 | TUPLE2 (Initial, stmts) -> ()
 | TUPLE2 (Vpigenstmt, stmts) -> ()
+| TUPLE2 (Enum_var, STRING _) -> ()
+| Enum_typespec | Cont_assign | Constant -> ()
 | oth -> otht := Some oth; failwith "traverse failed with otht" in
 
 let _ = List.iter (traverse {pass=false; clock=None; reset=None}) p in
@@ -384,6 +489,36 @@ let sys_func x = function
 | oth -> othfunc := oth; failwith "sys_func" in
 
 let rec (remapp:token->remapp) = function
+| TUPLE2 (Vpimodule, TLIST lst) -> List.iter (function
+    | Enum_typespec -> ()
+    | STRING nam -> ()
+    | TUPLE2 (Vpiinstance, STRING inst) -> ()
+    | TUPLE2 (Parameter, (Work|STRING _)) -> ()
+    | TUPLE3 ((Vpiinput|Vpioutput), STRING port, Width (hi, lo, signed)) -> ()
+    | Vpideffile | Vpideflineno | Always | Cont_assign -> ()
+    | TUPLE2 ((Vpimodule|Gen_scope_array|Cont_assign), _) -> ()
+    | TUPLE2 (Enum_var, STRING _) -> ()
+    | TUPLE5 (Cont_assign, lhs, rhs, STRING topmod, STRING dest) -> print_endline ("Cont_assign_vpimodule_remapp: "^topmod^" "^dest);
+    | TUPLE4 ((Vpialways|Vpinet|Vpireg),
+          TUPLE2 (Vpitypespec,
+            TUPLE3 (Ref_typespec,
+              TLIST pth,
+              TUPLE2 (Vpiactual, TUPLE2 (Logic_typespec, Width (hi, lo, signed))))),
+          STRING pin,
+          TLIST pth') -> ()
+    | oth -> otht := Some oth; failwith "Vpimodule remapp") lst; Void 495
+
+| TUPLE2 (Enum_typespec, TLIST lst) -> List.iter (function
+  | TUPLE3(STRING enum, Int n, Int width) -> add_decl enum (Con (Constant.of_int ~width n)) (Width(width-1, 0, false))
+  | TUPLE2 (Vpitypespec,
+      TUPLE3 (Ref_typespec, TLIST pth,
+        TUPLE2 (Vpiactual, TUPLE2 (Logic_typespec, Width (hi, lo, signed))))) -> ()
+  | oth -> othrw := Some oth; failwith "enum") lst; Void 444
+| TUPLE4 (Vpireg, TUPLE2 (Vpitypespec, TUPLE3 (Ref_typespec, TLIST pth,
+          TUPLE2 (Vpiactual, TUPLE2 (Logic_typespec, Width (hi, lo, signed))))), STRING nam, TLIST pth') -> Void 446
+| TUPLE4 ((Logic_net|Vpialways|Vpinet), TUPLE2 (Vpitypespec, TUPLE3 (Ref_typespec, TLIST pth, TUPLE2 (Vpiactual, spec))),
+      STRING nam, TLIST pth') -> Void 448
+
 | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, Width(hi,lo, signed)))), STRING wire) ->
 if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
 | TUPLE3 (If_stmt, cond, lhs) ->
@@ -395,16 +530,19 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
   let else_ =  (remapp rhs) in
   let cond_ =  (remapp cond) in
   If_ (cond_, [then_], [else_])
-| TUPLE3 (Cont_assign, lhs, rhs) ->
+| TUPLE5 (Cont_assign, lhs, rhs, STRING topmod, STRING dest) -> print_endline ("Cont_assign_remapp: "^topmod^" "^dest);
    let rhs = (remapp rhs) in
    let lhs = match remapp lhs with
    | Selection(id, lft, rght, hi, lo) -> Update(id, lft, rght, hi, lo)
    | Id _ as id -> id
+   | Bitsel (Id _ as id, Dec (sel, _)) -> let ix = int_of_string sel in Update(id, ix, ix, ix, ix)
    | oth -> othlhs := oth; failwith "remapp cont_assign failed with othlhs"; in
    Asgn (lhs, rhs)
 | TUPLE2 (Always,
    TUPLE3 (Begin, TLIST pth, TLIST (Vpiparent:: TLIST [] :: stmtlst))) -> Seq (List.map remapp stmtlst)
 | TUPLE3 (Always, Vpiassignstmt, stmt) -> remapp stmt
+| TUPLE3 (Always, TUPLE2 (Vpieventorop, TLIST lst), stmt) -> Seq (List.map remapp lst)
+
 | TUPLE4 (Assignment, Vpirhs, lhs, rhs) -> Asgn (remapp lhs, remapp rhs)
 | TUPLE4 (Vpiblocking, Vpirhs, lhs, rhs) -> Block (remapp lhs, remapp rhs)
 | TUPLE4 (Assignment, op, lhs, rhs) -> Asgn (remapp lhs, Dyadic (op, remapp lhs, remapp rhs))
@@ -461,7 +599,10 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
 | TUPLE2 (Parameter, Work) -> Void 397
 | TUPLE2 (Case_stmt, TLIST (TUPLE2 (Vpicasetype, Int 1) :: TUPLE2 (Vpicondition, cond) :: lst)) ->
     let cond' = remapp cond in
-    Case (cond', List.map (function TUPLE3 (Case_item, cons, stmt) -> Item (cond', remapp cons, remapp stmt) | oth -> failwith "Case") lst)
+    Case (cond', List.map (function
+			   | TUPLE3 (Case_item, cons, stmt) -> Item (cond', remapp cons, remapp stmt)
+			   | TUPLE2 (Case_item, stmt) -> Item (Void 536, Void 536, remapp stmt)
+			   | oth -> otht := Some oth; failwith "Case") lst)
 | TUPLE3 (Bit_select, STRING nam, idx) -> if exists nam then Bitsel (Id nam, remapp idx) else Void 399
 
 | TUPLE4 (Ref_module, STRING nam1, STRING nam2, TLIST lst) -> Void 401
@@ -470,6 +611,11 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
 | TUPLE2 (Vpigenstmt, stmts) -> Void 404
 | Vpiparent -> Void 405
 | TUPLE6 (For_stmt, TLIST [], _, _, _, _) -> Void 406
+| TUPLE2 (TUPLE2 (Vpiactual, Enum_const), STRING e) -> Void 543
+| TUPLE4 (Ref_obj, STRING nam, TLIST pth, actual) -> Id nam
+| TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2 (TLIST pth, loc))) -> Void 550
+| TUPLE2 (Enum_var, STRING _) -> Void 584
+| Enum_typespec | Cont_assign | Constant -> Void 585
 | oth -> otht := Some oth; failwith "remapp failed with otht"; in
 
 let remapp' = List.filter (function Void _ -> false |_ -> true) (List.map remapp p) in
@@ -484,60 +630,104 @@ let rec combiner = function
 | [] -> []
 | If_ (Dyadic (Vpieqop, a, b), c, d) ::
   If_ (Dyadic (Vpieqop, a', b'), c', d') :: [] when a=a' && b=b' -> If_ (Dyadic (Vpieqop, a, b), c@c', d@d') :: []
+| If_ (Dyadic _ as a, b, c) :: tl -> If_ ( a, combiner b, combiner c) :: combiner tl
 | Seq (Block (Id blk, exp1) :: Block (Id blk', Dyadic (op, Id blk'', exp2)) :: tl) :: tl' when blk=blk' && blk'=blk'' ->
   combiner (Asgn(Id blk', Dyadic(op, exp1, exp2)) :: tl @ tl')
 | Seq lst :: tl -> combiner (lst @ tl)
 | Asgn (Update (Id dest, lfthi, lftlo, hi, lo), a) :: Asgn (Update (Id dest', rghthi, rghtlo, hi', lo'), b) :: tl
 when dest=dest' && lfthi=hi && lftlo=rghthi+1 && rghtlo=lo && hi=hi' && lo=lo' -> Asgn(Id dest, Concat ( Vpiconcatop, a, b )) :: combiner tl
 | Block(id, expr) :: tl -> Asgn(id, expr) :: combiner tl
+| Asgn (_, Void 585) :: tl -> combiner tl
 | hd :: tl -> hd :: combiner tl in
 
 let remapp'' = List.map strength_reduce remapp' in
 let remapp''' = combiner remapp'' in
 
-let unimpld = let seen = ref [] in fun lbl lhs rhs ->
-if not (List.mem lbl !seen) then print_endline ("unimpld: "^lbl); seen := lbl :: !seen; lhs ^: rhs in
+let unimp = let seen = ref [] in fun lbl lhs rhs -> 
+if not (List.mem lbl !seen) then print_endline ("unimp: "^lbl); seen := lbl :: !seen; lhs ^: rhs in
 
-let unimp lbl lhs rhs =
-let wlhs = width lhs in
-let wrhs = width rhs in
-if wlhs = wrhs then
-unimpld lbl lhs rhs
-else if wlhs < wrhs then
-unimpld lbl (uresize lhs wrhs) rhs
-else if wlhs > wrhs then
-unimpld lbl lhs (uresize rhs wlhs)
-else failwith "unimp" in
+let unimps = let seen = ref [] in fun lbl lhs rhs -> let open Signed in
+if not (List.mem lbl !seen) then print_endline ("unimps: "^lbl); seen := lbl :: !seen; of_signal (to_signal lhs ^: to_signal rhs) in
 
 let lognegate fn = fun lhs rhs -> fn lhs (~: rhs) in
 
-let remapop = function
-|Vpiaddop,Sig lhs,Sig rhs -> add' lhs rhs
-|Vpisubop, Sig lhs, Sig rhs -> sub' lhs rhs
-|Vpimultop,(Sig lhs),(Sig rhs) -> mult_wallace lhs rhs
-|Vpimultop,(Sig lhs),(Sigs rhs) -> mult_wallace lhs (unsigned rhs)
-|Vpimultop,(Sigs lhs),(Sig rhs) -> mult_wallace (unsigned lhs) rhs
-|Vpimultop,(Sigs lhs),(Sigs rhs) -> mult_wallace_signed lhs rhs
-|Vpidivop, Sig lhs, Sig rhs -> unimp "div" lhs rhs
-|Vpimodop, Sig lhs, Sig rhs -> unimp "mod" lhs rhs
-|Vpipowerop, Sig lhs, Sig rhs -> unimp "power" lhs rhs
-|Vpilshiftop, Sig lhs, Sig rhs -> Signal.log_shift sll rhs lhs
-|Vpirshiftop, Sig lhs, Sig rhs -> Signal.log_shift srl rhs lhs
-|Vpiarithrshiftop, Sig lhs, Sig rhs -> Signal.log_shift sra rhs lhs
-|Vpiarithlshiftop, Sig lhs, Sig rhs -> Signal.log_shift sll rhs lhs
-|Vpilogandop, Sig lhs, Sig rhs -> (&&:) lhs rhs
-|Vpilogorop, Sig lhs, Sig rhs -> (||:) lhs rhs
-|Vpibitandop, Sig lhs, Sig rhs -> (&:) lhs rhs
-|Vpibitorop, Sig lhs, Sig rhs -> (|:) lhs rhs
-|Vpibitxorop, Sig lhs, Sig rhs -> (^:) lhs rhs
-|Vpibitxnorop, Sig lhs, Sig rhs -> lognegate (^:) lhs rhs
-|Vpieqop, Sig lhs, Sig rhs -> relational (==:) lhs rhs
-|Vpineqop, Sig lhs, Sig rhs -> relational (<>:) lhs rhs
-|Vpiltop, Sig lhs, Sig rhs -> relational (<:) lhs rhs
-|Vpileop, Sig lhs, Sig rhs -> relational (<=:) lhs rhs
-|Vpigeop, Sig lhs, Sig rhs -> relational (>=:) lhs rhs
-|Vpigtop, Sig lhs, Sig rhs -> relational (>:) lhs rhs
-|oth,lhs,rhs -> otht := Some oth; failwith "remapop" in
+let signed_relational x = let open Signed in match x with
+|Vpieqop -> (==:) 
+|Vpineqop -> (<>:) 
+|Vpiltop -> (<:) 
+|Vpileop -> (<=:) 
+|Vpigeop -> (>=:) 
+|Vpigtop -> (>:) 
+|Vpilshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sll (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Vpirshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift srl (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Vpiarithlshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sll (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Vpiarithrshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sra (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Vpiaddop -> (+:)
+|Vpisubop -> (-:)
+|Vpimultop -> mult_wallace_signed
+|Vpidivop -> unimps "div"
+|Vpimodop -> unimps "mod"
+|Vpipowerop -> unimps "power"
+|Vpilogandop -> (fun lhs rhs -> of_signal (to_signal lhs &&: to_signal rhs))
+|Vpilogorop -> (fun lhs rhs -> of_signal (to_signal lhs ||: to_signal rhs))
+|Vpibitandop -> (fun lhs rhs -> of_signal (to_signal lhs &: to_signal rhs))
+|Vpibitorop -> (fun lhs rhs -> of_signal (to_signal lhs |: to_signal rhs))
+|Vpibitxorop -> (fun lhs rhs -> of_signal (to_signal lhs ^: to_signal rhs))
+|Vpibitxnorop -> (fun lhs rhs -> of_signal ( ~: (to_signal lhs ^: to_signal rhs)))
+|oth -> otht := Some oth; failwith "signed_relational" in
+
+let unsigned_relational = function
+|Vpieqop -> (==:) 
+|Vpineqop -> (<>:) 
+|Vpiltop -> (<:) 
+|Vpileop -> (<=:) 
+|Vpigeop -> (>=:) 
+|Vpigtop -> (>:)
+|Vpilshiftop -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
+|Vpirshiftop -> (fun lhs rhs -> Signal.log_shift srl rhs lhs)
+|Vpiarithlshiftop -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
+|Vpiarithrshiftop -> (fun lhs rhs -> Signal.log_shift sra rhs lhs)
+|Vpiaddop -> (+:)
+|Vpisubop -> (-:)
+|Vpimultop -> mult_wallace
+|Vpidivop -> unimp "div"
+|Vpimodop -> unimp "mod"
+|Vpipowerop -> unimp "power"
+|Vpilogandop -> (&&:) 
+|Vpilogorop -> (||:) 
+|Vpibitandop -> (&:) 
+|Vpibitorop -> (|:) 
+|Vpibitxorop -> (^:) 
+|Vpibitxnorop -> lognegate (^:)
+|oth -> otht := Some oth; failwith "unsigned_relational" in
+
+let unsigned_relationalc = function
+|Vpilshiftop -> Signal.sll
+|Vpirshiftop -> Signal.srl
+|Vpiarithrshiftop -> Signal.sra
+|oth -> otht := Some oth; failwith "unsigned_relationalc" in
+
+let signed_relationalc x = let open Signed in match x with
+|Vpilshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.sll (Signed.to_signal lhs) rhs))
+|Vpirshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.srl (Signed.to_signal lhs) rhs))
+|Vpiarithrshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.sra (Signed.to_signal lhs) rhs))
+|oth -> otht := Some oth; failwith "unsigned_relationalc" in
+
+let detect_dyadic = function
+| op,Sig lhs, Sig rhs -> relational (unsigned_relational op) lhs rhs
+| op,Sigs lhs, Sig rhs -> relational (unsigned_relational op) (Signed.to_signal lhs) rhs
+| op,Sig lhs, Sigs rhs -> relational (unsigned_relational op) lhs (Signed.to_signal rhs)
+| op,Sigs lhs, Sigs rhs -> relational' (signed_relational op) lhs rhs
+| (Vpisubop as op), Sig lhs, Con rhs -> relational (unsigned_relational op) lhs (Signal.of_constant rhs)
+| op, Con lhs, Sig rhs -> relational (unsigned_relational op) (Signal.of_constant lhs) rhs
+| op, Con lhs, Sigs rhs -> relational' (signed_relational op) (Signed.of_signal (Signal.of_constant lhs)) rhs
+| (Vpirshiftop|Vpiarithrshiftop as op), Sig lhs, Con rhs -> relationalc (unsigned_relationalc op) lhs (Constant.to_int rhs)
+| op,Sig lhs, Con rhs -> relational (unsigned_relational op) lhs (Signal.of_constant rhs)
+| op,Sigs lhs, Con rhs -> relationalc' (signed_relationalc op) lhs (Constant.to_int rhs)
+| (Vpilshiftop|Vpirshiftop|Vpiarithrshiftop as op), Var lhs, Con rhs -> relationalc (unsigned_relationalc op) lhs.value (Constant.to_int rhs)
+| op, Var lhs, Con rhs -> relational (unsigned_relational op) lhs.value (Signal.of_constant rhs)
+| (Vpilshiftop|Vpirshiftop|Vpiarithrshiftop as op), Con lhs, Con rhs -> relationalc (unsigned_relationalc op) (Signal.of_constant lhs) (Constant.to_int rhs)
+| op,lhs,rhs -> othop := (op, summary lhs, summary rhs); failwith "detect_dyadic" in
 
 (*
 let unimplu = let seen = ref [] in fun lbl rhs ->
@@ -563,7 +753,7 @@ let rec (remap:remapp->remap) = function
 | Id wire ->
 if exists wire then find_decl wire else Invalid
 | Unary (op, rhs) -> Sig (remapop' op (sig' (remap rhs)))
-| Dyadic (op, lhs, rhs) -> let lhs = remap lhs and rhs = remap rhs in Sig (remapop (op, lhs, rhs))
+| Dyadic (op, lhs, rhs) -> let lhs = remap lhs and rhs = remap rhs in detect_dyadic (op,lhs, rhs)
 | Mux2 (cond, lhs, rhs) ->
   let cond_ = sig' (remap cond) in
   let then_ = sig' (remap lhs) in
@@ -604,6 +794,8 @@ if exists wire then find_decl wire else Invalid
 | Bitsel(nam, sel) as b -> othp := b; Sig (mux' (sig' (remap sel)) (sig' (remap nam)))
 | Item (cond, Dec (n, _), stmt) -> let wid = width (sig' (remap cond)) in Itm (of_int ~width:wid (int_of_string n), [ alw' (remap stmt) ])
 | Case (mode, lst) -> Alw (Always.switch (sig' (remap mode)) (List.map (fun itm -> match remap itm with Itm c -> c | _ -> failwith "itm") lst))
+| Signed x -> (match remap x with Sig x -> Sigs (Signed.of_signal x) | Sigs _ as x -> x | _ -> failwith "Signed")
+| Unsigned x -> (match remap x with Sigs x -> Sig (Signed.to_signal x) | Sig _ as x -> x | _ -> failwith "Unsigned")
 | oth -> othp := oth; failwith "remap" in
 
 othremapp' := remapp';
@@ -615,6 +807,7 @@ let _ = Always.compile remap'' in
 alst := [];
 let oplst = ref [] in iter_decl (fun k -> function
         | Var v -> oplst := output k v.value :: !oplst
+        | Itm v -> ()
         | Con v -> ()
         | Alw v -> ()
         | Sig v -> alst := (k, Sig v) :: !alst
@@ -625,7 +818,11 @@ if Array.length Sys.argv > 2 then eqv Sys.argv.(2) modnam
 end
 
 let modlst = ref []
+let modlst' = ref []
+let crntmod = ref ("", [])
 
-let parseall f = let p,lst = parse f in p' := p; modlst := lst; List.iter cnv lst
+let parseall f = let p,lst,lst' = parse f in p' := p; modlst := lst; modlst' := lst';
+let lst'' = if Array.length Sys.argv > 3 then lst else lst' in
+List.iter (fun body -> crntmod := body; cnv body) lst''
 
 let _ = if Array.length Sys.argv > 1 then parseall Sys.argv.(1)
