@@ -23,6 +23,7 @@ SOFTWARE.
 *)
 
 open Input_lex
+open Input_pp
 open Input
 
 let deflate token = 
@@ -46,6 +47,7 @@ let parse_output_ast_from_chan ch =
   output
 
 let othrw = ref None
+let p' = ref []
 
 type pattr = {
   topmod: string;
@@ -92,10 +94,6 @@ if false then print_endline ((match nam, !found with STRING s, Width(hi,lo,_) ->
     !found
 | _ -> failwith "pwid"
 
-let rec event_collapse = function
-| TUPLE3 (Vpieventorop, ev, ev') -> ev' :: event_collapse ev
-| oth -> [oth]
-
 let rec rw topmod = function
 | TUPLE2 (Vpinet, arg) -> (rw topmod) arg
 | TUPLE5 (Enum_const, (STRING _ as nam), TUPLE2 (INT, (Int _ as n)), Vpidecompile _, TUPLE2 (Vpisize, (Int _ as siz))) -> TUPLE3(nam, n, siz)
@@ -110,10 +108,10 @@ let rec rw topmod = function
 | TUPLE2 (Cont_assign, LOC _) as c -> c
 | TUPLE3 (Cont_assign, TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) ->
 let rwlhs = (rw topmod) lhs in let dest = match rwlhs with
-       | TUPLE4 (Ref_obj, STRING nam, _, _) -> print_endline ("Cont_assign_rw1: "^topmod^" "^nam); nam
-       | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2 (TLIST pth, Width _))), STRING nam) -> print_endline ("Cont_assign_rw2: "^topmod^" "^nam); nam
-       | TUPLE5 (Part_select, STRING nam, TUPLE3 (Vpiuintconst, Int n, Int w), TUPLE3 (Vpiuintconst, Int n', Int w'), Width _) -> print_endline ("Cont_assign_rw3: "^topmod^" "^nam); nam
-       | TUPLE3 (Bit_select, STRING nam, TUPLE3 (Vpiuintconst, Int n, Int w)) -> print_endline ("Cont_assign_rw4: "^topmod^" "^nam); nam
+       | TUPLE4 (Ref_obj, STRING nam, _, _) -> if false then print_endline ("Cont_assign_rw1: "^topmod^" "^nam); nam
+       | TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2 (TLIST pth, Width _))), STRING nam) -> if false then print_endline ("Cont_assign_rw2: "^topmod^" "^nam); nam
+       | TUPLE5 (Part_select, STRING nam, TUPLE3 (Vpiuintconst, Int n, Int w), TUPLE3 (Vpiuintconst, Int n', Int w'), Width _) -> if false then print_endline ("Cont_assign_rw3: "^topmod^" "^nam); nam
+       | TUPLE3 (Bit_select, STRING nam, TUPLE3 (Vpiuintconst, Int n, Int w)) -> if false then print_endline ("Cont_assign_rw4: "^topmod^" "^nam); nam
        | oth -> othrw := Some oth; failwith "Cont_assign_rw"^topmod in
   TUPLE5 (Cont_assign, rwlhs, (rw topmod) rhs, STRING topmod, STRING dest)
 | TUPLE4 (Cont_assign, TUPLE2 (Vpinetdeclassign, Int 1), TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) ->  TUPLE3 (Cont_assign, (rw topmod) lhs, (rw topmod) rhs)
@@ -138,16 +136,27 @@ let rwlhs = (rw topmod) lhs in let dest = match rwlhs with
 | TUPLE2 ((Vpitopmodule|Vpitop|Vpiblocking|Vpicasetype as top), Int 1) -> top
 | TUPLE2 (Sys_func_call, arg) -> TUPLE2 (Sys_func_call, (rw topmod) arg)
 | TUPLE3 (Sys_func_call, arg, (STRING ("$unsigned"|"$signed") as op)) -> TUPLE3 (Sys_func_call, (rw topmod) arg, (rw topmod) op)
-| TUPLE2 (Vpiactual, Logic_var) -> Logic_var
 | TUPLE4 (Ref_obj, nam,
       TLIST pth,
       func) ->  TUPLE2((rw topmod) func, (rw topmod) nam)
 | TUPLE2 (Vpiactual,
       TUPLE2 (Logic_typespec,
-              loc)) -> TUPLE2 (Vpiactual, TUPLE2 (Logic_typespec, pwid (STRING "") false loc))
+              loc)) -> rw topmod (TUPLE2 (Vpiactual, Hashtbl.find !locache (Logic_typespec, loc)))
 | TUPLE2 (Vpiactual,
       TUPLE2 (Logic_net,
               TUPLE2 (TLIST pth, loc))) -> TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2 (TLIST pth, pwid (List.hd (List.rev pth)) false loc)))
+(*
+| TUPLE2 (Vpiactual,
+      TUPLE5 (Logic_net,
+        TUPLE2 (Vpitypespec,
+          TUPLE2 (Ref_typespec,
+            TLIST (
+             TLIST pth :: Vpiparent ::
+              TLIST pth' ::
+              TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (83, 1, 83, 10))) :: [])),
+        STRING "iDLL", TLIST [STRING "iDLL"; STRING "apb_uart"],
+        TUPLE2 (Vpinettype, Vpireg)))) -> Vpiactual
+*)
 | TUPLE5 (Ref_obj, nam,
       TLIST pth,
       TUPLE2 (Vpiactual,
@@ -168,11 +177,11 @@ let rwlhs = (rw topmod) lhs in let dest = match rwlhs with
 | TUPLE2 (Vpiinstance, TLIST [STRING _ as s]) -> TUPLE2 (Vpiinstance, s)
 | TUPLE2 (Vpideflineno, Int _) -> Vpideflineno
 | TUPLE2 ((Vpicondition|Vpirhs|Vpilhs as op), arg) -> TUPLE2 (op, (rw topmod) arg)
-| TUPLE2 (TUPLE7 (Part_select, TUPLE2(Vpiname, netnam), TUPLE2(Vpifullname, TLIST pth),
+| TUPLE7 (Part_select, TUPLE2(Vpiname, netnam), TUPLE2(Vpifullname, TLIST pth),
 		       TUPLE2 (Vpidefname, STRING netnam'),
 		       TUPLE2 (Vpiconstantselect, Int 1),
       TUPLE2 (Vpileftrange, lftrng),
-      TUPLE2 (Vpirightrange, rghtrng)), loc) -> TUPLE5(Part_select, (rw topmod) netnam, (rw topmod) lftrng, (rw topmod) rghtrng, pwid netnam false loc)
+      TUPLE2 (Vpirightrange, rghtrng)) -> TUPLE5(Part_select, (rw topmod) netnam, (rw topmod) lftrng, (rw topmod) rghtrng, Work)
 | TUPLE8 (Indexed_part_select, nam, TLIST pth, nam', _, _, TUPLE2 (Vpileftrange, lftexp), TUPLE2 (Vpirightrange, rghtexp)) ->
   TUPLE4 (Indexed_part_select, (rw topmod) nam, (rw topmod) lftexp, (rw topmod) rghtexp)
 | TUPLE2 (Vpiport, TUPLE5 (Port, port, TUPLE2 (Vpidirection, dir), loconn, rts)) -> TUPLE3(Port, port, dir)
@@ -317,6 +326,7 @@ List.iter (findport pattr) lst; TUPLE2(Parameter, pattr.nam)
 | TUPLE2 (Gen_case, TLIST (TUPLE2(Vpicondition, cond) :: items)) -> TUPLE3(Gen_case, (rw topmod) cond, TLIST (List.map (rw topmod) items))
 | TUPLE3 (Begin, Work, TLIST [Vpiparent]) -> Begin
 | Vpinullop -> Vpinullop
+| TUPLE2 (Vpiactual, NOT_FOUND(a,b)) -> Hashtbl.find !locache (a,b)
 | oth -> othrw := Some oth; failwith "rw"
 
 and findport pattr = function
@@ -372,61 +382,63 @@ and findport pattr = function
    | oth -> othrw := Some oth; failwith "Vpirhs")
 | oth -> othrw := Some oth; failwith "findport"
 
+let line = 0 and col = 0 and endln = 0 and endcol = 0
+
 let hash_itm = function
-| TUPLE3 (Logic_typespec,
-         LOC (line, col, endln, endcol),
-         TUPLE2 (Logic_typespec,
+| TUPLE3 (Logic_typespec, LOC(line,col,endln,endcol),
 	   TUPLE3 (Vpirange,
 	     TUPLE2 (Vpileftrange,
 	       TUPLE5 (Constant, Vpidecompile lft, TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
 	     TUPLE2 (Vpirightrange,
-		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp))))) ->
+		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp)))) ->
 ({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;signed=false;line; col; endln; endcol})
-| TUPLE3 (Logic_typespec,
-         LOC (line, col, endln, endcol),
-         TUPLE3 (Logic_typespec,
+| TUPLE4 (Logic_typespec, LOC (line, col, endln, endcol),
 	   TUPLE3 (Vpirange,
 	     TUPLE2 (Vpileftrange,
 	       TUPLE5 (Constant, Vpidecompile lft, TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
 	     TUPLE2 (Vpirightrange,
-		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp))), Vpisigned)) ->
+		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp))), Vpisigned) ->
 ({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;signed=true;line; col; endln; endcol})
-| TUPLE3 (Logic_typespec,
-         LOC (line, col, _, _),
-         TUPLE3 (Logic_typespec,
+| TUPLE4 (Logic_typespec,  LOC (line, col, _, _),
 	   TUPLE2 (Logic_net, TUPLE2(TLIST pth, LOC (_, _, endln, endcol))),
 	   TUPLE3 (Vpirange,
 	     TUPLE2 (Vpileftrange,
 	       TUPLE5 (Constant, Vpidecompile lft, TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
 	     TUPLE2 (Vpirightrange,
-		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp))))) ->
+		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp)))) ->
 ({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;signed=false;line; col; endln; endcol})
-| TUPLE3 (Logic_typespec,
-         LOC (line, col, _, _),
-         TUPLE4 (Logic_typespec,
+| TUPLE4 (Logic_typespec,
 	   TUPLE2 (Logic_net, TUPLE2(TLIST pth, LOC (_, _, endln, endcol))),
 	   TUPLE3 (Vpirange,
 	     TUPLE2 (Vpileftrange,
 	       TUPLE5 (Constant, Vpidecompile lft, TUPLE2 (Vpisize, lftsiz), _, lfttyp)),
 	     TUPLE2 (Vpirightrange,
-		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp))), Vpisigned)) ->
+		     TUPLE5 (Constant, Vpidecompile rght, TUPLE2 (Vpisize, rghtsiz), _, rghttyp))), Vpisigned) ->
 ({lft;rght;lfttyp;rghttyp;lftsiz;rghtsiz;signed=true;line; col; endln; endcol})
 | TUPLE3 (Logic_typespec, LOC (line, col, _, _),
-      TUPLE2 (Logic_typespec,
         TUPLE2 (Logic_net,
           TUPLE2 (TLIST pth,
-            LOC (_, _, endln, endcol))))) -> 
+            LOC (_, _, endln, endcol)))) -> 
 ({lft="0";rght="0";lfttyp=Work;rghttyp=Work;lftsiz=Work;rghtsiz=Work;signed=false;line; col; endln; endcol})
-| TUPLE3 (Logic_typespec, LOC (line, col, endln, endcol),
-      TUPLE2 (Logic_typespec,
+| TUPLE3 (Logic_typespec,  LOC (line, col, endln, endcol),
         TUPLE3 (Vpirange,
           TUPLE2 (Vpileftrange, lft),
-          TUPLE2 (Vpirightrange, rght)))) ->
+          TUPLE2 (Vpirightrange, rght))) ->
 ({lft="0";rght="0";lfttyp=lft;rghttyp=rght;lftsiz=Work;rghtsiz=Work;signed=false;line; col; endln; endcol})
 | TUPLE2 (Logic_typespec, LOC (line, col, endln, endcol)) ->
 ({lft="0";rght="0";lfttyp=Work;rghttyp=Work;lftsiz=Work;rghtsiz=Work;signed=false;line; col; endln; endcol})
+| TUPLE3 (Logic_typespec, LOC (line, col, endln, endcol),
+      TUPLE3 (Vpirange,
+        TUPLE2 (Vpileftrange,
+          TUPLE3 (Vpisubop, _, _)),
+        TUPLE2 (Vpirightrange,
+          TUPLE5 (Constant, _, TUPLE2 (Vpisize, rghtsiz),
+            TUPLE2 (UINT, Int 0), Vpiuintconst)))) ->
+({lft="0";rght="0";lfttyp=Work;rghttyp=Work;lftsiz=Work;rghtsiz;signed=false;line=9999; col=9999; endln=9999; endcol=9999})
 | Int_typespec ->
 ({lft="0";rght="0";lfttyp=Work;rghttyp=Work;lftsiz=Work;rghtsiz=Work;signed=false;line=9999; col=9999; endln=9999; endcol=9999})
+| LOC (line, col, endln, endcol) ->
+({lft="0";rght="0";lfttyp=Work;rghttyp=Work;lftsiz=Work;rghtsiz=Work;signed=false;line; col; endln; endcol})
 | oth -> othrw := Some oth; failwith "hash_itm"
 
 let compare_hash_itm {line; col; endln; endcol} {line=line'; col=col'; endln=endln'; endcol=endcol'} =
@@ -440,21 +452,25 @@ let othmap = ref ([],[])
 
 let parse arg =
   let ch = open_in arg in
-  let p = parse_output_ast_from_chan ch in
+  let cache, p = parse_output_ast_from_chan ch in
   close_in ch;
+  p' := p;
+  locache := cache;
   let modlst = ref [] in
   let modlst' = ref [] in
   List.iter (function
     | TUPLE4 (DESIGN, STRING _, TUPLE2 (Vpielaborated, Int _), Vpiname) -> ()
     | TUPLE2 ((Uhdmallpackages|Uhdmtoppackages), _) -> ()
-    | TUPLE2 (Weaklyreferenced, TLIST lst) ->
+    | TUPLE2 (Weaklyreferenced, TLIST lst) -> ()
+(*
     let lst' = List.filter (function Class_typespec -> false | TUPLE2 (Int_typespec, _) -> false | TUPLE2 (Logic_typespec, LOC _) -> true | _ -> true) lst in
     refh := Array.of_list (List.sort_uniq compare_hash_itm (List.map hash_itm lst'))
+*)
     | TUPLE2 (Uhdmallclasses, _) -> ()
     | TUPLE2((Uhdmtopmodules|Uhdmallmodules), TLIST rawlst) ->
         (match List.partition (function TUPLE2 ((Vpitypedef|Vpiparamassign|Vpivariables), _) | TUPLE3 (Vpiparameter, _,_ ) -> true | _ -> false) rawlst with
-          | types, Vpiparent :: TLIST [] :: (STRING topmod) :: body -> modlst := (topmod, List.map (rw topmod) types @ List.map (rw topmod) body) :: !modlst
-          | types, Vpiname :: (STRING topmod) :: body -> modlst' := (topmod, List.map (rw topmod) types @ List.map (rw topmod) body) :: !modlst'
+          | types, Vpiparent :: TLIST [] :: (STRING topmod) :: body -> modlst := (topmod, List.map (rw topmod) (List.map rw' types) @ List.map (rw topmod) (List.map rw' body)) :: !modlst
+          | types, Vpiname :: (STRING topmod) :: body -> modlst' := (topmod, List.map (rw topmod) (List.map rw' types) @ List.map (rw topmod) (List.map rw' body)) :: !modlst'
           | oth -> othmap := oth; failwith "map'")
     | Work -> ()
     | oth -> othrw := Some oth; failwith "map") p;

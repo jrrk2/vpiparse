@@ -363,7 +363,7 @@ let rec traverse (attr:attr) = function
     | TUPLE2 ((Vpimodule|Gen_scope_array|Cont_assign), _) -> ()
     | TUPLE2 (Enum_var, STRING _) -> ()
     | TUPLE5 (Cont_assign, lhs, rhs, STRING topmod, STRING dest) ->
-       print_endline ("Cont_assign_vpimodule: "^topmod^" "^dest);
+       if false then print_endline ("Cont_assign_vpimodule: "^topmod^" "^dest);
        traverse attr lhs;
        traverse attr rhs;
        if not (attr.pass) then declare_wire lhs
@@ -402,7 +402,7 @@ let rec traverse (attr:attr) = function
    traverse attr rhs;
    if attr.pass then (match attr.clock with Some _ -> declare_reg attr lhs | None -> declare_wire lhs)
 | TUPLE5 (Cont_assign, lhs, rhs, STRING topmod, STRING dest) ->
-   print_endline ("Cont_assign_other: "^topmod^" "^dest);
+   if false then print_endline ("Cont_assign_other: "^topmod^" "^dest);
    traverse attr lhs;
    traverse attr rhs;
    if not (attr.pass) then declare_wire lhs
@@ -422,10 +422,10 @@ let rec traverse (attr:attr) = function
 | TUPLE3 (If_stmt, cond, lhs) -> traverse attr cond; traverse attr lhs
 | TUPLE4 (If_else, cond, lhs, rhs) as tup -> 
     traverse attr cond;
-    print_endline "lhs";
+    if false then print_endline "lhs";
     otht := Some tup;
     traverse attr lhs;
-    print_endline "rhs";
+    if false then print_endline "rhs";
     traverse attr rhs
 | TUPLE2 ((Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop|Vpibitnegop|Vpiplusop|Vpiminusop|Vpinotop), rhs) -> traverse attr rhs
 | TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop), lhs, rhs) -> traverse attr lhs; traverse attr rhs
@@ -498,7 +498,7 @@ let rec (remapp:token->remapp) = function
     | Vpideffile | Vpideflineno | Always | Cont_assign -> ()
     | TUPLE2 ((Vpimodule|Gen_scope_array|Cont_assign), _) -> ()
     | TUPLE2 (Enum_var, STRING _) -> ()
-    | TUPLE5 (Cont_assign, lhs, rhs, STRING topmod, STRING dest) -> print_endline ("Cont_assign_vpimodule_remapp: "^topmod^" "^dest);
+    | TUPLE5 (Cont_assign, lhs, rhs, STRING topmod, STRING dest) -> if false then print_endline ("Cont_assign_vpimodule_remapp: "^topmod^" "^dest);
     | TUPLE4 ((Vpialways|Vpinet|Vpireg),
           TUPLE2 (Vpitypespec,
             TUPLE3 (Ref_typespec,
@@ -530,7 +530,7 @@ if exists wire then Id (wire) else failwith ("Logic_net: "^wire^" not declared")
   let else_ =  (remapp rhs) in
   let cond_ =  (remapp cond) in
   If_ (cond_, [then_], [else_])
-| TUPLE5 (Cont_assign, lhs, rhs, STRING topmod, STRING dest) -> print_endline ("Cont_assign_remapp: "^topmod^" "^dest);
+| TUPLE5 (Cont_assign, lhs, rhs, STRING topmod, STRING dest) -> if false then print_endline ("Cont_assign_remapp: "^topmod^" "^dest);
    let rhs = (remapp rhs) in
    let lhs = match remapp lhs with
    | Selection(id, lft, rght, hi, lo) -> Update(id, lft, rght, hi, lo)

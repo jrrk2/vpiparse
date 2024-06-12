@@ -24,6 +24,7 @@ SOFTWARE.
 
 %{
   open Parsing
+  
 let getstr = function
 | FINISHED -> "FINISHED";
 | INT -> "INT";
@@ -654,6 +655,12 @@ let vpi_task_func = function
     | arg1::arg2::arg3::arg4::arg5::arg6::arg7::arg8::arg9::arg10::arg11::arg12::arg13::arg14::arg15::arg16::[] ->
     TUPLE17(kind, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16)
     | oth -> print_endline ("kind:"^getstr kind^" "^string_of_int (List.length oth)); TUPLE2(kind, TLIST oth)
+
+  let cache = Hashtbl.create 257
+
+  let loc_cache kind loc tup =
+      Hashtbl.replace cache (kind,loc) tup;
+      tup
 %}
 
 %token  Indent
@@ -700,6 +707,7 @@ let vpi_task_func = function
 %token <string> STRING
 %token <string> STRING_CONST
 %token  TILDE
+%token <token*token> NOT_FOUND
 %token <token list> TLIST
 %token <token*token> TUPLE2
 %token <token*token*token> TUPLE3
@@ -1202,16 +1210,20 @@ let vpi_task_func = function
 
 %token Work
 %token <string> VpiNum 
-%type <token list> ml_start
+%type <(token*token,token)Hashtbl.t * token list> ml_start
 %type <token> parameter_def
 %type <token list> parameter_lst
+%type <token list> always_lst
+%type <token list> initial_lst
+%type <token> logic_net_def
+%type <token> logic_var_def
 %type <token> parameter_opt
 %type <token> always_typ
 %type <token> input
 %start ml_start
 %%
 
-ml_start: input_lst EOF_TOKEN { $1 }
+ml_start: input_lst EOF_TOKEN { (cache, $1) }
 
 package_opt:
   | Vpiparent COLON parent { Vpiparent }
@@ -1238,9 +1250,9 @@ parent:
   | Io_decl COLON io_decl_def { Io_decl }
   | Enum_var COLON enum_var_def { Enum_var }
   | Module_inst COLON module_inst_def { TUPLE2(Module_inst, $3) }
-  | Logic_net COLON logic_net_def { TUPLE2(Logic_net, $3) }
+  | Logic_net COLON logic_net_def { Logic_net }
   | Port COLON port_def { Port }
-  | Always COLON always_def { Always }
+  | Always COLON loc { Always }
   | Event_control COLON event_control_def { Event_control }
   | Operation COLON operation_def { Operation }
   | Begin COLON begin_def { TUPLE2(Begin, $3) }
@@ -1251,7 +1263,7 @@ parent:
   | Parameter parameter_def { Parameter }
   | Param_assign COLON loc { Param_assign }
   | Constant COLON constant_def { Constant }
-  | Initial COLON initial_def { Initial }
+  | Initial COLON loc { Initial }
   | If_stmt COLON loc { If_stmt }
   | If_else COLON loc { If_else }
   | For_stmt COLON for_stmt_def { For_stmt }
@@ -1269,7 +1281,7 @@ parent:
   | Gen_scope_array COLON gen_scope_array_def { Gen_scope_array }
   | Gen_scope COLON gen_scope_def { Gen_scope }
   | Part_select COLON part_select_def { Part_select }
-  | Ref_typespec COLON type_spec { TUPLE2(Ref_typespec, $3) }
+  | Ref_typespec COLON type_spec { Ref_typespec }
   | ref_typespec_actual { $1 }
   
 loc: { Work }
@@ -1300,7 +1312,7 @@ enum_typespec_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpiname COLON vnam { $3 }
   | Vpifullname COLON fullnam { $3 }
-  | Vpienumconst COLON Enum_const COLON enum_const_decl Indent enum_constant_lst Unindent { to_tuple Enum_const $7 }
+  | Vpienumconst COLON Enum_const COLON enum_const_decl Indent enum_constant_lst Unindent { loc_cache Enum_const $5 (to_tuple Enum_const $7) }
   | Vpiinstance COLON Module_inst COLON module_inst_def { TUPLE2(Vpiinstance, $5) }
   | Vpibasetypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
 
@@ -1417,7 +1429,7 @@ logic_var_opt:
   | Vpivisibility COLON vis { TUPLE2(Vpivisibility, $3) }
 
 ref_typespec:
-  | Ref_typespec COLON type_spec Indent ref_typespec_lst Unindent { to_list Ref_typespec ($3::$5) }
+  | Ref_typespec COLON type_spec Indent ref_typespec_lst Unindent { loc_cache Ref_typespec $3 (to_tuple Ref_typespec $5) }
 
 ref_typespec_lst: { [] }
   | ref_typespec_opt ref_typespec_lst { $1 :: $2 }
@@ -1432,9 +1444,9 @@ ref_typespec_actual:
   | Int_typespec COLON int_typespec_def { TUPLE2(Int_typespec, $3) }
   | Integer_typespec COLON integer_typespec_def { TUPLE2(Integer_typespec, $3) }
   | Enum_typespec COLON enum_typespec_decl { TUPLE2(Enum_typespec, $3) }
-  | Logic_typespec COLON logic_typespec_def { TUPLE2(Logic_typespec, $3) }
-  | Array_typespec COLON loc { TUPLE2(Logic_typespec, $3) }
-  | Array_typespec COLON loc Indent array_typespec_lst Unindent { TUPLE2(Logic_typespec, $3) }
+  | Logic_typespec COLON logic_typespec_def { try Hashtbl.find cache (Logic_typespec, $3) with _ -> NOT_FOUND(Logic_typespec, $3) }
+  | Array_typespec COLON loc { try Hashtbl.find cache (Array_typespec, $3) with _ -> NOT_FOUND(Array_typespec, $3) }
+  | Array_typespec COLON loc Indent array_typespec_lst Unindent { loc_cache Array_typespec $3 (TUPLE2(Array_typespec, TLIST $5)) }
 
 array_typespec_lst: { [] }
   | array_typespec_opt array_typespec_lst { $1 :: $2 }
@@ -1528,10 +1540,10 @@ ref_obj_opt:
   | Vpiactual COLON ref_obj_actual { TUPLE2(Vpiactual, $3) }
 
 ref_obj_actual:
-  | Logic_net COLON logic_net_def { TUPLE2(Logic_net, $3) }
-  | Logic_var COLON logic_var_def { TUPLE2(Logic_var, $3) }
-  | Part_select COLON part_select_def { TUPLE2(Part_select, $3) }
-  | Enum_const COLON enum_const_decl { TUPLE2(Enum_const, $3) }
+  | Logic_net COLON logic_net_def { try Hashtbl.find cache (Logic_net, $3) with _ -> NOT_FOUND(Logic_net, $3) }
+  | Logic_var COLON logic_var_def { try Hashtbl.find cache (Logic_var, $3) with _ -> NOT_FOUND(Logic_var, $3) }
+  | Part_select COLON part_select_def { try Hashtbl.find cache (Part_select, $3) with _ -> NOT_FOUND(Part_select, $3) }
+  | Enum_const COLON enum_const_decl { try Hashtbl.find cache (Enum_const, $3) with _ -> NOT_FOUND(Enum_const, $3) }
 
 constant_lst: { [] }
   | constant_opt constant_lst { $1 :: $2 }
@@ -1598,11 +1610,11 @@ weak_opt:
   | Class_typespec COLON class_typespec Indent Vpiclassdefn COLON Class_defn COLON class_def Unindent { Class_typespec }
   | Int_typespec COLON int_typespec_def Indent int_typespec_lst Unindent { to_tuple Int_typespec $5 }
   | Integer_typespec COLON integer_typespec_def Indent integer_typespec_lst Unindent { to_tuple Integer_typespec $5 }
-  | Logic_typespec COLON logic_typespec_def { Logic_typespec }
-  | Logic_typespec COLON logic_typespec_def Indent misc_lst Unindent { TUPLE3(Logic_typespec, $3, to_tuple Logic_typespec $5) }
+  | Logic_typespec COLON logic_typespec_def { try Hashtbl.find cache (Logic_typespec, $3) with _ -> NOT_FOUND(Logic_typespec, $3) }
+  | Logic_typespec COLON logic_typespec_def Indent misc_lst Unindent { loc_cache Logic_typespec $3 (to_tuple Logic_typespec ($3::$5)) }
   | Function COLON function_def Indent weak_function_lst Unindent { to_tuple Function $5 }
   | Task COLON task_def Indent task_lst Unindent { to_tuple Task $5 }
-  | Enum_typespec COLON enum_typespec_decl Indent enum_typespec_lst Unindent { to_tuple Enum_typespec $5 }
+  | Enum_typespec COLON enum_typespec_decl Indent enum_typespec_lst Unindent { loc_cache Enum_typespec $3 (to_tuple Enum_typespec $5) }
   | ref_typespec_actual { $1 }
   
 weak_function_lst: { [] }
@@ -1736,10 +1748,10 @@ gen_case_opt:
 parameter_def: COLON LPAREN Work AT pth_lst RPAREN loc { List.hd (List.rev $5) }
 
 process:
-  | Always COLON always_def Indent always_lst always_typ Unindent { to_tuple (TUPLE2(Always,$6)) $5 }
-  | Initial COLON initial_def Indent initial_lst Unindent { to_tuple Initial $5 }
-  | Always COLON always_def { Always }
-  | Initial COLON initial_def { Initial }
+  | Always COLON loc Indent always_lst always_typ Unindent { loc_cache Always $3 (to_tuple (TUPLE2(Always,$6)) $5) }
+  | Initial COLON loc Indent initial_lst Unindent { loc_cache Initial $3 (to_tuple Initial $5) }
+  | Always COLON loc { try Hashtbl.find cache (Always,$3) with _ -> NOT_FOUND(Always, $3) }
+  | Initial COLON loc { try Hashtbl.find cache (Initial,$3) with _ -> NOT_FOUND(Initial, $3) }
 
 always_typ:
   | Vpialwaystype COLON Int { TUPLE2(Vpialwaystype, net_type $3) }
@@ -1791,7 +1803,7 @@ stmt:
   | Gen_if_else COLON loc Indent gen_if_else_lst Unindent { to_tuple If_else $5 }
   | Ref_module COLON ref_module_def Indent ref_module_lst Unindent { TUPLE3 (Ref_module, $3, TLIST $5) }
   | Cont_assign COLON loc Indent cont_assign_lst Unindent { to_tuple Cont_assign $5 }
-  | Always COLON always_def Indent always_lst always_typ Unindent { to_tuple (TUPLE2(Always,$6)) $5 }
+  | Always COLON loc Indent always_lst always_typ Unindent { loc_cache Always $3  (to_tuple (TUPLE2(Always,$6)) $5) }
   
 ref_module_lst: { [] }
   | ref_module_opt ref_module_lst { $1 :: $2 }
@@ -1957,11 +1969,11 @@ oexpr:
   | Ref_obj COLON ref_obj_def Indent ref_obj_lst Unindent { to_tuple Ref_obj $5 }
   | Ref_var COLON ref_var_def Indent ref_var_lst Unindent { to_tuple Ref_var $5 }
   | Constant COLON constant_def Indent constant_lst Unindent { to_tuple Constant $5 }
-  | Part_select COLON part_select_def Indent part_select_lst Unindent { TUPLE2(to_tuple Part_select $5, $3) }
+  | Part_select COLON part_select_def Indent part_select_lst Unindent { loc_cache Part_select $3 (to_tuple Part_select $5) }
   | Indexed_part_select COLON indexed_part_select_def Indent indexed_part_select_lst Unindent { to_tuple Indexed_part_select $5 }
   | Bit_select COLON bit_sel_def Indent bit_sel_lst Unindent { to_tuple Bit_select $5 }
   | Sys_func_call COLON sys_func_call_def Indent sys_func_call_lst Unindent { to_tuple Sys_func_call $5 }
-  | Logic_net COLON logic_net_def { TUPLE2(Logic_net, $3) }
+  | Logic_net COLON logic_net_def { try Hashtbl.find cache (Logic_net, $3) with _ -> NOT_FOUND(Logic_net, $3) }
   | nettyp { $1 }
   | Array_var COLON array_var_def Indent array_var_lst Unindent { to_tuple Array_var $5 }
   
@@ -2054,11 +2066,12 @@ dyadic:
   | Vpipowerop { Vpipowerop }
   
 vport:
-  | Port COLON port_def Indent io_decl_lst Unindent { TUPLE3 (Port, $3, TLIST $5) }
-  | Port COLON port_def { TUPLE2(Port, $3) }
+  | Port COLON port_def Indent io_decl_lst Unindent { loc_cache Port $3 (to_tuple Port $5) }
+  | Port COLON port_def { try Hashtbl.find cache (Port, $3) with _ -> NOT_FOUND(Port, $3) }
 
 nettyp: 
-  | Logic_net COLON logic_net_def Indent logic_net_lst Unindent { to_tuple Logic_net $5 }
+  | Logic_net COLON logic_net_def { try Hashtbl.find cache (Logic_net, $3) with _ -> NOT_FOUND(Logic_net, $3) }
+  | Logic_net COLON logic_net_def Indent logic_net_lst Unindent { loc_cache Logic_net $3 (to_tuple Logic_net $5) }
 
 logic_net_lst: { [] }
   | logic_net_opt logic_net_lst { $1 :: $2 }
@@ -2106,7 +2119,7 @@ array_net_opt:
 ret:
   | Int_var COLON int_var_def Indent int_var_lst Unindent { to_tuple Int_var $5 }
   | Integer_var COLON integer_var_def Indent integer_var_lst Unindent { to_tuple Int_var $5 }
-  | Logic_var COLON logic_var_def Indent logic_var_lst Unindent { to_tuple Logic_var $5 }
+  | Logic_var COLON logic_var_def Indent logic_var_lst Unindent { loc_cache Logic_var $3 (to_tuple Logic_var $5) }
   | Class_var COLON class_var_def Indent class_var_lst Unindent { to_tuple Class_var $5 }
   | Enum_var COLON enum_var_def Indent enum_var_lst Unindent { to_tuple Enum_var $5 }
 
@@ -2138,8 +2151,8 @@ module_inst_def: { Work }
 function_def: LPAREN Builtin COLON COLON vnam RPAREN { Work }
   | LPAREN Work AT name type_lst RPAREN loc { Work }
 
-logic_net_def: { Work }
-  | LPAREN Work AT pth_lst type_lst RPAREN loc { TUPLE2(TLIST $4, $7) }
+logic_net_def:
+  | LPAREN Work AT pth_lst type_lst RPAREN loc { $7 }
 
 array_net_def: { Work }
   | LPAREN Work AT pth_lst type_lst RPAREN loc { Work }
@@ -2185,7 +2198,7 @@ pth_lst: STRING { [STRING $1] }
   | STRING DOT pth_lst { STRING $1 :: $3 }
   
 port_def: loc { $1 }
-  | LPAREN STRING RPAREN loc { TUPLE2 (STRING $2, $4) }
+  | LPAREN STRING RPAREN loc { $4 }
   
 enum_var_def: LPAREN Builtin COLON COLON vnam RPAREN { Work }
 | LPAREN Work AT name type_lst RPAREN loc { Work }
@@ -2198,10 +2211,10 @@ integer_var_def: { Work }
   | LPAREN Work AT name type_lst RPAREN loc { Work }
   | LPAREN Work AT pth_lst RPAREN loc { Work }
 
-logic_var_def: { Work }
+logic_var_def:
   | LPAREN Work AT name type_lst RPAREN { Work }
-  | LPAREN Work AT pth_lst RPAREN loc { Work }
-  | LPAREN pth_lst RPAREN loc { Work }
+  | LPAREN Work AT pth_lst RPAREN loc { $6 }
+  | LPAREN pth_lst RPAREN loc { $4 }
 
 array_var_def: { Work }
   | LPAREN pth_lst RPAREN loc { Work }
@@ -2216,12 +2229,6 @@ task_call_def: { Work }
 constant_def: { Work }
   | loc { Work }
 
-always_def: { Work }
-  | loc { Work }
-
-initial_def: { Work }
-  | loc { Work }
-  
 operation_def: { Work }
   | loc { Work }
 

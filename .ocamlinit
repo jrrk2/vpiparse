@@ -2,13 +2,35 @@
 #directory "/Users/jonathan/.opam/default/lib/base";;
 
 open Input
-open Input_main
+open Input_types
+open Input_pp
+open Input_pat2
+open Input_dump
+open Input_remapp
+open Input_scan
 open Input_rewrite
-open Input_lex
+open Input_detect
 open Hardcaml
 open Signal
 
 #print_length 1000000;;
 #print_depth 1000000;;
 
-let _ = parseall "uhdm.txt";;
+let p', conv =
+  let ch = open_in "uhdm.txt" in
+  let cache, p = parse_output_ast_from_chan ch in
+  close_in ch;
+  locache := cache;
+  let p' = List.map rw' p in
+  p', List.map pat p'
+;;
+
+let _ = let fd = open_out "dump.v" in List.iter (fun itm -> output_string fd (dump itm)) conv; close_out fd;;
+
+(*
+remap_lst := parseall "uhdm.txt";;
+
+let scan = rw_scan_lst !p';;
+
+let detected = List.map (detect) (snd (List.hd !remap_lst));;
+*)
