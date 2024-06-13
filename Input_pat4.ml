@@ -31,12 +31,22 @@ let _Always itms (deplst, body) = match deplst with
 | POSPOS (clk, rst) as edg -> itms.alwys := ("", edg, body) :: !(itms.alwys); UNKNOWN
 | deplst -> othalwys := (deplst, body); failwith "_Always"
 
+let rec parse_base base r =
+  let len = String.length r in
+  if len = 0 then 0 else base * parse_base base (String.sub r 0 (len-1)) + (match r.[0] with
+ | '0'..'9' -> Char.code r.[len-1] - Char.code '0'
+ | _ -> 0)
+
+let rec parse_bin b = parse_base 2 b
+let rec parse_oct o = parse_base 8 o
+let rec parse_dec d = parse_base 10 d
+
 let _Class itms = SCOPE "Class"
 let _Id itms _ = failwith "Id"
 let _Alw itms _ = failwith "Alw"
-let _Bin itms (s, w) = CNST (w, STRING s)
-let _Oct itms (s, w) = CNST (w, STRING s)
-let _Dec itms (s, w) = CNST (w, STRING s)
+let _Bin itms (s, w) = let rslt = parse_bin s in CNST (w, HEX rslt)
+let _Oct itms (s, w) = let rslt = parse_oct s in CNST (w, HEX rslt)
+let _Dec itms (s, w) = let rslt = parse_dec s in CNST (w, HEX rslt)
 let _Seq itms lst = BGN(None, lst)
 let _Hex itms (s, w) = CNST (w, try Scanf.sscanf s "%x" (fun n -> HEX n) with _ -> STRING s)
 let _If_ itms (c, a, b) = IF ("", [c; a; b])
@@ -620,8 +630,8 @@ let rec pat itms = function
       let _ = seq uitms lst' in
       dest := (topmod, (lst', uitms)) :: !dest in
         (match List.partition (function TUPLE2 ((Vpitypedef|Vpiparamassign|Vpivariables), _) | TUPLE3 (Vpiparameter, _,_ ) -> true | _ -> false) rawlst with
-          | types, Vpiparent :: TLIST [] :: (STRING topmod) :: body -> fresh ("all_"^topmod) allmods (types@body)
-          | types, Vpiname :: (STRING topmod) :: body -> fresh ("top_"^topmod) topmods (types@body)
+          | types, Vpiparent :: TLIST [] :: (STRING topmod) :: body -> fresh (topmod) allmods (types@body)
+          | types, Vpiname :: (STRING topmod) :: body -> fresh (topmod) topmods (types@body)
           | oth -> othmap := oth; failwith "map'");
       UNKNOWN
 |   TUPLE2 (Uhdmallpackages, TUPLE4 (Package, Builtin, STRING _, Builtin)) -> _Place itms (752, Void 0, Void 0)

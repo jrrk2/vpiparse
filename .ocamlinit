@@ -6,37 +6,12 @@ open Input_types
 open Input_pp
 open Input_pat4
 open Input_dump
-open Apb_uart_top
-open Input_remapp
 open Input_scan
-open Input_rewrite
+open Input_equiv
 open Hardcaml
 open Signal
 
 #print_length 1000000;;
 #print_depth 1000000;;
 
-(* *)
-let _ = apb_uart_dump()
-(* *)
-
-let p', conv, uitms =
-  let ch = open_in "uhdm.txt" in
-  let cache, p = parse_output_ast_from_chan ch in
-  close_in ch;
-  locache := cache;
-  let p' = List.map rw' p in
-  let uitms = empty_itms [] in
-  let rslt = List.map (pat uitms) p' in
-  List.iter dump' !allmods;
-  List.iter dump' !topmods;
-  p', rslt, uitms
-;;
-
-(*
-remap_lst := parseall "uhdm.txt";;
-
-let scan = rw_scan_lst !p';;
-
-let detected = List.map (detect) (snd (List.hd !remap_lst));;
-*)
+let _ = tran "uhdm.txt"

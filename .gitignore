@@ -17,3 +17,5 @@ Input_remapp
 *.tok
 junk*
 logfile.txt
+Input_dump
+Input_dump_top

@@ -22,30 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *)
 
-open Input_lex
-open Input_pp
-open Input
-
-let deflate token = 
-  let q = Queue.create () in
-  fun lexbuf -> 
-    if not (Queue.is_empty q) then Queue.pop q else   
-      match token lexbuf with 
-        | [   ] -> EOF_TOKEN
-        | [tok] -> tok
-        | hd::t -> List.iter (fun tok -> Queue.add tok q) t ; hd 
-
-let parse_output_ast_from_chan ch =
-  let lb = Lexing.from_channel ch in
-  let output = try
-      ml_start (deflate token) lb
-  with
-    | Parsing.Parse_error ->
-      let n = Lexing.lexeme_start lb in
-      failwith (Printf.sprintf "Output.parse: parse error at character %d" n);
-  in
-  output
-
 let othrw = ref None
 let p' = ref []
 
