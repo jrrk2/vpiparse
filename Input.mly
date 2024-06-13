@@ -24,6 +24,7 @@ SOFTWARE.
 
 %{
   open Parsing
+  open Dump_types
   
 let getstr = function
 | FINISHED -> "FINISHED";
@@ -663,6 +664,57 @@ let vpi_task_func = function
       tup
 %}
 
+%token INVALID
+%token SP
+%token SEMI
+%token DQUOTE
+%token PLUS
+%token MINUS
+%token STAR
+%token POW
+%token NL
+%token <string*int> SRC
+%token <string> IDENT
+%token <Dump_types.cexp> NUM
+%token <int * Dump_types.cexp> SIZED
+%token <Dump_types.dirop> DIR
+%token <string option> BEGIN
+%token LCURLY
+%token RCURLY
+%token LCOMMENT
+%token RCOMMENT
+%token LSHIFT
+%token RSHIFT
+%token IFF
+%token ELSE
+%token LOGIC
+%token WIRE
+%token VSTRING
+%token ASSIGN
+%token ASSIGNMENT
+%token ASSIGNDLY
+%token <Dump_types.cmpop>CMPOP
+%token CASE
+%token ENDCASE
+%token WHILE
+%token FOR
+%token ALWAYS
+%token POSEDGE
+%token NEGEDGE
+%token RETURN
+%token FUNCTION
+%token ENDFUNCTION
+%token TASK
+%token ENDTASK
+%token MODULE
+%token ENDMODULE
+%token INITIAL
+%token FINAL
+%token INTERFACE
+%token ENDINTERFACE
+%token PACKAGE
+%token ENDPACKAGE
+%token MODPORT
 %token  Indent
 %token  Unindent
 %token  ACCEPT
@@ -733,7 +785,7 @@ let vpi_task_func = function
 %token  VBAR
 %token FINISHED
 %token INT
-%token <string> HEX
+%token <string> HEXS
 %token <string> DEC
 %token <string> OCT
 %token <string> BIN
@@ -1327,7 +1379,7 @@ parameter_opt:
   | Vpisize COLON Int { TUPLE2(Vpisize, Int $3) }
   | UINT COLON Int { TUPLE2(UINT, Int $3) }
   | INT COLON Int { TUPLE2(INT, Int $3) }
-  | HEX { HEX $1 }
+  | HEXS { HEXS $1 }
   | DEC { DEC $1 }
   | OCT { OCT $1 }
   | BIN { BIN $1 }
@@ -1555,7 +1607,7 @@ constant_opt:
   | UINT COLON Int { TUPLE2(UINT, Int $3) }
   | INT COLON Int { TUPLE2(INT, Int $3) }
   | STRING_CONST { STRING_CONST $1 }
-  | HEX { HEX $1 }
+  | HEXS { HEXS $1 }
   | DEC { DEC $1 }
   | OCT { OCT $1 }
   | BIN { BIN $1 }

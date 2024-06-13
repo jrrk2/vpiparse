@@ -2,8 +2,8 @@ TRACE = --explain ## --trace
 
 ############################################################################
 
-Input_remapp: Input.ml Input_types.mli ord_input.ml Input_lex.ml Input_scan.ml Input_pp.ml Input_rewrite.ml Input_remapp.ml Input_detect.ml Input_pat.ml Input_pat2.ml Input_dump.ml
-	ocamlfind ocamlmktop -g -o $@  -package base,hardcaml,hardcaml_waveterm,hardcaml_circuits -linkpkg Input.mli Input_types.mli Input.ml ord_input.ml Input_lex.ml Input_scan.ml Input_pp.ml Input_rewrite.ml Input_remapp.ml Input_detect.ml Input_pat.ml Input_pat2.ml Input_dump.ml
+Input_remapp: dump_types.mli Input.ml Input_types.mli ord_input.ml Input_lex.ml Input_scan.ml Input_pp.ml Input_rewrite.ml Input_remapp.ml Input_pat.ml Input_pat2.ml Input_pat3.ml Input_pat4.ml Input_dump.ml apb_uart_top.ml sample.ml uitms.ml
+	ocamlfind ocamlmktop -g -o $@  -package base,hardcaml,hardcaml_waveterm,hardcaml_circuits -linkpkg dump_types.mli Input.mli Input_types.mli Input.ml ord_input.ml Input_lex.ml Input_scan.ml Input_pp.ml Input_rewrite.ml Input_remapp.ml Input_pat.ml Input_pat2.ml Input_pat3.ml Input_dump.ml Input_pat4.ml apb_uart_top.ml sample.ml uitms.ml
 
 Input_top: Input.ml ord_input.ml Input_lex.ml Input_rewrite.ml Input_remapp.ml Input_main.ml
 	ocamlfind ocamlmktop -g -o $@  -package base,hardcaml,hardcaml_waveterm,hardcaml_circuits -linkpkg Input.mli Input.ml ord_input.ml Input_lex.ml Input_rewrite.ml Input_remapp.ml Input_main.ml
@@ -18,6 +18,7 @@ Input_lex.ml: Input_lex.mll
 	ocamllex $<
 
 Input.ml: Input.mly
+	ocamlc -g -c dump_types.mli
 	menhir $(TRACE) --infer $<
 
 ############################################################################

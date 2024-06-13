@@ -44,6 +44,7 @@ let eqv gold stem =
 
 open Input
 open Input_types
+open Dump_types
 open Input_rewrite
 open Hardcaml
 open Always
@@ -416,7 +417,7 @@ Block ((remapp attr) lhs, Dyadic (op, (remapp attr) lhs, (remapp attr) rhs))
 | TUPLE3 (Vpibinaryconst, BIN s, Int wid) -> Bin (s,wid)
 | TUPLE3 (Vpioctconst, OCT s, Int wid) -> Oct (s,wid)
 | TUPLE3 ((Vpidecconst|Vpiuintconst), DEC s, Int wid) -> Dec (s,wid)
-| TUPLE3 (Vpihexconst, HEX s, Int wid) -> Hex (s,wid)
+| TUPLE3 (Vpihexconst, HEXS s, Int wid) -> Hex (s,wid)
 | TUPLE3 (Vpiuintconst, Int n, Int wid) -> Dec(string_of_int n, wid)
 | (Always|Vpitopmodule|Vpitop|Vpiname) -> Void 394
 | TUPLE3 (Begin, TLIST pth, TLIST (Vpiparent :: TLIST [] :: lst)) -> Seq (List.map (remapp attr) lst)

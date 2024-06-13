@@ -376,7 +376,7 @@ rule token = parse
   | number as n
       { tok ( try Int (int_of_string n) with _ -> VpiNum n ) }
   | hex as h
-      { tok ( HEX (Scanf.sscanf h "|HEX:%s" (fun h->h) )) }
+      { tok ( HEXS (Scanf.sscanf h "|HEX:%s" (fun h->h) )) }
   | dec as d
       { tok ( DEC (Scanf.sscanf d "|DEC:%s" (fun d->d) )) }
   | oct as o

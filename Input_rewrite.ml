@@ -224,7 +224,7 @@ let rwlhs = (rw topmod) lhs in let dest = match rwlhs with
 | TUPLE5 (Constant, Vpidecompile _,
       TUPLE2 (Vpisize, Int wid), TUPLE2 (UINT, Int uint), Vpiuintconst) -> TUPLE3 (Vpiuintconst, Int uint, Int wid)
 | TUPLE5 (Constant, Vpidecompile _,
-      TUPLE2 (Vpisize, Int wid), (BIN _|OCT _|DEC _|HEX _ as radix), (Vpibinaryconst|Vpioctconst|Vpidecconst|Vpihexconst as kind)) -> TUPLE3 (kind, radix, Int wid)
+      TUPLE2 (Vpisize, Int wid), (BIN _|OCT _|DEC _|HEXS _ as radix), (Vpibinaryconst|Vpioctconst|Vpidecconst|Vpihexconst as kind)) -> TUPLE3 (kind, radix, Int wid)
 | TUPLE4 (Constant, Vpidecompile s, STRING_CONST c, Vpistringconst) -> TUPLE3 (Vpistringconst, STRING_CONST c, Int (8*String.length c))
 | TUPLE5 (Constant, Vpidecompile s, TUPLE2 (Vpisize, Int wid), STRING_CONST c, Vpistringconst) -> TUPLE3 (Vpistringconst, STRING_CONST c, Int wid)
 | TUPLE6 (Constant, Vpidecompile s,
@@ -232,7 +232,7 @@ let rwlhs = (rw topmod) lhs in let dest = match rwlhs with
       TUPLE2 (Vpitypespec, spec),
       kind) -> TUPLE4 (kind, Int n, Int wid, (rw topmod) spec)
 | TUPLE6 (Constant, Vpidecompile s,
-      TUPLE2 (Vpisize, Int wid), (DEC n | HEX n | BIN n as base),
+      TUPLE2 (Vpisize, Int wid), (DEC n | HEXS n | BIN n as base),
       TUPLE2 (Vpitypespec, TUPLE5 (Ref_typespec, (TLIST _|STRING _), Vpiparent, TLIST pth2, TUPLE2 (Vpiactual, TUPLE2 ((Int_typespec|Integer_typespec), Work)))),
       kind) -> TUPLE3 (kind, base, Int wid)
 (*
@@ -369,7 +369,7 @@ and findport pattr = function
        [TUPLE2 (Vpiactual, Logic_typespec);
         TLIST pth'; Vpiparent]) -> ()
 | TLIST pth -> pattr.nam <- List.hd (List.rev pth)
-| HEX h -> ()
+| HEXS h -> ()
 | BIN h -> ()
 | TUPLE2 (Vpirhs, cnst) -> (match (rw pattr.topmod) cnst with
    | TUPLE3 ((Vpiuintconst|Vpihexconst|Vpibinaryconst), Int n, Int wid) -> ()

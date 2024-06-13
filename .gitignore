@@ -14,3 +14,6 @@ slpp_all/
 *.eqy
 venv
 Input_remapp
+*.tok
+junk*
+logfile.txt

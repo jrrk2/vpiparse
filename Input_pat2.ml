@@ -309,12 +309,9 @@ let rec pat = function
 |   TUPLE2 (Vpisigned, Int _) -> Void    419
 |   TUPLE2 (Vpirightrange, rhs) -> pat rhs
 |   TUPLE2 (Vpirhs, rhs) -> pat rhs
-|   TUPLE2
-    (Vpireg,
-     TUPLE4
-      (Logic_var, Vpitypespec,
-       TUPLE3
-        (Ref_typespec, TLIST _,
+|   TUPLE2 (Vpireg,
+     TUPLE4 (Logic_var, Vpitypespec,
+       TUPLE3 (Ref_typespec, TLIST _,
          TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _)))),
        TLIST _)) -> Void    429
 |   TUPLE2 (Vpiprocess,
@@ -329,6 +326,10 @@ let rec pat = function
      TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpialways)),
        TUPLE3 (Event_control, TUPLE2 (Vpicondition, cond),
          TUPLE3 (Begin, TLIST _, TLIST lst)))) -> Always (pat cond, seqlst lst)
+|   TUPLE2 (Vpiprocess,
+     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpialways)),
+       TUPLE2 (Event_control,
+         TUPLE3 (Begin, TLIST _, TLIST lst)))) -> Always (Edge [], seqlst lst)
 |   TUPLE2 (Vpiposedgeop, p) -> Posedge (pat p)
 |   TUPLE2 (Vpiport, Port) -> Place(    452, Void 0, Void 0)
 |   TUPLE2 (Vpiport,
@@ -632,11 +633,31 @@ let rec pat = function
 |   Int_typespec -> Place (    834, Void 0, Void 0)
 |   Parameter -> Place (    835, Void 0, Void 0)
 |   TUPLE4 (Assignment, Vpirhs, TUPLE2(Vpirhs, rhs), TUPLE2(Vpilhs, lhs)) -> Asgn(pat lhs, pat rhs)
-|   TUPLE4 (Assignment, Vpirhs, TUPLE2 (Vpiblocking, Int 1), TUPLE2(Vpilhs, lhs)) -> Place(645, pat lhs, Void 0)
+|   TUPLE4 (Assignment, Vpirhs, TUPLE2 (Vpiblocking, Int 1), TUPLE2(Vpilhs, lhs)) -> failwith "blocking"
+|   TUPLE5 (Assignment, op, TUPLE2 (Vpiblocking, Int 1), TUPLE2(Vpirhs, rhs), TUPLE2(Vpilhs, lhs)) ->
+    Asgn(pat lhs, asgntyp (pat lhs) (pat rhs) op)
 |   TUPLE2 (Int_typespec, _) -> Place(    789, Void 0, Void 0)
 |   oth -> othpat := oth; failwith "pat"
 
-and seqlst (lst:token list) = List.filter (function Void 767 -> false | _ -> true) (List.map pat lst)
+and asgntyp lhs rhs = function
+| Vpiaddop -> Add(lhs, rhs)
+| Vpisubop -> Sub(lhs, rhs)
+| Vpimultop -> Mult(lhs, rhs)
+| Vpidivop -> Div(lhs, rhs)
+| Vpimodop -> Mod(lhs, rhs)
+| Vpipowerop -> Pow(lhs, rhs)
+| Vpilshiftop -> LshiftL(lhs, rhs)
+| Vpiarithlshiftop -> LshiftL(lhs, rhs)
+| Vpirshiftop -> LshiftR(lhs, rhs)
+| Vpiarithrshiftop -> AshiftR(lhs, rhs)
+| Vpilogandop -> LogAnd(lhs, rhs)
+| Vpilogorop -> LogOr(lhs, rhs)
+| Vpibitandop -> And(lhs, rhs)
+| Vpibitorop -> Or(lhs, rhs)
+| Vpibitxorop -> Xor(lhs, rhs)
+| Vpibitxnorop -> Xnor(lhs, rhs)
+
+and seqlst (lst:token list) = List.filter (function Place (767, _, _) -> false | _ -> true) (List.map pat lst)
 
 and seq lst = Seq (seqlst lst)
 

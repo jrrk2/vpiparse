@@ -39,7 +39,7 @@ let rec rw_scan scanh = function
 | BIN _ -> BIN ""
 | OCT _ -> OCT ""
 | DEC _ -> DEC ""
-| HEX _ -> HEX ""
+| HEXS _ -> HEXS ""
 | Int _ -> Int 0
 | STRING _ -> STRING ""
 | Vpidecompile _ -> Vpidecompile ""
