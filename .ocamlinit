@@ -28,8 +28,8 @@ let p', conv, uitms =
   let p' = List.map rw' p in
   let uitms = empty_itms [] in
   let rslt = List.map (pat uitms) p' in
-  List.iter (fun (nam, itms) -> translate ("all_"^nam) ("", itms)) !allmods;
-  List.iter (fun (nam, itms) -> translate ("top_"^nam) ("", itms)) !topmods;
+  List.iter dump' !allmods;
+  List.iter dump' !topmods;
   p', rslt, uitms
 ;;
 

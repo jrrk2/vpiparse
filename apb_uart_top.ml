@@ -1,8 +1,8 @@
+open Input
 open Input_dump
 
-let apb_uart_dump () = translate "apb_uart"
-("",
- {io =
+let apb_uart_dump () = dump' ("apb_uart", 
+ (Work, {io =
    {contents =
      [("CLK", ("", (BASDTYP, "logic", TYPNONE, []), Dinput, "logic", []));
       ("RSTN", ("", (BASDTYP, "logic", TYPNONE, []), Dinput, "logic", []));
@@ -4199,4 +4199,4 @@ let apb_uart_dump () = translate "apb_uart"
     ("PENABLE", {contents = (BASDTYP, "logic", TYPNONE, [])});
     ("PSEL", {contents = (BASDTYP, "logic", TYPNONE, [])});
     ("RSTN", {contents = (BASDTYP, "logic", TYPNONE, [])});
-    ("CLK", {contents = (BASDTYP, "logic", TYPNONE, [])})]})
+    ("CLK", {contents = (BASDTYP, "logic", TYPNONE, [])})]}))

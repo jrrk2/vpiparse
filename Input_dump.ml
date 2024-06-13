@@ -602,6 +602,7 @@ let tokencnv indent = function
 | ENDPACKAGE -> decr indent; "endpackage"
 | MODPORT -> "modport"
 | INVALID -> failwith "invalid token"
+| oth -> failwith "unhandled token"
 
 let tokendump fd = function
 | SP -> output_string fd "SP\n"
@@ -667,6 +668,7 @@ let tokendump fd = function
 | PACKAGE -> output_string fd "PACKAGE\n"
 | ENDPACKAGE -> output_string fd "ENDPACKAGE\n"
 | MODPORT -> output_string fd "MODPORT\n"
+| oth -> failwith "unhandled token"
 
 let tokenout fd indent tok = output_string fd (tokencnv indent tok)
 let dumptok tok = let indent = ref 0 in tokencnv indent tok
@@ -1625,7 +1627,7 @@ let needed modul (kind,nam) = match kind with
     fsrc "" :: TASK :: SP :: IDENT nam :: SEMI :: BEGIN None :: lst @ END :: ENDTASK :: []
 | oth -> failwith "needed"
 
-let dump intf f ("", modul) =
+let dump intf f modul =
   let appendlst = ref [] in
   let append lst = appendlst := lst :: !appendlst in
   if true then print_endline ("f \""^f^"\";; /* "^outnam f^" : "^outtcl f ^" */");
@@ -1671,15 +1673,12 @@ let dump intf f ("", modul) =
                  ) !(modul.init);
   !head @ List.flatten (List.sort compare !appendlst) @ [NL;if intf then ENDINTERFACE else ENDMODULE;NL;NL]
 
-let translate k tophash =
+let dump' (k, (_, tophash)) =
     let rawtok = dump false k tophash in
     let d = reformat0 rawtok in
     let lst = reformat2 (reformat1 d) in
     let indent = ref 0 in
     Hashtbl.add modtokens k (rawtok,d,lst);
-    let fd = open_out (k^".tok") in
-    List.iter (tokendump fd) rawtok;
-    close_out fd;
     let fd = open_out (outnam k) in
     List.iter (tokenout fd indent) lst;
     close_out fd
