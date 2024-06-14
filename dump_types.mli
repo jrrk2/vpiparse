@@ -98,3 +98,4 @@ type cexp =
 | STRING of string
 | FLT of float
 | BIGINT of Int64.t
+| CNSTEXP of arithop * cexp list

@@ -421,9 +421,16 @@ let simplify_asgn dly' attr dst = function
         let rslt = ASGN(dly', attr.anchor, src' :: dst' :: []) in
         prep@rslt :: []
 
+let arithopv = function
+| Aadd -> "+"
+| Asub -> "-"
+| Amul -> "*"
+| Amuls -> "*"
+| Aunknown -> "???"
+
 let dumpi n = string_of_int n
 let dumpcnst (w,n) = dumpsized w n
-let dumpr = function
+let rec dumpr = function
 | HEX n -> string_of_int n
 | SHEX n -> string_of_int n
 | ERR _ -> "ERR"
@@ -431,6 +438,7 @@ let dumpr = function
 | STRING s -> s
 | FLT f -> string_of_float f
 | BIGINT i -> hex_of_bigint 64 i
+| CNSTEXP (op, lft::rght::[]) -> (dumpr lft)^" "^arithopv op^" "^(dumpr rght)
 
 let rec dumpmap = function
 | TYPNONE -> "TYPNONE"
@@ -486,13 +494,6 @@ let logopv = function
 | Lshiftl -> " << "
 | Lshiftr -> " >> "
 | Lshiftrs -> " >>> "
-
-let arithopv = function
-| Aadd -> "+"
-| Asub -> "-"
-| Amul -> "*"
-| Amuls -> "*"
-| Aunknown -> "???"
 
 let rec cadd = function
 | [] -> HEX 0
@@ -695,8 +696,8 @@ let rec dumpitm = function
 | PORT (str1, str2, dirop, rw_lst) -> "PORT("^dumps str1^", "^dumps str2^", "^dumpdir dirop^", "^dumplst rw_lst^")"
 | CA (str1, rw_lst) -> "CA("^dumps str1^", "^dumplst rw_lst^")"
 | UNRY (unaryop, rw_lst) -> "UNRY("^dumpu unaryop^", "^dumplst rw_lst^")"
-| SEL (str1, rw_lst) -> "SEL("^dumps str1^", "^dumplst rw_lst^")"
-| ASEL (rw_lst) -> "ASEL("^dumplst rw_lst^")"
+| SEL (str1, rw_lst) -> "SEL ("^dumps str1^", "^dumplst rw_lst^")"
+| ASEL (rw_lst) -> "ASEL ("^dumplst rw_lst^")"
 | SNITM (str1, rw_lst) -> "SNITM("^dumps str1^", "^dumplst rw_lst^")"
 | ASGN (bool, str2, rw_lst) -> "ASGN("^dumpb bool^", "^dumps str2^", "^dumplst rw_lst^")"
 | ARITH (arithop, rw_lst) -> "ARITH("^dumparith arithop^", "^dumplst rw_lst^")"
@@ -1011,7 +1012,7 @@ let rec expr modul = function
          (VRF (id, typ', []) :: [])) ::
         (expr1) ::[])) in
 *)
-  expr modul (SEL(orig, LOGIC (Lshiftl, VRF (id, typ', []) :: expr1 :: []) :: expr2 :: expr3 :: []))
+  expr modul (SEL (orig, LOGIC (Lshiftl, VRF (id, typ', []) :: expr1 :: []) :: expr2 :: expr3 :: []))
 | SEL (orig, (CNST (32, SHEX n) :: CNST (32, (HEX lo'|SHEX lo')) :: CNST (32, (HEX wid'|SHEX wid')) :: [])) ->
     SIZED (wid', SHEX (n asr lo')) :: []
     
@@ -1025,7 +1026,7 @@ let rec expr modul = function
         | _ -> [QUERY]) arglst) in
     lst @ (if !delim = LPAREN then [LPAREN;RPAREN] else [RPAREN])
 | REPL ("", tid, arg :: CNST (sz,n') :: []) -> LCURLY :: NUM n' :: LCURLY :: expr modul arg @ [RCURLY;RCURLY]
-| IRNG ("", expr2 :: expr1 :: []) -> LBRACK :: expr modul expr1 @ [COLON] @ expr modul expr2 @ [RBRACK]
+| IRNG (nam, expr2 :: expr1 :: []) -> IDENT nam :: LBRACK :: expr modul expr1 @ [COLON] @ expr modul expr2 @ [RBRACK]
 | XRF ("", id, tid, dotted, dirop) as xrf ->
     xrflst := xrf :: !xrflst;
     IDENT (dotted^(match dirop with Dinam _ when modul.remove_interfaces -> "_" | _ -> ".")^id) :: []
@@ -1048,6 +1049,7 @@ let rec expr modul = function
 	      [VRF (vrf, (BASDTYP, "logic", TYPRNG (HEX hi, HEX lo), []), [])])]) -> IDENT ("sfmt"^fmt) :: []
 | TASKRF ("", nam, ARG _ :: _) as task -> IDENT(dumpitm task) :: []
 | oth -> exprothlst := oth :: !exprothlst; failwith ("exprothlst: "^dumpitm oth)
+
 and eiter modul tok = function
 | IRNG (_, [CNST (w, HEX lo); CNST (w', HEX hi)]) :: [] ->
     eiter modul SP (Array.to_list (Array.init (hi-lo+1) (fun x -> CNST (w, HEX (x+lo)))))
@@ -1121,6 +1123,7 @@ let rec cntbasic = function
 | (PACKADTYP, _, RECTYP subtyp, TYPRNG((HEX n|SHEX n), (HEX n'|SHEX n'))::_) -> PACKED(n, n') :: findmembers subtyp
 | (UNPACKADTYP, _, RECTYP subtyp, TYPRNG ((HEX n|SHEX n), (HEX n'|SHEX n'))::_) -> UNPACKED(n, n') :: findmembers subtyp
 | (MEMBDTYP, id, SUBTYP subtyp, []) -> failwith ("SUBTYP")
+| (BASDTYP, ("logic"|"bit"|"wire"), TYPRNG(lft,rght), []) -> BIT :: []
 | oth -> typopt := Some oth; failwith ("typopt;;1425:"^dumptab oth)
 
 and cntmembers = function
@@ -1415,8 +1418,8 @@ let rec catitm (pth:string option) itms names' = function
 | SFMT(_, rw_lst)
 | SYS(_,_, rw_lst)
 | PORT(_, _, _, rw_lst)
-| SEL(_, rw_lst)
-| ASEL(rw_lst)
+| SEL (_, rw_lst)
+| ASEL (rw_lst)
 | SNITM(_, rw_lst)
 | ASGN(_, _, rw_lst)
 | ARITH(_, rw_lst)
