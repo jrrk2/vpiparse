@@ -96,8 +96,22 @@ let _Identyp typ itms s = VRF (s, (BASDTYP, "logic", TYPNONE, []), [])
 let _Port itms dir nam = itms.io := (nam, ("", (BASDTYP, "logic", TYPNONE, []), dir, "logic", [])) :: !(itms.io); UNKNOWN
 let _Portrng itms dir nam typrng = itms.io := (nam, ("", (BASDTYP, "logic", typrng, []), dir, "logic", [])) :: !(itms.io); UNKNOWN
 let _Porthigh itms dir nam = itms.v := (nam, ("", (BASDTYP, "logic", TYPNONE, []), "logic", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v); UNKNOWN
-let _Porthighrng itms dir nam typrng = itms.v := (nam, ("", (BASDTYP, "logic", typrng, []), "logic", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v); UNKNOWN
-let _Enum itms e = itms.v := (e, ("", (BASDTYP, "logic", TYPNONE, []), "logic", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v); UNKNOWN
+let _Porthighrng itms dir nam typrng =
+    if not (List.mem_assoc nam !(itms.io)) then
+ itms.v := (nam, ("", (BASDTYP, "logic", typrng, []), "logic", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v); UNKNOWN
+let _Enum itms enum_t lst =
+  itms.cnst := (enum_t,(false,(0,CNSTEXP(Aunknown, List.map (function
+  | TUPLE5 (Enum_const, STRING enam, TUPLE2 (INT, Int n), Vpidecompile _, TUPLE2 (Vpisize, Int _)) -> ENUMVAL (n, enam)
+  | _ -> STRING "unknown") lst)))) :: !(itms.cnst)
+let _Param itms param =
+  List.iter (function
+    | Vpiparent -> ()
+    | TUPLE2 (UINT, Int n) -> itms.cnst := (param, (false, (0,HEX n))) :: !(itms.cnst)
+    | Vpitypespec -> ()
+    | TUPLE3 (Ref_typespec, TLIST _, _) -> ()
+    | STRING s -> ()
+    | TLIST _ -> ()
+    | oth -> othpat := oth; failwith "_Param")
 let _Not itms _ = failwith "Not"
 let _Lneg itms a = UNRY (Unegate, a :: [])
 let _Aneg itms _ = failwith "Aneg"
@@ -148,7 +162,12 @@ let _TypespecRange itms = function
 | TYPRNG(lft,rght) as rng -> VRF ("", (Dump_types.BASDTYP, "logic", rng, []), [])
 | oth -> othrng' := oth; failwith "_TypespecRange othrng'"
 
-let _Asgn itms (a, b) = ASGN(false, "", [b;a])
+let _Asgn itms = function
+| (lft, rght) -> ASGN(false, "", [rght;lft])
+
+let _Cont_assign itms = function
+| (lft, rght) -> itms.ca := ("", rght , lft) :: !(itms.ca); UNKNOWN
+
 let _Block itms (a, b) = ASGN(false, "", [b;a])
 let _Assign itms = function
 | Ident a, b -> ASGN(false, a, b :: [])
@@ -161,7 +180,10 @@ let rec pat' itms = function
        TUPLE2 (Vpitypespec,
          TUPLE3 (Ref_typespec, TLIST _,
            TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC (_, _, _, _), rng)))),
-       STRING nam, TLIST _, TUPLE2 (Vpinettype, (Vpireg|Vpinet|Vpialways as typ)))) -> _Identrng typ itms nam (typrng itms rng)
+       STRING nam, TLIST _, TUPLE2 (Vpinettype, (Vpireg|Vpinet|Vpialways as typ)))) ->
+        let rng' = typrng itms rng in
+        _Porthighrng itms typ nam rng';
+        _Identrng typ itms nam rng'
 |   TUPLE2 (Vpinet,
      TUPLE5 (Logic_net,
        TUPLE2 (Vpitypespec,
@@ -174,14 +196,12 @@ let rec pat' itms = function
          TUPLE3 (Ref_typespec, TLIST _,
            TUPLE2 (Vpiactual, TLIST []))),
        STRING nam, TLIST _, TUPLE2 (Vpinettype, (Vpireg|Vpinet|Vpialways as typ)))) -> _Identyp typ itms nam
-|   TUPLE9
-    (Class_defn, TUPLE2 (Vpiname, Process),
+|   TUPLE9 (Class_defn, TUPLE2 (Vpiname, Process),
      TUPLE2 (Vpitypedef, TUPLE2 (Enum_typespec, TLIST _)),
      TUPLE2 (Vpimethod, Function), TUPLE2 (Vpimethod, Function),
      TUPLE2 (Vpimethod, Task), TUPLE2 (Vpimethod, Task),
      TUPLE2 (Vpimethod, Task), TUPLE2 (Vpimethod, Task)) -> _Void itms     11
-|   TUPLE7
-    (Part_select, TUPLE2 (Vpiname, STRING part),
+|   TUPLE7 (Part_select, TUPLE2 (Vpiname, STRING part),
      TUPLE2 (Vpifullname, TLIST _), TUPLE2 (Vpidefname, STRING _),
      TUPLE2 (Vpiconstantselect, Int _), TUPLE2 (Vpileftrange, lft),
      TUPLE2 (Vpirightrange, rght)) -> _Selection itms (part,  (pat itms lft),  (pat itms rght), 0, 0)
@@ -191,8 +211,7 @@ let rec pat' itms = function
        TUPLE3 (Ref_typespec, TLIST _,
          TUPLE2 (Vpiactual, TUPLE2 (Int_typespec, _)))),
      Vpiuintconst) -> _Integer itms n
-|   TUPLE6
-    (Class_defn, TUPLE2 (Vpiname, Semaphore), TUPLE2 (Vpimethod, Function),
+|   TUPLE6 (Class_defn, TUPLE2 (Vpiname, Semaphore), TUPLE2 (Vpimethod, Function),
      TUPLE2 (Vpimethod, Task), TUPLE2 (Vpimethod, Task),
      TUPLE2 (Vpimethod, Function)) -> _Void     itms 41
 |   TUPLE6 (Array_var,
@@ -318,7 +337,7 @@ let rec pat' itms = function
              STRING _, TLIST _, TUPLE2 (Vpinettype, Vpireg)))))) -> _Void    itms 258
 |   TUPLE4 (Bit_select, STRING s, TLIST _, TUPLE2 (Vpiindex, ix)) -> _Bitsel itms (_Ident itms s, (pat itms) ix)
 |   TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop as op), lft, rght) -> asgntyp itms (pat itms lft) (pat itms rght) op
-|   TUPLE3 (Vpiparameter, STRING _, TLIST lst) -> _seq itms lst
+|   TUPLE3 (Vpiparameter, STRING param, TLIST lst) -> _Param itms param lst; UNKNOWN
 |   TUPLE3 (Vpineqop, a, b) -> _Ne itms ((pat itms) a, (pat itms) b)
 |   TUPLE3 (Vpilshiftop, a, b) -> _LshiftL itms ((pat itms) a, (pat itms) b)
 |   TUPLE3 (Vpilogandop, a, b) -> _LogAnd itms ((pat itms) a, (pat itms) b)
@@ -356,7 +375,7 @@ let rec pat' itms = function
      TUPLE3 (Named_begin, TLIST _, TLIST _)) -> _Void    itms 324
 |   TUPLE3 (Event_control, TUPLE2 (Vpicondition, _),
      TUPLE3 (Begin, TLIST _, TLIST _)) -> _Void    itms 327
-|   TUPLE3 (Cont_assign, TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) -> _Void    itms 328
+|   TUPLE3 (Cont_assign, TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) -> _Cont_assign itms (pat itms rhs, pat itms lhs)
 |   TUPLE3 (Class_defn, Queue, Queue) -> _Void    itms 329
 |   TUPLE3 (Class_defn, Array, Array) -> _Void    itms 330
 |   TUPLE3 (Class_defn, Any_sverilog_class, Any_sverilog_class) -> _Void    itms 331
@@ -418,8 +437,8 @@ let rec pat' itms = function
 |   TUPLE2 (Vpitypespec,
      TUPLE3 (Ref_typespec, TLIST _,
        TUPLE2 (Vpiactual, NOT_FOUND (Array_typespec, LOC (_, _, _, _))))) -> _Void    itms 413
-|   TUPLE2 (Vpitypedef, Enum_typespec) -> _Place itms (414, Void 0, Void 0)
-|   TUPLE2 (Vpitypedef, TUPLE2 (Enum_typespec, TLIST lst)) -> _Seq itms (seqlst itms lst)
+|   TUPLE2 (Vpitypedef, TUPLE2 (Enum_typespec,
+	TLIST (STRING enum_t :: TUPLE2 (Vpiinstance, TLIST _) :: lst))) -> _Enum itms enum_t lst; UNKNOWN
 |   TUPLE2 (Vpitopmodule, Int n) -> _Place itms (416, Integer n, Void 0)
 |   TUPLE2 (Vpitop, Int n) -> _Place itms (417, Integer n, Void 0)
 |   TUPLE2 (Vpisize, Int _) -> _Void    itms 418
@@ -449,7 +468,7 @@ let rec pat' itms = function
        TUPLE2 (Vpitypespec,
          TUPLE3 (Ref_typespec, TLIST _,
            TUPLE2 (Vpiactual, TUPLE2 (Enum_typespec, _)))),
-       STRING s, TLIST _)) -> _Enum itms s
+       STRING s, TLIST _)) -> _Enum itms s []; UNKNOWN
 |   TUPLE2 (Vpinet,
      TUPLE4 (Logic_net,
        TUPLE2 (Vpitypespec,

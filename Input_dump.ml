@@ -2,23 +2,18 @@ open Input_types
 open Input
 open Dump_types
 
-let modules = Hashtbl.create 255
-let packages = Hashtbl.create 255
-let interfaces = Hashtbl.create 255
 let files = Hashtbl.create 255
-let hierarchy = Hashtbl.create 255
 let functable = Hashtbl.create 255
-let tasktable = Hashtbl.create 255
+let hierarchy = Hashtbl.create 255
 let modtokens = Hashtbl.create 255
+let tasktable = Hashtbl.create 255
 
 let csothitm = ref UNKNOWN
 let exprothlst = ref []
 let stmtothlst = ref []
 let portothlst = ref []
 let iothlst = ref []
-let itmothlst = ref []
 let cellothlst = ref []
-let posneglst = ref []
 let memothlst = ref []
 let mapothlst = ref []
 let smpothlst = ref []
@@ -32,7 +27,6 @@ let decopt = ref None
 let cellopt = ref None
 let arropt = ref []
 let asciiopt = ref None
-let itmopt = ref None
 let optitmopt = ref None
 let forlst = ref []
 let widthlst = ref []
@@ -526,6 +520,8 @@ let diropv = function
 
 let nltoken indent = ("\n"^if !indent > 0 then String.make (!indent*4) ' ' else "")
 
+let othtok = ref INVALID
+
 let tokencnv indent = function
 | SP -> " "
 | SEMI -> ";"
@@ -542,6 +538,9 @@ let tokencnv indent = function
 | LSHIFT -> "<<"
 | RSHIFT -> ">>"
 | AT -> "@"
+| HASH -> "#"
+| EQUALS -> "="
+| PARAMETER -> "parameter"
 | DOT -> "."
 | PLUS -> "+"
 | MINUS -> "-"
@@ -603,7 +602,7 @@ let tokencnv indent = function
 | ENDPACKAGE -> decr indent; "endpackage"
 | MODPORT -> "modport"
 | INVALID -> failwith "invalid token"
-| oth -> failwith "unhandled token"
+| oth -> othtok := oth; failwith "unhandled token"
 
 let tokendump fd = function
 | SP -> output_string fd "SP\n"
@@ -1123,7 +1122,7 @@ let rec cntbasic = function
 | (PACKADTYP, _, RECTYP subtyp, TYPRNG((HEX n|SHEX n), (HEX n'|SHEX n'))::_) -> PACKED(n, n') :: findmembers subtyp
 | (UNPACKADTYP, _, RECTYP subtyp, TYPRNG ((HEX n|SHEX n), (HEX n'|SHEX n'))::_) -> UNPACKED(n, n') :: findmembers subtyp
 | (MEMBDTYP, id, SUBTYP subtyp, []) -> failwith ("SUBTYP")
-| (BASDTYP, ("logic"|"bit"|"wire"), TYPRNG(lft,rght), []) -> BIT :: []
+| (BASDTYP, ("logic"|"bit"|"wire"), TYPRNG(lft,rght), []) -> VECTOR (lft, rght) :: []
 | oth -> typopt := Some oth; failwith ("typopt;;1425:"^dumptab oth)
 
 and cntmembers = function
@@ -1147,6 +1146,7 @@ let rec comment' = function
 | ADD arrtyp_lst -> "ADD ["^String.concat ";" (List.map comment' arrtyp_lst)^"]"
 | MAX arrtyp_lst -> "MAX ["^String.concat ";" (List.map comment' arrtyp_lst)^"]"
 | MEMBER arrtyp_lst -> "MEMBER ["^String.concat ";" (List.map comment' arrtyp_lst)^"]"
+| VECTOR (lft,rght) -> "VECTOR ("^dumpr lft^", "^dumpr rght^")"
 
 let comment lst = LCOMMENT :: List.flatten (List.map (fun itm -> SP :: IDENT (comment' itm) :: []) (List.rev lst)) @ RCOMMENT :: []
 
@@ -1189,6 +1189,17 @@ let widadd lst = match (widadd lst) with
 | (ARNG _ :: []) as rng -> rng
 | oth -> arropt :=  oth; failwith ("arropt1482;; ["^String.concat ";" (List.map comment' oth)^"]")
 
+let rec cnstexpr = function
+| ERR string -> LCOMMENT :: SP :: IDENT string :: SP :: RCOMMENT :: []
+| BIN char -> SP :: []
+| HEX int -> SP :: num int :: []
+| SHEX int -> SP :: []
+| STRING string -> SP :: IDENT string :: SP :: []
+| ENUMVAL (int, string) -> SP :: []
+| FLT float -> SP :: []
+| BIGINT int64t -> SP :: []
+| CNSTEXP (arithop, cexp_lst) -> List.flatten (List.map (fun itm -> IDENT (arithopv arithop) :: cnstexpr itm) cexp_lst)
+
 let rec widshow id rng = function
 | [] -> []
 | UNKARR :: tl -> failwith "UNKARR"
@@ -1200,6 +1211,7 @@ let rec widshow id rng = function
 | UNPACKED(hi,lo) :: tl -> widshow id rng tl @ SP :: LBRACK :: num hi :: COLON :: num lo :: RBRACK :: []
 | ADD lst :: tl -> widshow id rng (widadd lst @ tl)
 | MAX lst :: tl -> widshow id rng (widmax lst @ tl)
+| VECTOR (lft,rght) :: tl -> LBRACK :: cnstexpr lft @ COLON :: cnstexpr rght @ RBRACK :: SP :: IDENT id :: widshow id rng tl
 | oth -> arropt :=  oth; failwith ("arropt1501;; ["^String.concat ";" (List.map comment' oth)^"]")
 
 let widshow id rng lst = widshow id rng (List.rev lst)
@@ -1389,176 +1401,7 @@ let rec is_cnst itms id =
         end
     else
         false
-
-let rec catitm (pth:string option) itms names' = function
-| UNRY(Uextends _ as op, rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    let fref = unaryopv op in
-    if not (List.mem (FUNCTION,fref) !(itms.needed)) then
-        begin
-        print_endline ("Generated function: "^fref);
-        itms.needed := (FUNCTION,fref) :: !(itms.needed);
-        Hashtbl.add functable fref (mkextendfunc op);
-        end
-| NTL(rw_lst)
-| RNG(rw_lst)
-| SNTRE(rw_lst)
-| IRNG(_,rw_lst)
-| JMPL(_,rw_lst)
-| JMPG(_,rw_lst)
-| JMPBLK(_,rw_lst)
-| CS(_,rw_lst)
-| CSITM(_,rw_lst)
-| WHL(rw_lst)
-| FORSTMT(_,_,_,_,_,_,_,rw_lst)
-| ARG(rw_lst)
-| FILS(_, rw_lst)
-| EITM(_, _, _, _, rw_lst)
-| VRF(_, _, rw_lst)
-| SFMT(_, rw_lst)
-| SYS(_,_, rw_lst)
-| PORT(_, _, _, rw_lst)
-| SEL (_, rw_lst)
-| ASEL (rw_lst)
-| SNITM(_, rw_lst)
-| ASGN(_, _, rw_lst)
-| ARITH(_, rw_lst)
-| LOGIC(_, rw_lst)
-| CMP(_, rw_lst)
-| CAT(_, rw_lst)
-| CPS(_, rw_lst)
-| CND(_, rw_lst)
-| DSPLY(_, _, rw_lst)
-| VPLSRGS(_, _, rw_lst)
-| UNRY(_, rw_lst)
-| REPL(_, _, rw_lst) -> List.iter (catitm pth itms names') rw_lst
-| XML(FILS _ :: rw_lst) -> List.iter (catitm pth itms names') rw_lst
-| XML _ -> failwith "catitm XML"
-| IO("", str1lst, typ1, dir, str3, clst) ->
-    List.iter (fun str1 ->
-        let typ' = ref typ1 in
-        if List.mem_assoc str1 itms.names'' then typ' := !(List.assoc str1 itms.names'');
-        List.iter (fun itm ->
-            itms.ca := ("", VRF(str1, typ1,[]), itm) :: !(itms.ca);
-            let (a,b,c,d) = typ1 in typ' := (a,"wire",c,d)) clst;
-        itms.io := (str1, ("", !typ', dir, str3, List.map ioconn clst)) :: !(itms.io);
-        ) str1lst
-| VAR("", str1lst, typ1, "ifaceref") -> List.iter (fun str1 -> itms.ir := ("", str1, typ1) :: !(itms.ir)) str1lst
-| VAR("", str1lst, typ1, str2) -> List.iter (fun str1 ->
-    if not (List.mem_assoc str1 !(itms.v)) then
-        itms.v := (str1, ("", typ1, str2, (UNKDTYP,"",TYPNONE,[]))) :: !(itms.v)) str1lst
-| IVAR("", str1, typ', rwlst, int2) -> itms.iv := (str1, ("", typ', rwlst, int2)) :: !(itms.iv)
-| CA("", (rght::lft::[] as args)) ->
-    List.iter (catitm pth itms names') args;
-    itms.ca := ("", lft, rght) :: !(itms.ca)
-| INST("", instkind, str1lst, (kind, port_lst)) ->
-    List.iter (fun str1 ->
-        let pth' = match instkind, lcombine(pth,Some str1) with INTERFACE, _ -> str1 | MODULE, Some s -> s | _, _ -> failwith "lcombine" in
-        print_endline ("Instance "^str1^" path is: "^pth');
-        itms.inst := (pth', ("", kind, port_lst)) :: !(itms.inst)
-        ) str1lst
-| ALWYS("", SNTRE(SNITM ("POS", [VRF (ck, _, [])]) :: SNITM ("POS", [VRF (rst, _, [])]) :: []) :: rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    itms.alwys := ("", POSPOS(ck,rst), optitm rw_lst) :: !(itms.alwys)    
-| ALWYS("", SNTRE(SNITM ("POS", [VRF (ck, _, [])]) :: []) :: rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    let rw_lst' = optitm rw_lst in
-    if rw_lst' <> [] then itms.alwys := ("", POSEDGE(ck), rw_lst') :: !(itms.alwys)
-| ALWYS("", SNTRE(SNITM ("NEG", [VRF (ck, _, [])]) :: []) :: rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    itms.alwys := ("", NEGEDGE(ck), optitm rw_lst) :: !(itms.alwys)
-| ALWYS("", SNTRE(SNITM (("POS"|"NEG") as edg, [VRF (ck, _, [])]) :: SNITM ("NEG", [VRF (rst, _, [])]) :: []) :: rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    let rw_lst' = (function
-       | BGN(lbl, (IF("", VRF(rst', typ',[]) :: thn :: els :: []) :: [])) :: [] ->
-           BGN(lbl, (IF("", UNRY(Unot, VRF(rst', typ',[]) :: []) :: els :: thn :: []) :: [])) :: []
-       | IF("", VRF(rst', typ',[]) :: thn :: els :: []) :: [] ->
-           BGN(None, (IF("", UNRY(Unot, VRF(rst', typ',[]) :: []) :: els :: thn :: []) :: [])) :: []
-       | oth -> posneglst := oth :: !posneglst; oth) rw_lst in
-    itms.alwys := ("", (match edg with "POS" -> POSNEG(ck,rst) | "NEG" -> NEGNEG(ck,rst) | _ -> UNKNOWN), optitm rw_lst') :: !(itms.alwys)
-| ALWYS("", rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    itms.alwys := ("", COMB, rw_lst) :: !(itms.alwys)
-| INIT ("", "initial", rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    (match rw_lst with
-        | ASGN (false, _, (CNST cnst) :: VRF (id, _, []) :: []) :: [] ->
-             itms.cnst := (id,(is_cnst itms id,cnst)) :: !(itms.cnst);
-             print_endline ("initial found : "^id);
-        | _ -> itms.init := ("", INITIAL, rw_lst) :: !(itms.init));
-| INIT ("", "final", rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    itms.init := ("", FINAL, rw_lst) :: !(itms.init)
-| BGN(pth', rw_lst) ->
-    let newpth = lcombine (pth,pth') in
-    print_endline ("New path: "^match newpth with Some pth -> pth | None -> "");
-    List.iter (catitm newpth itms names') rw_lst
-| FNC("", nam, typ', rw_lst) ->
-    let itms' = empty_itms itms.names'' in
-    List.iter (catitm pth itms' names') rw_lst;
-    let fn = ("", typ', rw_lst, itms') in
-    itms.func := (nam, fn) :: !(itms.func);
-    Hashtbl.add functable nam fn;
-| IF("", rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    itms.gen := ("",rw_lst) :: !(itms.gen)
-| IMP("", nam, rw_lst) ->
-    itms.imp := (nam, ("", List.map (function
-    | IMRF(_, str1, dir, []) -> (str1, dir)
-    | MODPORTFTR (_,str1) -> (str1, Dunknown)
-    | oth -> itmothlst := oth :: !itmothlst; failwith "itmothlst;;1442") rw_lst)) :: !(itms.imp)
-| IMRF("", str1, str2, []) -> ()
-| TASKDEF ("", nam, rw_lst) ->
-    let itms' = empty_itms itms.names'' in
-    List.iter (catitm pth itms' names') rw_lst;
-    let tsk = ("", rw_lst, itms') in
-    itms.task := (nam, tsk) :: !(itms.task);
-    Hashtbl.add tasktable nam tsk;
-| TASKRF ("", nam, rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    if not (List.mem (TASK,nam) !(itms.needed)) then
-        itms.needed := (TASK,nam) :: !(itms.needed)
-| CNST _ -> ()
-| FRF(_, nam, rw_lst) ->
-    List.iter (catitm pth itms names') rw_lst;
-    if not (List.mem (FUNCTION,nam) !(itms.needed)) then
-        begin
-        print_endline ("Needed function: "^nam);
-        itms.needed := (FUNCTION,nam) :: !(itms.needed);
-        end
-| XRF("", str1, str2, str3, dirop) -> ()
-| MODUL("", nam', rw_lst, tmpvar) ->
-    print_endline ("Module: "^nam');
-    itmopt := Some rw_lst;
-    let (orig'', xlst'', names'') = List.assoc nam' names' in
-    let itms = empty_itms names'' in
-    List.iter (fun (str1, (str2, typ1)) ->
-        itms.v := (str1, ("", typ1, str1, (UNKDTYP,"",TYPNONE,[]))) :: !(itms.v)) tmpvar;
-    List.iter (catitm None itms names') rw_lst;
-    let itms' = rev_itms itms in
-    Hashtbl.add modules nam' ("", itms')
-| PKG("", nam', rw_lst) ->
-    print_endline ("Package: "^nam');
-    itmopt := Some rw_lst;
-    let itms = empty_itms itms.names'' in
-    List.iter (catitm (Some nam') itms names') rw_lst;
-    Hashtbl.add packages nam' ("", itms)
-| IFC("", nam', rw_lst) ->
-    let (orig'', xlst'', names'') = List.assoc nam' names' in
-    let itms' = empty_itms names'' in
-    List.iter (catitm (Some nam') itms' names') rw_lst;
-    Hashtbl.add interfaces nam' ("", itms')
-| FIL(enc, fil) ->
-    Hashtbl.add files enc fil
-| CELLS(rw_lst,_) -> ()
-| TPLSRGS (_, id, tid, _) -> ()
-| TYPETABLE _ -> ()
-| TYP _ -> ()
-| TIM _ -> ()
-| SCOPE _ -> ()
-| ITM _ -> ()
-| oth -> itmothlst := oth :: !itmothlst; failwith "itmothlst;;1508"
-
+    
 let chktyp = function
 | "wire" -> WIRE
 | "logic" -> LOGIC
@@ -1635,6 +1478,16 @@ let dump intf f modul =
   let append lst = appendlst := lst :: !appendlst in
   if true then print_endline ("f \""^f^"\";; /* "^outnam f^" : "^outtcl f ^" */");
   let head = ref [fsrc ""; if intf then INTERFACE else MODULE; SP; IDENT f] in
+  let parmlst = List.filter (function (nam, (_, (w, HEX n))) -> true | _ -> false) (!(modul.cnst)) in
+  if parmlst <> [] then
+    begin
+    let delim = ref (HASH :: LPAREN :: PARAMETER :: []) in
+    List.iter (function (nam, (_, (w, HEX n))) ->
+      head := !head @ !delim @ SP :: IDENT nam :: EQUALS :: num n :: [];
+      delim := COMMA :: [];
+      ) parmlst;
+    head := !head @ [RPAREN];
+    end;
   let delim = ref LPAREN in
   List.iter (fun (io, ("", typ', dir, kind', lst)) -> 
     head := !head @ iolst modul delim dir io typ';

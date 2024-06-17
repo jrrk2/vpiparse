@@ -89,13 +89,15 @@ type arrtyp =
 | ADD of arrtyp list
 | MAX of arrtyp list
 | MEMBER of arrtyp list
+| VECTOR of (cexp * cexp)
 
-type cexp =
+and cexp =
 | ERR of string
 | BIN of char
 | HEX of int
 | SHEX of int
 | STRING of string
+| ENUMVAL of int * string
 | FLT of float
 | BIGINT of Int64.t
 | CNSTEXP of arithop * cexp list

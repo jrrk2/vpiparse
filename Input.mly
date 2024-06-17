@@ -707,6 +707,7 @@ let vpi_task_func = function
 %token TASK
 %token ENDTASK
 %token MODULE
+%token PARAMETER
 %token ENDMODULE
 %token INITIAL
 %token FINAL
@@ -717,6 +718,7 @@ let vpi_task_func = function
 %token MODPORT
 %token  Indent
 %token  Unindent
+%token  EQUALS
 %token  ACCEPT
 %token  AMPERSAND
 %token  AT
@@ -1323,7 +1325,7 @@ parent:
   | Case_stmt COLON loc { Case_stmt }
   | Case_item COLON loc { Case_item }
   | Sys_func_call COLON sys_func_call_def { Sys_func_call }
-  | Cont_assign COLON loc { TUPLE2 (Cont_assign, $3) }
+  | Cont_assign COLON loc { Cont_assign }
   | Gen_region COLON loc { Gen_region }
   | Gen_case COLON loc { Gen_case }
   | Gen_if_else COLON loc { Gen_if_else }
@@ -1354,8 +1356,8 @@ class_opt:
   | Vpitypedef COLON typespec { TUPLE2(Vpitypedef, $3) }
 
 typespec:
-  | Enum_typespec COLON enum_typespec_decl Indent enum_typespec_lst Unindent { to_list Enum_typespec $5 }
-  | Enum_typespec COLON enum_typespec_decl { Enum_typespec }
+  | Enum_typespec COLON enum_typespec_decl Indent enum_typespec_lst Unindent { loc_cache Enum_typespec $3 (to_list Enum_typespec $5) }
+  | Enum_typespec COLON enum_typespec_decl { try Hashtbl.find cache (Enum_typespec, $3) with _ -> NOT_FOUND(Logic_typespec, $3) }
 
 enum_typespec_lst: { [] }
   | enum_typespec_opt enum_typespec_lst { $1 :: $2 }
@@ -1495,7 +1497,7 @@ ref_typespec_actual:
   | Class_typespec COLON class_typespec { TUPLE2(Class_typespec, $3) }
   | Int_typespec COLON int_typespec_def { TUPLE2(Int_typespec, $3) }
   | Integer_typespec COLON integer_typespec_def { TUPLE2(Integer_typespec, $3) }
-  | Enum_typespec COLON enum_typespec_decl { TUPLE2(Enum_typespec, $3) }
+  | Enum_typespec COLON enum_typespec_decl { try Hashtbl.find cache (Enum_typespec, $3) with _ -> NOT_FOUND(Logic_typespec, $3) }
   | Logic_typespec COLON logic_typespec_def { try Hashtbl.find cache (Logic_typespec, $3) with _ -> NOT_FOUND(Logic_typespec, $3) }
   | Array_typespec COLON loc { try Hashtbl.find cache (Array_typespec, $3) with _ -> NOT_FOUND(Array_typespec, $3) }
   | Array_typespec COLON loc Indent array_typespec_lst Unindent { loc_cache Array_typespec $3 (TUPLE2(Array_typespec, TLIST $5)) }
@@ -1666,7 +1668,7 @@ weak_opt:
   | Logic_typespec COLON logic_typespec_def Indent misc_lst Unindent { loc_cache Logic_typespec $3 (to_tuple Logic_typespec ($3::$5)) }
   | Function COLON function_def Indent weak_function_lst Unindent { to_tuple Function $5 }
   | Task COLON task_def Indent task_lst Unindent { to_tuple Task $5 }
-  | Enum_typespec COLON enum_typespec_decl Indent enum_typespec_lst Unindent { loc_cache Enum_typespec $3 (to_tuple Enum_typespec $5) }
+  | Enum_typespec COLON enum_typespec_decl Indent enum_typespec_lst Unindent { loc_cache Enum_typespec $3 (to_list Enum_typespec $5) }
   | ref_typespec_actual { $1 }
   
 weak_function_lst: { [] }
@@ -1721,7 +1723,7 @@ module_inst_opt:
   | Vpitopmodule COLON Int { TUPLE2(Vpitopmodule, Int $3) }
   | Vpiparameter COLON Parameter parameter_def Indent parameter_lst Unindent { TUPLE3(Vpiparameter, $4, TLIST $6) }
   | Vpiparamassign COLON Param_assign COLON loc Indent param_assign_lst Unindent { TUPLE2(Vpiparamassign, TLIST $7) }
-  | Vpicontassign COLON Cont_assign COLON loc end_assign { to_tuple Cont_assign $6 }
+  | Vpicontassign COLON cont_assign { $3 }
   | Vpitaskfunc COLON vpi_method_arg { TUPLE2(Vpitaskfunc, $3) }
   | Vpigenstmt COLON genstmt { TUPLE2(Vpigenstmt, $3) }
   | Vpirefmodule COLON Ref_module COLON ref_module_def Indent ref_module_lst Unindent { TUPLE3 (Ref_module, $5, TLIST $7) }
@@ -1729,9 +1731,6 @@ module_inst_opt:
   | Vpiinstance COLON Module_inst COLON module_inst_def { TUPLE2(Vpiinstance, $5) }
   | Vpigenscopearray COLON gen_scope_array { TUPLE2(Vpigenscopearray, $3) }
   | Vpitypedef COLON typespec { TUPLE2 (Vpitypedef, $3 ) }
-
-end_assign: { [] }
-  | Indent cont_assign_lst Unindent { $2 }
 
 genstmt:
   | Gen_region COLON Indent gen_region_lst Unindent { to_tuple Gen_region $4 }
@@ -1771,12 +1770,6 @@ gen_scope_opt:
   | Vpiarraynet COLON arraynettyp { TUPLE2(Vpinet, $3) }
   | Vpimodule COLON module_inst { TUPLE2(Vpimodule, $3) }
 
-cont_assign:
-  | Cont_assign COLON loc Indent cont_assign_lst Unindent { to_tuple Cont_assign $5 }
-(*
-| Cont_assign COLON loc { TUPLE2(Cont_assign, $3) }
-*)
-
 gen_region_lst: { [] }
   | gen_region_opt gen_region_lst { $1 :: $2 }
 
@@ -1802,8 +1795,12 @@ parameter_def: COLON LPAREN Work AT pth_lst RPAREN loc { List.hd (List.rev $5) }
 process:
   | Always COLON loc Indent always_lst always_typ Unindent { loc_cache Always $3 (to_tuple (TUPLE2(Always,$6)) $5) }
   | Initial COLON loc Indent initial_lst Unindent { loc_cache Initial $3 (to_tuple Initial $5) }
-  | Always COLON loc { try Hashtbl.find cache (Always,$3) with _ -> NOT_FOUND(Always, $3) }
-  | Initial COLON loc { try Hashtbl.find cache (Initial,$3) with _ -> NOT_FOUND(Initial, $3) }
+  | Always COLON loc { try Hashtbl.find cache (Always, $3) with _ -> NOT_FOUND(Always, $3) }
+  | Initial COLON loc { try Hashtbl.find cache (Initial, $3) with _ -> NOT_FOUND(Initial, $3) }
+
+cont_assign:
+  | Cont_assign COLON loc Indent cont_assign_lst Unindent { loc_cache Cont_assign $3 (to_tuple Cont_assign $5) }
+  | Cont_assign COLON loc { try Hashtbl.find cache (Cont_assign, $3) with _ -> NOT_FOUND(Cont_assign, $3) }
 
 always_typ:
   | Vpialwaystype COLON Int { TUPLE2(Vpialwaystype, net_type $3) }
@@ -1854,9 +1851,9 @@ stmt:
   | Task_call COLON task_call_def Indent task_call_lst Unindent { to_tuple Case_item $5 }
   | Gen_if_else COLON loc Indent gen_if_else_lst Unindent { to_tuple If_else $5 }
   | Ref_module COLON ref_module_def Indent ref_module_lst Unindent { TUPLE3 (Ref_module, $3, TLIST $5) }
-  | Cont_assign COLON loc Indent cont_assign_lst Unindent { to_tuple Cont_assign $5 }
   | Always COLON loc Indent always_lst always_typ Unindent { loc_cache Always $3  (to_tuple (TUPLE2(Always,$6)) $5) }
-  
+  | cont_assign { $1 }
+
 ref_module_lst: { [] }
   | ref_module_opt ref_module_lst { $1 :: $2 }
 
@@ -2303,7 +2300,7 @@ io_decl_def:
   | LPAREN vnam RPAREN loc { Work }
   
 enum_typespec_decl: { Work }
-  | LPAREN vnam RPAREN loc { Work }
+  | LPAREN vnam RPAREN loc { $4 }
   
 enum_const_decl: { Work }
   | LPAREN vnam RPAREN loc { Work }
