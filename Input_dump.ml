@@ -432,6 +432,7 @@ let rec dumpr = function
 | STRING s -> s
 | FLT f -> string_of_float f
 | BIGINT i -> hex_of_bigint 64 i
+| CNSTEXP (Aunknown, STRING fn::rght::[]) -> fn^" "^(dumpr rght)
 | CNSTEXP (op, lft::rght::[]) -> (dumpr lft)^" "^arithopv op^" "^(dumpr rght)
 
 let rec dumpmap = function
@@ -1198,7 +1199,8 @@ let rec cnstexpr = function
 | ENUMVAL (int, string) -> SP :: []
 | FLT float -> SP :: []
 | BIGINT int64t -> SP :: []
-| CNSTEXP (arithop, cexp_lst) -> List.flatten (List.map (fun itm -> IDENT (arithopv arithop) :: cnstexpr itm) cexp_lst)
+| CNSTEXP (Aunknown, STRING fn::rght::[]) -> IDENT fn :: LPAREN :: cnstexpr rght @ [RPAREN]
+| CNSTEXP (arithop, cexp_lst) -> List.flatten (List.mapi (fun ix itm -> (if ix > 0 then IDENT (arithopv arithop) else SP) :: cnstexpr itm) cexp_lst)
 
 let rec widshow id rng = function
 | [] -> []

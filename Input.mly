@@ -1750,7 +1750,7 @@ gen_scope_array_opt:
   | Vpigenscope COLON gen_scope { $3 }
 
 gen_scope:
-  | Gen_scope COLON gen_scope_def Indent gen_scope_lst Unindent { Gen_scope }
+  | Gen_scope COLON gen_scope_def Indent gen_scope_lst Unindent { to_list Gen_scope $5 }
 
 gen_scope_lst: { [] }
   | gen_scope_opt gen_scope_lst { $1 :: $2 }

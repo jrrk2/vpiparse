@@ -11,7 +11,6 @@ let othedg = ref (Void 0)
 let topmods = ref []
 let allmods = ref []
 let othmap = ref ([],[])
-let othasgn = ref None
 let oth' = ref UNKNOWN
 let othlst' = ref [UNKNOWN]
 let othpat = ref Work
@@ -64,7 +63,7 @@ let _Mux2 itms (_, _, _) = failwith "Mux2"
 let _Block itms (_, _) = failwith "Block"
 let _Block_array itms t s r = ASGN(true, s, [])
 let _Integer itms n = CNST(32, HEX n)
-let _Selection itms (nam, lft, rght, _, _) = IRNG (nam, [lft; rght])
+let _Selection itms (nam, lft, rght, _, _) = IRNG (nam, [rght; lft])
 let _Update itms (_, _, _, _, _) = failwith "Update"
 let _Bitsel itms (a, b) = SEL ("", a :: b :: _Integer itms 1 :: [])
 let _Unary itms (_, _) = failwith "Unary"
@@ -139,6 +138,11 @@ let _Gt itms (a, b) = CMP(Cgt, [a;b])
 let _LshiftL itms (a, b) = LOGIC(Lshiftl, [a;b])
 let _LshiftR itms (a, b) = LOGIC(Lshiftr, [a;b])
 let _AshiftR itms (a, b) = LOGIC(Lshiftrs, [a;b])
+let _Ternary itms (cond, a, b) = CND ("", [cond;a;b])
+let genscope = ref None
+let _Gen_scope_array itms lbl lst = genscope := Some (lbl,lst); print_endline "gen_scope_array"; UNKNOWN
+let gencase = ref []
+let _Gen_case itms lst = gencase := lst; failwith "gen_case"
 let _Posedge itms = function
 | VRF (id, (Dump_types.BASDTYP, "logic", TYPNONE, []), []) -> POSEDGE id
 | oth -> oth' := oth; failwith "_Posedge oth'"
@@ -163,15 +167,12 @@ let _TypespecRange itms = function
 | oth -> othrng' := oth; failwith "_TypespecRange othrng'"
 
 let _Asgn itms = function
-| (lft, rght) -> ASGN(false, "", [rght;lft])
+| (lft, rght) -> ASGN(true, "", [rght;lft])
 
 let _Cont_assign itms = function
 | (lft, rght) -> itms.ca := ("", rght , lft) :: !(itms.ca); UNKNOWN
 
 let _Block itms (a, b) = ASGN(false, "", [b;a])
-let _Assign itms = function
-| Ident a, b -> ASGN(false, a, b :: [])
-| oth -> othasgn := Some oth; failwith "_Assign"
 
 let rec pat' itms = function
 |   TUPLE2 (Vpiprocess, proc) -> pat itms proc
@@ -261,7 +262,7 @@ let rec pat' itms = function
 |   TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w), BIN b, Vpibinaryconst) -> _Bin itms (b,w)
 |   TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w), OCT o, Vpioctconst) -> _Oct itms (o,w)
 |   TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w), HEXS h, Vpihexconst) -> _Hex itms (h,w)
-|   TUPLE4 (Vpiconditionop, cond, lft, rght) -> _Void    itms 123
+|   TUPLE4 (Vpiconditionop, cond, lft, rght) -> _Ternary itms (pat itms cond, pat itms lft, pat itms rght)
 |   TUPLE4 (Ref_obj, STRING s, TLIST _,
      TUPLE2 (Vpiactual,
        TUPLE5 (Logic_var, Vpitypespec,
@@ -322,7 +323,7 @@ let rec pat' itms = function
 |   TUPLE4 (Logic_net, STRING _, TLIST _, TUPLE2 (Vpinettype, Vpinet)) -> _Void    itms 220
 |   TUPLE4 (Logic_net, STRING _, TLIST _, TUPLE2 (Vpinettype, Vpialways)) -> _Void    itms 222
 |   TUPLE4 (Input.If_else, cond, then_, else_) -> _If_ itms ((pat itms) cond, (pat itms) then_, (pat itms) else_)
-|   TUPLE4 (Gen_scope_array, STRING _, TLIST _, Gen_scope) -> _Void    itms 224
+|   TUPLE4 (Gen_scope_array, STRING lbl, TLIST _, TUPLE2(Gen_scope, TLIST lst)) -> _Gen_scope_array itms lbl (List.map (pat itms) lst)
 |   TUPLE4 (DESIGN, STRING _, TUPLE2 (Vpielaborated, Int _), Vpiname) -> _Place itms (225, Void 0, Void 0)
 |   TUPLE4 (Bit_select, STRING s, TLIST _, TUPLE2 (Vpiindex,
      TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int _), TUPLE2 (UINT, Int n), Vpiuintconst))) -> _Bitsel itms (_Ident itms s, _Integer itms n)
@@ -508,9 +509,8 @@ let rec pat' itms = function
            STRING _, TLIST _, TUPLE2 (Vpinettype, Vpireg))))) -> _Void    itms 577
 |   TUPLE2 (Vpiindex, TUPLE3 (Ref_obj, STRING _, TLIST _)) -> _Void    itms 578
 |   TUPLE2 (Vpihighconn, _) -> _Void    itms 579
-|   TUPLE2 (Vpigenstmt, TUPLE2 (Gen_case, TLIST lst)) -> _seq itms lst
-|   TUPLE2 (Vpigenscopearray,
-     TUPLE4 (Gen_scope_array, STRING _, TLIST _, Gen_scope)) -> _Place itms (    583, Void 0, Void 0)
+|   TUPLE2 (Vpigenstmt, TUPLE2 (Gen_case, TLIST lst)) -> _Gen_case itms (List.map (pat itms) lst)
+|   TUPLE2 (Vpigenscopearray, arg) -> pat itms arg
 |   TUPLE2 (Vpifullname, TLIST _) -> _Void    itms 584
 |   TUPLE2 (Vpielaborated, Int _) -> _Void    itms 596
 |   TUPLE2 (Vpidirection, Vpioutput) -> _Void    itms 597
@@ -528,13 +528,13 @@ let rec pat' itms = function
 |   TUPLE2 (Vpicasetype, Int n) -> _Void itms n
 |   TUPLE2 (Vpicaseitem,
      TUPLE3 (Case_item,
-       TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int n),
-         TUPLE2 (UINT, Int w), Vpiuintconst),
+       TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w),
+         TUPLE2 (UINT, Int n), Vpiuintconst),
        stmt)) -> _Item itms (_Void itms 0, _Dec itms (string_of_int n,w), (pat itms) stmt)
 |   TUPLE2 (Vpicaseitem,
      TUPLE3 (Case_item,
-       TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int n), BIN s, Vpibinaryconst),
-       stmt)) -> _Item itms (_Void itms 0, _Bin itms (s,n), (pat itms) stmt)
+       TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w), BIN s, Vpibinaryconst),
+       stmt)) -> _Item itms (_Void itms 0, _Bin itms (s,w), (pat itms) stmt)
 |   TUPLE2 (Vpicaseitem,
      TUPLE3 (Case_item,
        TUPLE4 (Ref_obj, STRING _, TLIST _,
