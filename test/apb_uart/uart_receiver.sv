@@ -58,23 +58,23 @@ PAR,
 STOP,
 MWAIT} state_type; // 674
 state_type CState, NState; // 908
-reg [3:0] iBaudCount; // 605
-reg iBaudCountClear; // 612
-reg iBaudStep; // 612
-reg iBaudStepD; // 612
-reg iFilterClear; // 612
-reg iFSIN; // 612
-reg iFStopBit; // 612
-reg iParity; // 612
-reg iParityReceived; // 612
-reg [3:0] iDataCount; // 900
-reg iDataCountInit; // 612
-reg iDataCountFinish; // 612
-reg iRXFinished; // 612
-reg iFE; // 612
-reg iBI; // 612
-reg iNoStopReceived; // 612
-reg [7:0] iDOUT; // 605
+logic [3:0] iBaudCount; // 605
+logic iBaudCountClear; // 612
+logic iBaudStep; // 612
+logic iBaudStepD; // 612
+logic iFilterClear; // 612
+logic iFSIN; // 612
+logic iFStopBit; // 612
+logic iParity; // 612
+logic iParityReceived; // 612
+logic [3:0] iDataCount; // 900
+logic iDataCountInit; // 612
+logic iDataCountFinish; // 612
+logic iRXFinished; // 612
+logic iFE; // 612
+logic iBI; // 612
+logic iNoStopReceived; // 612
+logic [7:0] iDOUT; // 605
 slib_counter #(.WIDTH(4)) RX_BRC (
 	.CLK(CLK),
 	.RST(RST),

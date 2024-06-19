@@ -3,10 +3,8 @@
 
 open Input
 open Input_types
-open Input_pp
 open Input_pat4
 open Input_dump
-open Input_scan
 open Input_equiv
 open Hardcaml
 open Signal

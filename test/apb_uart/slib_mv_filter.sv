@@ -42,8 +42,8 @@ module slib_mv_filter #(parameter WIDTH = 4, THRESHOLD = 10) (
 /* design slib_mv_filter */
 /* architecture rtl */
 typedef enum {FALSE,TRUE} bool_t; // 527
-reg [WIDTH:0] iCounter; // 605
-reg iQ; // 612
+logic [WIDTH:0] iCounter; // 605
+logic iQ; // 612
 
 always @(posedge CLK or posedge RST)
   if (RST)

@@ -64,10 +64,10 @@ PAR,
 STOP,
 STOP2} state_type; // 674
 state_type CState, NState; // 908
-reg iTx2; // 612
-reg iSout; // 612
-reg iParity; // 612
-reg iFinished; // 612
+logic iTx2; // 612
+logic iSout; // 612
+logic iParity; // 612
+logic iFinished; // 612
 
 always @(posedge CLK or posedge RST)
   if ((RST ==  1'b1))
@@ -294,7 +294,7 @@ always @(CState or TXSTART or DIN or WLS or PEN or SP or EPS or STB or iParity)
         endcase;
     end
 
-    reg iLast;
+    logic iLast;
     always @(posedge CLK or posedge RST)
     begin:TX_FIN
         if (RST)

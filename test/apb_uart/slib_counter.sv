@@ -45,7 +45,7 @@ module slib_counter # (parameter WIDTH = 4) (
 /* design slib_counter */
 /* architecture rtl */
 typedef enum {FALSE,TRUE} bool_t; // 527
-reg [WIDTH:0] iCounter; // 605
+logic [WIDTH:0] iCounter; // 605
 
 always @(posedge CLK or posedge RST)
 if (RST)

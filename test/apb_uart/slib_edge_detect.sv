@@ -41,7 +41,7 @@ module slib_edge_detect(
 /* design slib_edge_detect */
 /* architecture rtl */
 typedef enum {FALSE,TRUE} bool_t; // 527
-reg iDd; // 612
+logic iDd; // 612
 
 always @(posedge CLK or posedge RST)
 begin

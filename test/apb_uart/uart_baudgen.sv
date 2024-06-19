@@ -42,7 +42,7 @@ module uart_baudgen(
 /* design uart_baudgen */
 /* architecture rtl */
 typedef enum {FALSE,TRUE} bool_t; // 527
-reg [15:0] iCounter; // 605
+logic [15:0] iCounter; // 605
 
 always @(posedge CLK or posedge RST)
 begin

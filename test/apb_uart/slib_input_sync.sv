@@ -40,7 +40,7 @@ module slib_input_sync(
 /* design slib_input_sync */
 /* architecture rtl */
 typedef enum {FALSE,TRUE} bool_t; // 527
-reg [1:0] iD; // 605
+logic [1:0] iD; // 605
 
 always @(posedge CLK or posedge RST)
   begin

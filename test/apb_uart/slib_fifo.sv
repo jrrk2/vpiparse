@@ -46,17 +46,17 @@ module slib_fifo # (parameter WIDTH = 8, parameter SIZE_E=6) (
 /* design slib_fifo */
 /* architecture rtl */
 typedef enum {FALSE,TRUE} bool_t; // 527
-reg iEMPTY; // 612
-reg iFULL; // 612
-reg [SIZE_E:0] iWRAddr; // 605
-reg [SIZE_E:0] iRDAddr; // 605
-reg [SIZE_E:0] init; // 605
-reg [SIZE_E - 1:0] iUSAGE; // 605
+logic iEMPTY; // 612
+logic iFULL; // 612
+logic [SIZE_E:0] iWRAddr; // 605
+logic [SIZE_E:0] iRDAddr; // 605
+logic [SIZE_E:0] init; // 605
+logic [SIZE_E - 1:0] iUSAGE; // 605
 
 case (SIZE_E)
   6:
     begin:size64
-       reg [WIDTH-1:0] iFIFOMem [0:2**SIZE_E-1];
+       logic [WIDTH-1:0] iFIFOMem [0:2**SIZE_E-1];
 
        always @(posedge CLK or posedge RST)
        begin

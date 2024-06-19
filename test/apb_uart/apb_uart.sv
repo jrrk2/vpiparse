@@ -63,150 +63,150 @@ typedef enum {FALSE,TRUE} bool_t; // 527
 // Declare component uart_baudgen; // 950
 // Declare component slib_edge_detect; // 950
 // Declare component slib_input_sync; // 950
-reg iWrite; // 612
-reg iRead; // 612
-reg iRST; // 612
-reg iRBRRead; // 612
-reg iTHRWrite; // 612
-reg iDLLWrite; // 612
-reg iDLMWrite; // 612
-reg iIERWrite; // 612
-reg iIIRRead; // 612
-reg iFCRWrite; // 612
-reg iLCRWrite; // 612
-reg iMCRWrite; // 612
-reg iLSRRead; // 612
-reg iMSRRead; // 612
-reg iSCRWrite; // 612
-reg [7:0] iTSR; // 605
-reg [7:0] iRBR; // 605
-reg [7:0] iDLL; // 605
-reg [7:0] iDLM; // 605
-reg [7:0] iIER; // 605
-reg [7:0] iIIR; // 605
-reg [7:0] iFCR; // 605
-reg [7:0] iLCR; // 605
-reg [7:0] iMCR; // 605
-reg [7:0] iLSR; // 605
-reg [7:0] iMSR; // 605
-reg [7:0] iSCR; // 605
-reg iIER_ERBI; // 612
-reg iIER_ETBEI; // 612
-reg iIER_ELSI; // 612
-reg iIER_EDSSI; // 612
-reg iIIR_PI; // 612
-reg iIIR_ID0; // 612
-reg iIIR_ID1; // 612
-reg iIIR_ID2; // 612
-reg iIIR_FIFO64; // 612
-reg iFCR_FIFOEnable; // 612
-reg iFCR_RXFIFOReset; // 612
-reg iFCR_TXFIFOReset; // 612
-reg iFCR_DMAMode; // 612
-reg iFCR_FIFO64E; // 612
-reg [1:0] iFCR_RXTrigger; // 605
-reg [1:0] iLCR_WLS; // 605
-reg iLCR_STB; // 612
-reg iLCR_PEN; // 612
-reg iLCR_EPS; // 612
-reg iLCR_SP; // 612
-reg iLCR_BC; // 612
-reg iLCR_DLAB; // 612
-reg iMCR_DTR; // 612
-reg iMCR_RTS; // 612
-reg iMCR_OUT1; // 612
-reg iMCR_OUT2; // 612
-reg iMCR_LOOP; // 612
-reg iMCR_AFE; // 612
-reg iLSR_DR; // 612
-reg iLSR_OE; // 612
-reg iLSR_PE; // 612
-reg iLSR_FE; // 612
-reg iLSR_BI; // 612
-reg iLSR_THRE; // 612
-reg iLSR_THRNF; // 612
-reg iLSR_TEMT; // 612
-reg iLSR_FIFOERR; // 612
-reg iMSR_dCTS; // 612
-reg iMSR_dDSR; // 612
-reg iMSR_TERI; // 612
-reg iMSR_dDCD; // 612
-reg iMSR_CTS; // 612
-reg iMSR_DSR; // 612
-reg iMSR_RI; // 612
-reg iMSR_DCD; // 612
-reg iCTSNs; // 612
-reg iDSRNs; // 612
-reg iDCDNs; // 612
-reg iRINs; // 612
-reg iCTSn; // 612
-reg iDSRn; // 612
-reg iDCDn; // 612
-reg iRIn; // 612
-reg iCTSnRE; // 612
-reg iCTSnFE; // 612
-reg iDSRnRE; // 612
-reg iDSRnFE; // 612
-reg iDCDnRE; // 612
-reg iDCDnFE; // 612
-reg iRInRE; // 612
-reg iRInFE; // 612
-reg [15:0] iBaudgenDiv; // 605
-reg iBaudtick16x; // 612
-reg iBaudtick2x; // 612
-reg iRCLK; // 612
-reg iBAUDOUTN; // 612
-reg iTXFIFOClear; // 612
-reg iTXFIFOWrite; // 612
-reg iTXFIFORead; // 612
-reg iTXFIFOEmpty; // 612
-reg iTXFIFOFull; // 612
-reg iTXFIFO16Full; // 612
-reg iTXFIFO64Full; // 612
-reg [5:0] iTXFIFOUsage; // 605
-reg [7:0] iTXFIFOQ; // 605
-reg iRXFIFOClear; // 612
-reg iRXFIFOWrite; // 612
-reg iRXFIFORead; // 612
-reg iRXFIFOEmpty; // 612
-reg iRXFIFOFull; // 612
-reg iRXFIFO16Full; // 612
-reg iRXFIFO64Full; // 612
-reg [10:0] iRXFIFOD; // 605
-reg [10:0] iRXFIFOQ; // 605
-reg [5:0] iRXFIFOUsage; // 605
-reg iRXFIFOTrigger; // 612
-reg iRXFIFO16Trigger; // 612
-reg iRXFIFO64Trigger; // 612
-reg iRXFIFOPE; // 612
-reg iRXFIFOFE; // 612
-reg iRXFIFOBI; // 612
-reg iSOUT; // 612
-reg iTXStart; // 612
-reg iTXClear; // 612
-reg iTXFinished; // 612
-reg iTXRunning; // 612
-reg iSINr; // 612
-reg iSIN; // 612
-reg iRXFinished; // 612
-reg iRXClear; // 612
-reg [7:0] iRXData; // 605
-reg iRXPE; // 612
-reg iRXFE; // 612
-reg iRXBI; // 612
-reg iFERE; // 612
-reg iPERE; // 612
-reg iBIRE; // 612
-reg [6:0] iFECounter; // 900
-reg iFEIncrement; // 612
-reg iFEDecrement; // 612
-reg iRDAInterrupt; // 612
-reg [5:0] iTimeoutCount; // 605
-reg iCharTimeout; // 612
-reg iLSR_THRERE; // 612
-reg iTHRInterrupt; // 612
-reg iTXEnable; // 612
-reg iRTS; // 612
+logic iWrite; // 612
+logic iRead; // 612
+logic iRST; // 612
+logic iRBRRead; // 612
+logic iTHRWrite; // 612
+logic iDLLWrite; // 612
+logic iDLMWrite; // 612
+logic iIERWrite; // 612
+logic iIIRRead; // 612
+logic iFCRWrite; // 612
+logic iLCRWrite; // 612
+logic iMCRWrite; // 612
+logic iLSRRead; // 612
+logic iMSRRead; // 612
+logic iSCRWrite; // 612
+logic [7:0] iTSR; // 605
+logic [7:0] iRBR; // 605
+logic [7:0] iDLL; // 605
+logic [7:0] iDLM; // 605
+logic [7:0] iIER; // 605
+logic [7:0] iIIR; // 605
+logic [7:0] iFCR; // 605
+logic [7:0] iLCR; // 605
+logic [7:0] iMCR; // 605
+logic [7:0] iLSR; // 605
+logic [7:0] iMSR; // 605
+logic [7:0] iSCR; // 605
+logic iIER_ERBI; // 612
+logic iIER_ETBEI; // 612
+logic iIER_ELSI; // 612
+logic iIER_EDSSI; // 612
+logic iIIR_PI; // 612
+logic iIIR_ID0; // 612
+logic iIIR_ID1; // 612
+logic iIIR_ID2; // 612
+logic iIIR_FIFO64; // 612
+logic iFCR_FIFOEnable; // 612
+logic iFCR_RXFIFOReset; // 612
+logic iFCR_TXFIFOReset; // 612
+logic iFCR_DMAMode; // 612
+logic iFCR_FIFO64E; // 612
+logic [1:0] iFCR_RXTrigger; // 605
+logic [1:0] iLCR_WLS; // 605
+logic iLCR_STB; // 612
+logic iLCR_PEN; // 612
+logic iLCR_EPS; // 612
+logic iLCR_SP; // 612
+logic iLCR_BC; // 612
+logic iLCR_DLAB; // 612
+logic iMCR_DTR; // 612
+logic iMCR_RTS; // 612
+logic iMCR_OUT1; // 612
+logic iMCR_OUT2; // 612
+logic iMCR_LOOP; // 612
+logic iMCR_AFE; // 612
+logic iLSR_DR; // 612
+logic iLSR_OE; // 612
+logic iLSR_PE; // 612
+logic iLSR_FE; // 612
+logic iLSR_BI; // 612
+logic iLSR_THRE; // 612
+logic iLSR_THRNF; // 612
+logic iLSR_TEMT; // 612
+logic iLSR_FIFOERR; // 612
+logic iMSR_dCTS; // 612
+logic iMSR_dDSR; // 612
+logic iMSR_TERI; // 612
+logic iMSR_dDCD; // 612
+logic iMSR_CTS; // 612
+logic iMSR_DSR; // 612
+logic iMSR_RI; // 612
+logic iMSR_DCD; // 612
+logic iCTSNs; // 612
+logic iDSRNs; // 612
+logic iDCDNs; // 612
+logic iRINs; // 612
+logic iCTSn; // 612
+logic iDSRn; // 612
+logic iDCDn; // 612
+logic iRIn; // 612
+logic iCTSnRE; // 612
+logic iCTSnFE; // 612
+logic iDSRnRE; // 612
+logic iDSRnFE; // 612
+logic iDCDnRE; // 612
+logic iDCDnFE; // 612
+logic iRInRE; // 612
+logic iRInFE; // 612
+logic [15:0] iBaudgenDiv; // 605
+logic iBaudtick16x; // 612
+logic iBaudtick2x; // 612
+logic iRCLK; // 612
+logic iBAUDOUTN; // 612
+logic iTXFIFOClear; // 612
+logic iTXFIFOWrite; // 612
+logic iTXFIFORead; // 612
+logic iTXFIFOEmpty; // 612
+logic iTXFIFOFull; // 612
+logic iTXFIFO16Full; // 612
+logic iTXFIFO64Full; // 612
+logic [5:0] iTXFIFOUsage; // 605
+logic [7:0] iTXFIFOQ; // 605
+logic iRXFIFOClear; // 612
+logic iRXFIFOWrite; // 612
+logic iRXFIFORead; // 612
+logic iRXFIFOEmpty; // 612
+logic iRXFIFOFull; // 612
+logic iRXFIFO16Full; // 612
+logic iRXFIFO64Full; // 612
+logic [10:0] iRXFIFOD; // 605
+logic [10:0] iRXFIFOQ; // 605
+logic [5:0] iRXFIFOUsage; // 605
+logic iRXFIFOTrigger; // 612
+logic iRXFIFO16Trigger; // 612
+logic iRXFIFO64Trigger; // 612
+logic iRXFIFOPE; // 612
+logic iRXFIFOFE; // 612
+logic iRXFIFOBI; // 612
+logic iSOUT; // 612
+logic iTXStart; // 612
+logic iTXClear; // 612
+logic iTXFinished; // 612
+logic iTXRunning; // 612
+logic iSINr; // 612
+logic iSIN; // 612
+logic iRXFinished; // 612
+logic iRXClear; // 612
+logic [7:0] iRXData; // 605
+logic iRXPE; // 612
+logic iRXFE; // 612
+logic iRXBI; // 612
+logic iFERE; // 612
+logic iPERE; // 612
+logic iBIRE; // 612
+logic [6:0] iFECounter; // 900
+logic iFEIncrement; // 612
+logic iFEDecrement; // 612
+logic iRDAInterrupt; // 612
+logic [5:0] iTimeoutCount; // 605
+logic iCharTimeout; // 612
+logic iLSR_THRERE; // 612
+logic iTHRInterrupt; // 612
+logic iTXEnable; // 612
+logic iRTS; // 612
 assign /*903*/ iWrite = (PSEL ==  1'b1 && PENABLE ==  1'b1) && PWRITE ==  1'b1 ?  1'b1 :   1'b0; // 905
 assign /*903*/ iRead = (PSEL ==  1'b1 && PENABLE ==  1'b1) && PWRITE ==  1'b0 ?  1'b1 :   1'b0; // 905
 assign /*903*/ iRST = RSTN ==  1'b0 ?  1'b1 :   1'b0; // 905

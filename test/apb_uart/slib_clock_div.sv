@@ -40,8 +40,8 @@ module slib_clock_div #(parameter RATIO = 4) (
 /* design slib_clock_div */
 /* architecture rtl */
 typedef enum {FALSE,TRUE} bool_t; // 527
-reg iQ; // 612
-reg [$clog2(RATIO-1)-1:0] iCounter;
+logic iQ; // 612
+logic [$clog2(RATIO-1)-1:0] iCounter;
    
 always @(posedge CLK or posedge RST)
 begin

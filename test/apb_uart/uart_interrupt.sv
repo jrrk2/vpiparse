@@ -47,12 +47,12 @@ module uart_interrupt(
 /* design uart_interrupt */
 /* architecture rtl */
 typedef enum {FALSE,TRUE} bool_t; // 527
-reg iRLSInterrupt; // 612
-reg iRDAInterrupt; // 612
-reg iCTIInterrupt; // 612
-reg iTHRInterrupt; // 612
-reg iMSRInterrupt; // 612
-reg [3:0] iIIR; // 605
+logic iRLSInterrupt; // 612
+logic iRDAInterrupt; // 612
+logic iCTIInterrupt; // 612
+logic iTHRInterrupt; // 612
+logic iMSRInterrupt; // 612
+logic [3:0] iIIR; // 605
 assign /*432*/ iRLSInterrupt = IER[2] && (((LSR[1] | LSR[2]) | LSR[3]) | LSR[4]); // 434
 assign /*432*/ iRDAInterrupt = IER[0] && RDA; // 434
 assign /*432*/ iCTIInterrupt = IER[0] && CTI; // 434

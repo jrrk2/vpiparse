@@ -1229,12 +1229,13 @@ let othvar = ref None
 let varlst modul delim typ' id =
     let (widlst,cnst,rng) as found = findmembers' typ' in
     let kind = match found with
-        | (STRING::[],_,_) -> VSTRING
-        | (BIT::[], false, _) -> LOGIC
-        | (ARNG _::[], false, _) -> LOGIC
-        | (WIRE::[], false, _) -> WIRE
-        | (REG::[], false, _) -> REG
-        | (VECTOR _::[], false, _) -> LOGIC
+        | (STRING :: [],_,_) -> VSTRING
+        | (UNPACKED _ :: ARNG _ :: [],_,_) -> REG
+        | (BIT :: [], false, _) -> LOGIC
+        | (ARNG _ :: [], false, _) -> LOGIC
+        | (WIRE :: [], false, _) -> WIRE
+        | (REG :: [], false, _) -> REG
+        | (VECTOR _ :: [], false, _) -> LOGIC
         | oth -> othvar := Some oth; failwith "othvar"
         | (_, true, _) -> WIRE
         | (_, false, _) -> LOGIC
@@ -1261,7 +1262,7 @@ and csitm modul dly origin cexplst =
         (if lbl <> [] then (eiter modul SP lbl) else DEFAULT :: []) @
         COLON :: (match stmts with
                         | [] -> []
-                        | itm::[] -> NL :: cstmt modul dly itm
+                        | itm :: [] -> NL :: cstmt modul dly itm
                         | _ -> BEGIN None :: iter2 (ref []) modul dly stmts @ [SEMI;END])
 
 and ifcond = function

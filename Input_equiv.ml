@@ -44,22 +44,18 @@ let eqv gold stem =
 
 open Input
 open Input_types
-open Input_pp
 open Input_pat4
 open Input_dump
-open Input_scan
 open Input_lex
 
 let p' = ref []
 
 let tran f =
-  let ch = open_in f in
+  let ch = if f = "-" then stdin else open_in f in
   let cache, p = parse_output_ast_from_chan ch in
   close_in ch;
-locache := cache;
-  let p = List.map rw' p in
   p' := p;
-  let _ = List.map (pat (empty_itms [])) p in
+  let _ = List.map (pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
   if false then List.iter dump' !allmods;
   List.iter dump' !topmods;
   if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) modnam | _ -> failwith "multiple top modules"

@@ -662,6 +662,27 @@ let vpi_task_func = function
   let loc_cache kind loc tup =
       Hashtbl.replace cache (kind,loc) tup;
       tup
+
+let rec event_collapse = function
+| TUPLE3 (Vpieventorop, ev, ev') -> ev' :: event_collapse ev
+| oth -> [oth]
+
+let rec rw' = function
+| LOC _ as loc -> loc
+| TLIST slst -> TLIST (List.map rw' slst)
+| TUPLE2 (kw, (LOC _ as loc)) -> rw' (try Hashtbl.find cache (kw, loc) with _ -> TLIST [])
+| TUPLE2(a,b) -> TUPLE2(rw' a, rw' b)
+| TUPLE3 (Vpieventorop, TUPLE3 (Vpieventorop, _, _), _) as ev -> TUPLE2 (Vpieventorop, TLIST (List.map rw' (event_collapse ev)))
+| TUPLE3(a,b,c) -> TUPLE3(rw' a, rw' b, rw' c)
+| TUPLE4(a,b,c,d) -> TUPLE4(rw' a, rw' b, rw' c, rw' d)
+| TUPLE5(a,b,c,d,e) -> TUPLE5(rw' a, rw' b, rw' c, rw' d, rw' e)
+| TUPLE6(a,b,c,d,e,f) -> TUPLE6(rw' a, rw' b, rw' c, rw' d, rw' e, rw' f)
+| TUPLE7(a,b,c,d,e,f,g) -> TUPLE7(rw' a, rw' b, rw' c, rw' d, rw' e, rw' f, rw' g)
+| TUPLE8(a,b,c,d,e,f,g,h) -> TUPLE8(rw' a, rw' b, rw' c, rw' d, rw' e, rw' f, rw' g, rw' h)
+| TUPLE9(a,b,c,d,e,f,g,h,i) -> TUPLE9(rw' a, rw' b, rw' c, rw' d, rw' e, rw' f, rw' g, rw' h, rw' i)
+| TUPLE10(a,b,c,d,e,f,g,h,i,j) -> TUPLE10(rw' a, rw' b, rw' c, rw' d, rw' e, rw' f, rw' g, rw' h, rw' i, rw' j)
+| oth -> oth
+
 %}
 
 %token INVALID
@@ -762,7 +783,6 @@ let vpi_task_func = function
 %token <string> STRING
 %token <string> STRING_CONST
 %token  TILDE
-%token <token*token> NOT_FOUND
 %token <token list> TLIST
 %token <token*token> TUPLE2
 %token <token*token*token> TUPLE3
@@ -905,6 +925,7 @@ let vpi_task_func = function
 %token Vpitypespec
 %token Vpisigned
 %token Vpioverriden
+%token Vpirandtype
 %token Vpireturn
 %token Vpirefmodule
 %token Vpiinstance
@@ -1278,7 +1299,7 @@ let vpi_task_func = function
 %start ml_start
 %%
 
-ml_start: input_lst EOF_TOKEN { (cache, $1) }
+ml_start: input_lst EOF_TOKEN { (cache, List.map rw' $1) }
 
 package_opt:
   | Vpiparent COLON parent { Vpiparent }
@@ -1301,7 +1322,7 @@ parent:
   | Int_var COLON int_var_def { Int_var }
   | Integer_var COLON integer_var_def { Int_var }
   | Logic_var COLON logic_var_def { Logic_var }
-  | Array_var COLON array_var_def { Logic_var }
+  | Array_var COLON array_var_def { Array_var }
   | Io_decl COLON io_decl_def { Io_decl }
   | Enum_var COLON enum_var_def { Enum_var }
   | Module_inst COLON module_inst_def { TUPLE2(Module_inst, $3) }
@@ -1358,7 +1379,7 @@ class_opt:
 
 typespec:
   | Enum_typespec COLON enum_typespec_decl Indent enum_typespec_lst Unindent { loc_cache Enum_typespec $3 (to_list Enum_typespec $5) }
-  | Enum_typespec COLON enum_typespec_decl { try Hashtbl.find cache (Enum_typespec, $3) with _ -> NOT_FOUND(Logic_typespec, $3) }
+  | Enum_typespec COLON enum_typespec_decl { TUPLE2 (Enum_typespec, $3) }
 
 enum_typespec_lst: { [] }
   | enum_typespec_opt enum_typespec_lst { $1 :: $2 }
@@ -1445,7 +1466,7 @@ int_typespec_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpiname COLON vnam { $3 }
   | Vpifullname COLON fullnam { $3 }
-  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { Vpirange }
+  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { to_tuple Vpirange $7 }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
   | Vpisigned COLON Int { TUPLE2(Vpisigned, Int $3) }
 
@@ -1456,7 +1477,7 @@ integer_typespec_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpiname COLON vnam { $3 }
   | Vpifullname COLON fullnam { $3 }
-  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { Vpirange }
+  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { to_tuple Vpirange $7 }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
   | Vpisigned COLON Int { TUPLE2(Vpisigned, Int $3) }
 
@@ -1498,9 +1519,9 @@ ref_typespec_actual:
   | Class_typespec COLON class_typespec { TUPLE2(Class_typespec, $3) }
   | Int_typespec COLON int_typespec_def { TUPLE2(Int_typespec, $3) }
   | Integer_typespec COLON integer_typespec_def { TUPLE2(Integer_typespec, $3) }
-  | Enum_typespec COLON enum_typespec_decl { try Hashtbl.find cache (Enum_typespec, $3) with _ -> NOT_FOUND(Logic_typespec, $3) }
-  | Logic_typespec COLON logic_typespec_def { try Hashtbl.find cache (Logic_typespec, $3) with _ -> NOT_FOUND(Logic_typespec, $3) }
-  | Array_typespec COLON loc { try Hashtbl.find cache (Array_typespec, $3) with _ -> NOT_FOUND(Array_typespec, $3) }
+  | Enum_typespec COLON enum_typespec_decl { TUPLE2 (Enum_typespec, $3) }
+  | Logic_typespec COLON logic_typespec_def { TUPLE2 (Logic_typespec, $3) }
+  | Array_typespec COLON loc { TUPLE2 (Array_typespec, $3) }
   | Array_typespec COLON loc Indent array_typespec_lst Unindent { loc_cache Array_typespec $3 (TUPLE2(Array_typespec, TLIST $5)) }
 
 array_typespec_lst: { [] }
@@ -1510,7 +1531,7 @@ array_typespec_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpiname COLON vnam { $3 }
   | Vpifullname COLON fullnam { $3 }
-  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { Vpirange }
+  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { to_tuple Vpirange $7 }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
   | Vpisigned COLON Int { TUPLE2(Vpisigned, Int $3) }
   | Vpielemtypespec COLON ref_typespec { TUPLE2(Vpielemtypespec, $3) }
@@ -1595,10 +1616,10 @@ ref_obj_opt:
   | Vpiactual COLON ref_obj_actual { TUPLE2(Vpiactual, $3) }
 
 ref_obj_actual:
-  | Logic_net COLON logic_net_def { try Hashtbl.find cache (Logic_net, $3) with _ -> NOT_FOUND(Logic_net, $3) }
-  | Logic_var COLON logic_var_def { try Hashtbl.find cache (Logic_var, $3) with _ -> NOT_FOUND(Logic_var, $3) }
-  | Part_select COLON part_select_def { try Hashtbl.find cache (Part_select, $3) with _ -> NOT_FOUND(Part_select, $3) }
-  | Enum_const COLON enum_const_decl { try Hashtbl.find cache (Enum_const, $3) with _ -> NOT_FOUND(Enum_const, $3) }
+  | Logic_net COLON logic_net_def { TUPLE2 (Logic_net, $3) }
+  | Logic_var COLON logic_var_def { TUPLE2 (Logic_var, $3) }
+  | Part_select COLON part_select_def { TUPLE2 (Part_select, $3) }
+  | Enum_const COLON enum_const_decl { TUPLE2 (Enum_const, $3) }
 
 constant_lst: { [] }
   | constant_opt constant_lst { $1 :: $2 }
@@ -1665,7 +1686,7 @@ weak_opt:
   | Class_typespec COLON class_typespec Indent Vpiclassdefn COLON Class_defn COLON class_def Unindent { Class_typespec }
   | Int_typespec COLON int_typespec_def Indent int_typespec_lst Unindent { to_tuple Int_typespec $5 }
   | Integer_typespec COLON integer_typespec_def Indent integer_typespec_lst Unindent { to_tuple Integer_typespec $5 }
-  | Logic_typespec COLON logic_typespec_def { try Hashtbl.find cache (Logic_typespec, $3) with _ -> NOT_FOUND(Logic_typespec, $3) }
+  | Logic_typespec COLON logic_typespec_def { TUPLE2 (Logic_typespec, $3) }
   | Logic_typespec COLON logic_typespec_def Indent misc_lst Unindent { loc_cache Logic_typespec $3 (to_tuple Logic_typespec ($3::$5)) }
   | Function COLON function_def Indent weak_function_lst Unindent { to_tuple Function $5 }
   | Task COLON task_def Indent task_lst Unindent { to_tuple Task $5 }
@@ -1761,9 +1782,10 @@ gen_scope_opt:
   | Vpiname COLON vnam { $3 }
   | Vpiname COLON Work AT name { Vpiname }
   | Vpifullname COLON fullnam { $3 }
+  | Vpivariables COLON ret { TUPLE2(Vpivariables,$3) }  
   | Vpigenscope COLON gen_scope { $3 }
   | Vpisize COLON Int { TUPLE2(Vpisize, Int $3) }
-  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { Vpirange }
+  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { to_tuple Vpirange $7 }
   | Vpinettype COLON Int { TUPLE2(Vpinettype, net_type $3) }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
   | Vpicontassign COLON cont_assign { $3 }
@@ -1796,12 +1818,12 @@ parameter_def: COLON LPAREN Work AT pth_lst RPAREN loc { List.hd (List.rev $5) }
 process:
   | Always COLON loc Indent always_lst always_typ Unindent { loc_cache Always $3 (to_tuple (TUPLE2(Always,$6)) $5) }
   | Initial COLON loc Indent initial_lst Unindent { loc_cache Initial $3 (to_tuple Initial $5) }
-  | Always COLON loc { try Hashtbl.find cache (Always, $3) with _ -> NOT_FOUND(Always, $3) }
-  | Initial COLON loc { try Hashtbl.find cache (Initial, $3) with _ -> NOT_FOUND(Initial, $3) }
+  | Always COLON loc { TUPLE2 (Always, $3) }
+  | Initial COLON loc { TUPLE2 (Initial, $3) }
 
 cont_assign:
   | Cont_assign COLON loc Indent cont_assign_lst Unindent { loc_cache Cont_assign $3 (to_tuple Cont_assign $5) }
-  | Cont_assign COLON loc { try Hashtbl.find cache (Cont_assign, $3) with _ -> NOT_FOUND(Cont_assign, $3) }
+  | Cont_assign COLON loc { TUPLE2 (Cont_assign, $3) }
 
 always_typ:
   | Vpialwaystype COLON Int { TUPLE2(Vpialwaystype, net_type $3) }
@@ -2023,7 +2045,7 @@ oexpr:
   | Indexed_part_select COLON indexed_part_select_def Indent indexed_part_select_lst Unindent { to_tuple Indexed_part_select $5 }
   | Bit_select COLON bit_sel_def Indent bit_sel_lst Unindent { to_tuple Bit_select $5 }
   | Sys_func_call COLON sys_func_call_def Indent sys_func_call_lst Unindent { to_tuple Sys_func_call $5 }
-  | Logic_net COLON logic_net_def { try Hashtbl.find cache (Logic_net, $3) with _ -> NOT_FOUND(Logic_net, $3) }
+  | Logic_net COLON logic_net_def { TUPLE2 (Logic_net, $3) }
   | nettyp { $1 }
   | Array_var COLON array_var_def Indent array_var_lst Unindent { to_tuple Array_var $5 }
   
@@ -2117,10 +2139,10 @@ dyadic:
   
 vport:
   | Port COLON port_def Indent io_decl_lst Unindent { loc_cache Port $3 (to_tuple Port $5) }
-  | Port COLON port_def { try Hashtbl.find cache (Port, $3) with _ -> NOT_FOUND(Port, $3) }
+  | Port COLON port_def { TUPLE2 (Port, $3) }
 
 nettyp: 
-  | Logic_net COLON logic_net_def { try Hashtbl.find cache (Logic_net, $3) with _ -> NOT_FOUND(Logic_net, $3) }
+  | Logic_net COLON logic_net_def { TUPLE2 (Logic_net, $3) }
   | Logic_net COLON logic_net_def Indent logic_net_lst Unindent { loc_cache Logic_net $3 (to_tuple Logic_net $5) }
 
 logic_net_lst: { [] }
@@ -2148,6 +2170,10 @@ array_var_opt:
   | Vpisigned COLON Int { Vpisigned }
   | Vpiarraytype COLON Int { Vpiarraytype }
   | Vpireg COLON ret { TUPLE2(Vpireg, $3) }
+  | Vpisize COLON Int { TUPLE2(Vpisize, Int $3) }
+  | Vpirandtype COLON Int { Vpirandtype }
+  | Vpivisibility COLON vis { TUPLE2(Vpivisibility, $3) }
+  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { to_tuple Vpirange $7 }
 
 arraynettyp:
   | Array_net COLON array_net_def Indent array_net_lst Unindent { to_tuple Array_net $5 }
@@ -2161,7 +2187,7 @@ array_net_opt:
   | Vpiname COLON Work AT name { Vpiname }
   | Vpifullname COLON fullnam { $3 }
   | Vpisize COLON Int { TUPLE2(Vpisize, Int $3) }
-  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { Vpirange }
+  | Vpirange COLON Range COLON range_def Indent range_lst Unindent { to_tuple Vpirange $7 }
   | Vpinettype COLON Int { TUPLE2(Vpinettype, net_type $3) }
   | Vpitypespec COLON ref_typespec { TUPLE2(Vpitypespec, $3) }
   | Vpinet COLON nettyp { TUPLE2(Vpinet, $3) }
@@ -2172,7 +2198,8 @@ ret:
   | Logic_var COLON logic_var_def Indent logic_var_lst Unindent { loc_cache Logic_var $3 (to_tuple Logic_var $5) }
   | Class_var COLON class_var_def Indent class_var_lst Unindent { to_tuple Class_var $5 }
   | Enum_var COLON enum_var_def Indent enum_var_lst Unindent { to_tuple Enum_var $5 }
-
+  | Array_var COLON array_var_def Indent array_var_lst Unindent { to_tuple Array_var $5 }
+  
 def_name: Builtin { Builtin }
   | Work AT STRING { STRING $3 }
   | STRING { STRING $1 }
@@ -2267,6 +2294,7 @@ logic_var_def:
   | LPAREN pth_lst RPAREN loc { $4 }
 
 array_var_def: { Work }
+  | LPAREN Work AT pth_lst RPAREN loc { $6 }
   | LPAREN pth_lst RPAREN loc { Work }
   
 task_def: { Work }
@@ -2303,8 +2331,8 @@ io_decl_def:
 enum_typespec_decl: { Work }
   | LPAREN vnam RPAREN loc { $4 }
   
-enum_const_decl: { Work }
-  | LPAREN vnam RPAREN loc { Work }
+enum_const_decl:
+  | LPAREN vnam RPAREN loc { $4 }
   
 type_spec: { Work }
   | LPAREN Work AT name type_lst RPAREN { $4 }
