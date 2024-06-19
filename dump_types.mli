@@ -81,6 +81,8 @@ type typenc =
 type arrtyp =
 | UNKARR
 | BIT
+| REG
+| WIRE
 | REAL
 | STRING
 | ARNG of (int*int)

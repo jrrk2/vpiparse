@@ -689,6 +689,7 @@ let vpi_task_func = function
 %token ELSE
 %token LOGIC
 %token WIRE
+%token REG
 %token VSTRING
 %token ASSIGN
 %token ASSIGNMENT

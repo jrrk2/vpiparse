@@ -588,6 +588,7 @@ let tokencnv indent = function
 | RETURN -> "return"
 | LOGIC -> "logic"
 | WIRE -> "wire"
+| REG -> "reg"
 | VSTRING -> "string"
 | FUNCTION -> incr indent; "function"
 | ENDFUNCTION -> decr indent; "endfunction"
@@ -603,7 +604,7 @@ let tokencnv indent = function
 | ENDPACKAGE -> decr indent; "endpackage"
 | MODPORT -> "modport"
 | INVALID -> failwith "invalid token"
-| oth -> othtok := oth; failwith "unhandled token"
+| oth -> othtok := oth; failwith "unhandled token 606"
 
 let tokendump fd = function
 | SP -> output_string fd "SP\n"
@@ -653,6 +654,7 @@ let tokendump fd = function
 | RETURN -> output_string fd "RETURN\n"
 | LOGIC -> output_string fd "LOGIC\n"
 | WIRE -> output_string fd "WIRE\n"
+| REG -> output_string fd "REG\n"
 | VSTRING -> output_string fd "VSTRING\n"
 | FUNCTION -> output_string fd "FUNCTION\n"
 | ENDFUNCTION -> output_string fd "ENDFUNCTION\n"
@@ -669,7 +671,7 @@ let tokendump fd = function
 | PACKAGE -> output_string fd "PACKAGE\n"
 | ENDPACKAGE -> output_string fd "ENDPACKAGE\n"
 | MODPORT -> output_string fd "MODPORT\n"
-| oth -> failwith "unhandled token"
+| oth -> othtok := oth; failwith "unhandled token 673"
 
 let tokenout fd indent tok = output_string fd (tokencnv indent tok)
 let dumptok tok = let indent = ref 0 in tokencnv indent tok
@@ -1116,7 +1118,9 @@ let rec cntbasic = function
 | (BASDTYP, typ, TYPRNG(HEX hi, HEX lo), []) when (function "logic"|"integer"|"int"|"bit"|"wire"|"byte"|"longint" -> true | _ -> false) typ -> ARNG (hi, lo) :: []
 | (STRDTYP,_,typmap,rw_lst) -> ADD (List.map cntmembers rw_lst) :: []
 | (UNIDTYP,_,typmap,rw_lst) -> MAX (List.map cntmembers rw_lst) :: []
-| (BASDTYP, ("logic"|"bit"|"wire"), TYPNONE, []) -> BIT :: []
+| (BASDTYP, "reg", TYPNONE, []) -> REG :: []
+| (BASDTYP, "wire", TYPNONE, []) -> WIRE :: []
+| (BASDTYP, ("logic"|"bit"), TYPNONE, []) -> BIT :: []
 | (BASDTYP, "real", TYPNONE, []) -> REAL :: []
 | (BASDTYP, "string", TYPNONE, []) -> STRING :: []
 | (IFCRFDTYP _, _, TYPNONE, []) -> UNKARR :: []
@@ -1139,6 +1143,8 @@ and findmembers typ' = let (widlst,cnst,rng) = findmembers' typ' in widlst
 let rec comment' = function
 | UNKARR -> "UNKARR"
 | BIT -> "BIT"
+| REG -> "REG"
+| WIRE -> "WIRE"
 | REAL -> "REAL"
 | STRING -> "STRING"
 | ARNG(int1,int2) -> "ARNG("^string_of_int int1^":"^string_of_int int2^")"
@@ -1205,7 +1211,7 @@ let rec cnstexpr = function
 let rec widshow id rng = function
 | [] -> []
 | UNKARR :: tl -> failwith "UNKARR"
-| BIT :: tl -> SP :: IDENT id :: SP :: widshow id rng tl
+| (BIT|REG|WIRE) :: tl -> SP :: IDENT id :: SP :: widshow id rng tl
 | STRING :: tl -> SP :: IDENT id :: SP :: widshow id rng tl
 | ARNG(hi,lo) :: PACKED(hi',lo') :: tl -> widshow id rng (ARNG((hi-lo+1)*(hi'-lo'+1)-1 , 0) :: tl)
 | ARNG(hi,lo) :: tl -> LBRACK :: num hi :: COLON :: num lo :: RBRACK :: SP :: IDENT id :: SP :: widshow id rng tl
@@ -1218,12 +1224,21 @@ let rec widshow id rng = function
 
 let widshow id rng lst = widshow id rng (List.rev lst)
 
+let othvar = ref None
+
 let varlst modul delim typ' id =
     let (widlst,cnst,rng) as found = findmembers' typ' in
     let kind = match found with
         | (STRING::[],_,_) -> VSTRING
+        | (BIT::[], false, _) -> LOGIC
+        | (ARNG _::[], false, _) -> LOGIC
+        | (WIRE::[], false, _) -> WIRE
+        | (REG::[], false, _) -> REG
+        | (VECTOR _::[], false, _) -> LOGIC
+        | oth -> othvar := Some oth; failwith "othvar"
         | (_, true, _) -> WIRE
-        | (_, false, _) -> LOGIC in
+        | (_, false, _) -> LOGIC
+        | oth -> othvar := Some oth; failwith "othvar" in
     let decl = !delim :: kind :: SP :: widshow id rng widlst in decl @
     comment widlst @ (if List.mem_assoc id !(modul.cnst) then
                          begin
@@ -1405,8 +1420,8 @@ let rec is_cnst itms id =
         false
     
 let chktyp = function
-| "wire" -> WIRE
 | "logic" -> LOGIC
+| "wire" -> WIRE
 | oth -> LOGIC
 
 let iolst modul delim dir io = function
@@ -1452,6 +1467,7 @@ let outnam f = f^".v"
 let outnamopt f = let l = String.length f in f^(if l < 4 || String.sub f (l-4) 4 <> "_opt" then "_opt.v" else ".v")
 let outtok f = f^"_tokens.txt"
 let outtcl f = "./"^f^"_fm.tcl"
+let othcomb = ref []
 
 let needed modul (kind,nam) = match kind with
 | FUNCTION ->
@@ -1496,6 +1512,11 @@ let dump intf f modul =
     delim := COMMA;
     ) (!(modul.io));
   head := !head @ (if !delim <> COMMA then !delim :: [] else []) @ [RPAREN;SEMI];
+  List.iter (function
+	     | (nam, (_, (w, CNSTEXP (Aunknown, lst)))) -> let delim = ref (NL :: IDENT "typedef" :: SP :: IDENT "enum" :: SP :: SP :: LCURLY :: []) in
+ head := !head @ NL :: List.flatten (List.map (function
+| ENUMVAL(n,s) -> let field = !delim @ (IDENT s :: EQUALS :: num n :: []) in delim := COMMA :: SP :: []; field
+| oth -> []) lst) @ [RCURLY; SP ; IDENT nam; SEMI; NL] | _ -> ()) (!(modul.cnst));
   List.iter (fun (id, ("", typ', kind', n)) -> append (fsrc "" :: varlst modul (ref NL) typ' id @ SEMI :: NL :: []);
                  ) (List.rev !(modul.v));
   List.iter (fun itm -> append (needed modul itm)) (List.rev !(modul.needed));
@@ -1508,7 +1529,11 @@ let dump intf f modul =
                  append (fsrc "" :: ASSIGN :: SP :: expr modul dst @ (SP :: ASSIGNMENT :: SP:: expr modul src @ SEMI :: NL :: []));
                  ) (List.rev !(modul.ca));
   List.iter (function
-    | ("", COMB, lst) ->
+    | ("", COMB, (SNTRE deplst) :: lst) ->
+      append (fsrc "" :: ALWAYS :: AT :: let delim = ref [SP;LPAREN] in List.flatten (List.map (function
+      | VRF (nam, _, _) -> let dep = !delim @ [IDENT nam] in delim := SP :: IDENT "or" :: SP :: []; dep
+      | oth -> []) deplst) @ RPAREN :: SP :: flatten1 modul false lst);
+    | ("", COMB, (SNTRE []) :: lst) -> othcomb := lst;
       append (fsrc "" :: ALWAYS :: AT :: STAR :: flatten1 modul false lst);
     | ("", POSPOS (ck, rst), lst) ->
       append (fsrc "" :: ALWAYS :: AT :: LPAREN :: POSEDGE :: SP :: IDENT ck :: COMMA :: POSEDGE :: SP :: IDENT rst :: RPAREN :: flatten1 modul true lst);

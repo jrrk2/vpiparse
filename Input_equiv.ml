@@ -50,14 +50,18 @@ open Input_dump
 open Input_scan
 open Input_lex
 
+let p' = ref []
+
 let tran f =
   let ch = open_in f in
   let cache, p = parse_output_ast_from_chan ch in
   close_in ch;
-  locache := cache;
-  let _ = List.map (pat (empty_itms [])) (List.map rw' p) in
+locache := cache;
+  let p = List.map rw' p in
+  p' := p;
+  let _ = List.map (pat (empty_itms [])) p in
   if false then List.iter dump' !allmods;
   List.iter dump' !topmods;
-  if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) modnam
+  if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) modnam | _ -> failwith "multiple top modules"
 
 let _ = if Array.length Sys.argv > 1 then tran Sys.argv.(1)

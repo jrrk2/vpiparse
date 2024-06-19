@@ -3,6 +3,8 @@ open Input_types
 open Input_dump
 open Dump_types
 
+let oldpat = ref Work
+let oldpat' = ref Work
 let othrng' = ref TYPNONE
 let patlst = ref []
 let othvoid = ref Work
@@ -30,6 +32,9 @@ let rec concat op = function
      | hd :: tl -> _Concat(op, hd, concat op tl)
 
 let _Void itms n = othvoid := List.hd !patlst; UNKNOWN
+
+let othstmt = ref Work
+let othstmtlst = ref []
 
 let _Always itms (deplst, body) = match deplst with
 | SNTRE items -> itms.alwys := ("", COMB, (SNTRE items :: body)) :: !(itms.alwys); UNKNOWN
@@ -85,27 +90,50 @@ let _Inpspp itms _ = failwith "Inpspp"
 let _Sigpp itms _ = failwith "Sigpp"
 let _Sigspp itms _ = failwith "Sigspp"
 let _Alwpp itms _ = failwith "Alwpp"
-let _Regpp itms (_, _, _, _) = failwith "Regpp"
+let _Regpp itms _ = failwith "Regpp"
 let _Itmpp itms _ = failwith "Itmpp"
 let _Wirepp itms _ = failwith "Wirepp"
 let _Othpp itms _ = failwith "Othpp"
+let _Type_spec_rng itms typrng = VRF ("", (BASDTYP, "logic", typrng, []), [])
 let _Identrng typ itms nam typrng = VRF (nam, (BASDTYP, "logic", typrng, []), [])
 let _Ident itms s = VRF (s, (BASDTYP, "logic", TYPNONE, []), [])
-let _Identyp typ itms s = VRF (s, (BASDTYP, "logic", TYPNONE, []), [])
+
+let identyp = ref Work
+
+let identypmap = function
+| Vpialways -> "wire"
+| Vpinet -> "wire"
+| Vpireg -> "reg"
+| oth -> identyp := oth; failwith "identypmap"
+
+let _Identyp itms nam = function
+| Vpinet | Vpireg | Vpialways as typ -> if not (List.mem_assoc nam !(itms.io)) then
+itms.v := (nam, ("", (BASDTYP, (identypmap typ), TYPNONE, []), (identypmap typ), (UNKDTYP, "", TYPNONE, []))) :: !(itms.v); UNKNOWN
+| oth -> identyp := oth; failwith "identyp"
+
 let _Port itms dir nam = itms.io := (nam, ("", (BASDTYP, "logic", TYPNONE, []), dir, "logic", [])) :: !(itms.io); UNKNOWN
 let _Portrng itms dir nam typrng = itms.io := (nam, ("", (BASDTYP, "logic", typrng, []), dir, "logic", [])) :: !(itms.io); UNKNOWN
 let _Porthigh itms dir nam = itms.v := (nam, ("", (BASDTYP, "logic", TYPNONE, []), "logic", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v); UNKNOWN
+
+let othenum' = ref UNKNOWN
+
+let _Enumvar itms nam = function
+| BGN (None, VRF (typdef, _, _) :: lst) as typ -> othenum' := typ; List.iter (function
+  | VRF ("", typ', []) -> itms.v := (nam, ("", typ', typdef, (UNKDTYP, "", TYPNONE, []))) :: !(itms.v)
+  | oth -> ()) lst; UNKNOWN
+| oth -> othenum' := oth; failwith "_Enumvar"
+
 let _Porthighrng itms dir nam typrng =
     if not (List.mem_assoc nam !(itms.io)) then
  itms.v := (nam, ("", (BASDTYP, "logic", typrng, []), "logic", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v); UNKNOWN
 let _Enum itms enum_t lst =
-  itms.cnst := (enum_t,(false,(0,CNSTEXP(Aunknown, List.map (function
+  if not (List.mem_assoc enum_t !(itms.cnst)) then itms.cnst := (enum_t,(false,(0,CNSTEXP(Aunknown, List.map (function
   | TUPLE5 (Enum_const, STRING enam, TUPLE2 (INT, Int n), Vpidecompile _, TUPLE2 (Vpisize, Int _)) -> ENUMVAL (n, enam)
   | _ -> STRING "unknown") lst)))) :: !(itms.cnst)
 let _Param itms param =
   List.iter (function
     | Vpiparent -> ()
-    | TUPLE2 (UINT, Int n) -> itms.cnst := (param, (false, (0,HEX n))) :: !(itms.cnst)
+    | TUPLE2 (UINT, Int n) -> if not (List.mem_assoc param !(itms.cnst)) then itms.cnst := (param, (false, (0,HEX n))) :: !(itms.cnst)
     | Vpitypespec -> ()
     | TUPLE3 (Ref_typespec, TLIST _, _) -> ()
     | STRING s -> ()
@@ -139,10 +167,7 @@ let _LshiftL itms (a, b) = LOGIC(Lshiftl, [a;b])
 let _LshiftR itms (a, b) = LOGIC(Lshiftr, [a;b])
 let _AshiftR itms (a, b) = LOGIC(Lshiftrs, [a;b])
 let _Ternary itms (cond, a, b) = CND ("", [cond;a;b])
-let genscope = ref None
-let _Gen_scope_array itms lbl lst = genscope := Some (lbl,lst); print_endline "gen_scope_array"; UNKNOWN
-let gencase = ref []
-let _Gen_case itms lst = gencase := lst; failwith "gen_case"
+let _Gen_case itms lst = itms.gen := ("", lst) :: !(itms.gen); UNKNOWN
 let _Posedge itms = function
 | VRF (id, (Dump_types.BASDTYP, "logic", TYPNONE, []), []) -> POSEDGE id
 | oth -> oth' := oth; failwith "_Posedge oth'"
@@ -155,6 +180,16 @@ let rec _cnstexpr = function
 let _Range itms (lft, rght) = TYPRNG(_cnstexpr lft, _cnstexpr rght)
 let _Place itms (n, _, _) = SCOPE ("Place"^string_of_int n)
 let _Array_var itms _ = failwith "Array_var"
+let otharray = ref None
+let _Array_net itms = function
+| VRF (nam, (BASDTYP, "logic", TYPNONE, []), []),
+  VRF ("", (BASDTYP, "logic", typrng, []), []),
+  siz ->
+ itms.v := (nam, ("", (UNPACKADTYP, "",
+         RECTYP (BASDTYP, "logic", typrng, []),
+         [TYPRNG (SHEX 0, SHEX (siz-1))]),
+		      "", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v); UNKNOWN
+| a -> otharray := Some a; failwith "actual"
 let _Edge itms = function
 | [POSEDGE clk; POSEDGE rst] -> POSPOS (clk, rst)
 | VRF _ :: _ as lst -> SNTRE lst
@@ -180,7 +215,7 @@ let rec pat' itms = function
      TUPLE5 (Logic_net,
        TUPLE2 (Vpitypespec,
          TUPLE3 (Ref_typespec, TLIST _,
-           TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC (_, _, _, _), rng)))),
+           TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC _, rng)))),
        STRING nam, TLIST _, TUPLE2 (Vpinettype, (Vpireg|Vpinet|Vpialways as typ)))) ->
         let rng' = typrng itms rng in
         _Porthighrng itms typ nam rng';
@@ -189,14 +224,14 @@ let rec pat' itms = function
      TUPLE5 (Logic_net,
        TUPLE2 (Vpitypespec,
          TUPLE3 (Ref_typespec, TLIST _,
-           TUPLE2 (Vpiactual, TUPLE4 (Logic_typespec, LOC (_, _, _, _), rng, Vpisigned)))),
+           TUPLE2 (Vpiactual, TUPLE4 (Logic_typespec, LOC _, rng, Vpisigned)))),
        STRING nam, TLIST _, Vpisigned)) -> _Identrng Vpisigned itms nam (typrng itms rng)
 |   TUPLE2 (Vpinet,
      TUPLE5 (Logic_net,
        TUPLE2 (Vpitypespec,
          TUPLE3 (Ref_typespec, TLIST _,
            TUPLE2 (Vpiactual, TLIST []))),
-       STRING nam, TLIST _, TUPLE2 (Vpinettype, (Vpireg|Vpinet|Vpialways as typ)))) -> _Identyp typ itms nam
+       STRING nam, TLIST _, TUPLE2 (Vpinettype, (Vpireg|Vpinet|Vpialways as typ)))) -> _Identyp itms nam typ
 |   TUPLE9 (Class_defn, TUPLE2 (Vpiname, Process),
      TUPLE2 (Vpitypedef, TUPLE2 (Enum_typespec, TLIST _)),
      TUPLE2 (Vpimethod, Function), TUPLE2 (Vpimethod, Function),
@@ -227,24 +262,24 @@ let rec pat' itms = function
          TLIST _))) -> _Array_var itms s
 |   TUPLE5 (Logic_var, Vpitypespec,
      TUPLE3 (Ref_typespec, TLIST _,
-       TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _)))),
+       TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _))),
      STRING _, TLIST _) -> _Void     itms 75
 |   TUPLE5 (Logic_net,
      TUPLE2 (Vpitypespec,
        TUPLE3 (Ref_typespec, TLIST _,
-         TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _))))),
+         TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _)))),
      STRING _, TLIST _, TUPLE2 (Vpinettype, Vpireg)) -> _Void     itms 83
 |   TUPLE5 (Logic_net,
      TUPLE2 (Vpitypespec,
        TUPLE3 (Ref_typespec, TLIST _,
-         TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _))))),
+         TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _)))),
      STRING _, TLIST _, TUPLE2 (Vpinettype, Vpinet)) -> _Void     itms 91
 |   TUPLE5 (Logic_net,
      TUPLE2
       (Vpitypespec,
        TUPLE3
         (Ref_typespec, TLIST _,
-         TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _))))),
+         TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _)))),
      STRING _, TLIST _, TUPLE2 (Vpinettype, Vpialways)) -> _Void     itms 99
 |   TUPLE5 (Enum_var,
      TUPLE2
@@ -274,14 +309,14 @@ let rec pat' itms = function
        TUPLE5 (Logic_net,
          TUPLE2 (Vpitypespec,
            TUPLE3 (Ref_typespec, TLIST _,
-             TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC (_, _, _, _), rng)))),
+             TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC _, rng)))),
          STRING s, TLIST _, TUPLE2 (Vpinettype, (Vpireg|Vpialways|Vpinet as typ))))) -> _Identrng typ itms s (typrng itms rng)
 |   TUPLE4 (Ref_obj, STRING _, TLIST _,
      TUPLE2 (Vpiactual,
        TUPLE5 (Logic_net,
          TUPLE2 (Vpitypespec,
            TUPLE3 (Ref_typespec, TLIST _,
-             TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _))))),
+             TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _)))),
          STRING _, TLIST _, TUPLE2 (Vpinettype, Vpinet)))) -> _Void    itms 157
 |   TUPLE4 (Ref_obj, STRING s, TLIST _,
      TUPLE2 (Vpiactual,
@@ -311,10 +346,9 @@ let rec pat' itms = function
 |   TUPLE4 (Package, Builtin, STRING _, Builtin) -> _Void    itms 201
 |   TUPLE4 (Logic_var, Vpitypespec,
      TUPLE3 (Ref_typespec, TLIST _,
-       TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _)))),
+       TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _))),
      TLIST _) -> _Void    itms 207
-|   TUPLE4 (Logic_typespec, LOC (_, _, _, _), Logic_net,
-     TUPLE3 (Vpirange, TUPLE2 (Vpileftrange, lft), TUPLE2 (Vpirightrange, rght))) -> _Void    itms 211
+|   TUPLE4 (Logic_typespec, LOC _, Logic_net, rng) -> _Type_spec_rng itms (typrng itms rng)
 |   TUPLE4 (Logic_net,
      TUPLE2 (Vpitypespec,
        TUPLE3 (Ref_typespec, TLIST _,
@@ -323,7 +357,14 @@ let rec pat' itms = function
 |   TUPLE4 (Logic_net, STRING _, TLIST _, TUPLE2 (Vpinettype, Vpinet)) -> _Void    itms 220
 |   TUPLE4 (Logic_net, STRING _, TLIST _, TUPLE2 (Vpinettype, Vpialways)) -> _Void    itms 222
 |   TUPLE4 (Input.If_else, cond, then_, else_) -> _If_ itms ((pat itms) cond, (pat itms) then_, (pat itms) else_)
-|   TUPLE4 (Gen_scope_array, STRING lbl, TLIST _, TUPLE2(Gen_scope, TLIST lst)) -> _Gen_scope_array itms lbl (List.map (pat itms) lst)
+|   TUPLE4 (Gen_scope_array, STRING lbl, TLIST _, TUPLE2(Gen_scope, TLIST (TLIST _ :: lst))) -> List.iter (function
+  | TUPLE2 (Vpiprocess, TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpialways)),
+    TUPLE3 (Event_control,
+	TUPLE2 (Vpicondition, cond), TUPLE3(Begin, TLIST _, TLIST (Vpiparent::TLIST _::lst))))) ->
+	    let _ =  _Always itms (pat itms cond, seqlst itms lst) in (); failwith "Event339"
+  | TUPLE2 (Vpiprocess, p) -> oldpat := p; failwith "proc"
+  | TUPLE2 (Vpinet, _) as vpi -> let _ = pat itms vpi in ()
+  | oth -> oldpat := oth; failwith "gen_scope") lst; UNKNOWN
 |   TUPLE4 (DESIGN, STRING _, TUPLE2 (Vpielaborated, Int _), Vpiname) -> _Place itms (225, Void 0, Void 0)
 |   TUPLE4 (Bit_select, STRING s, TLIST _, TUPLE2 (Vpiindex,
      TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int _), TUPLE2 (UINT, Int n), Vpiuintconst))) -> _Bitsel itms (_Ident itms s, _Integer itms n)
@@ -334,7 +375,7 @@ let rec pat' itms = function
            TUPLE5 (Logic_net,
              TUPLE2 (Vpitypespec,
                TUPLE3 (Ref_typespec, TLIST _,
-                 TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _))))),
+                 TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _)))),
              STRING _, TLIST _, TUPLE2 (Vpinettype, Vpireg)))))) -> _Void    itms 258
 |   TUPLE4 (Bit_select, STRING s, TLIST _, TUPLE2 (Vpiindex, ix)) -> _Bitsel itms (_Ident itms s, (pat itms) ix)
 |   TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop as op), lft, rght) -> asgntyp itms (pat itms lft) (pat itms rght) op
@@ -359,16 +400,15 @@ let rec pat' itms = function
 |   TUPLE3 (Ref_typespec, TLIST _, TUPLE2 (Vpiactual, TUPLE2 (Int_typespec, s))) -> _Place itms (291, (pat itms) s, Void 0)
 |   TUPLE3 (Ref_typespec, TLIST _, TUPLE2 (Vpiactual, TUPLE2 (Enum_typespec, s))) -> _Place itms (294, (pat itms) s, Void 0)
 |   TUPLE3 (Ref_typespec, TLIST _,
-     TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _)))) -> _Void    itms 297
+     TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _))) -> _Void    itms 297
 |   TUPLE3 (Ref_typespec, TLIST _,
      TUPLE2 (Vpiactual, TUPLE2 (Array_typespec, TLIST (Vpirange :: elem)))) -> _Void    itms 300
 |   TUPLE3 (Ref_obj, STRING s, TLIST _) -> _Ident itms s
-|   TUPLE3 (Ref_module, TUPLE3 (STRING _, STRING _, LOC (_, _, _, _)), TLIST lst) ->seq itms lst
+|   TUPLE3 (Ref_module, TUPLE3 (STRING _, STRING _, LOC _), TLIST lst) ->seq itms lst
 |   TUPLE3 (Named_begin, TLIST _, TLIST lst) -> _seq itms lst
 |   TUPLE3 (Named_begin, STRING _, TLIST lst) -> _seq itms lst
-|   TUPLE3 (Logic_typespec, LOC (_, _, _, _), Logic_net) -> _Place itms (308, Void 0, Void 0)
-|   TUPLE3 (Logic_typespec, LOC (_, _, _, _),
-     TUPLE3 (Vpirange, TUPLE2 (Vpileftrange, lft), TUPLE2 (Vpirightrange, rght))) -> _Place itms (312, (pat itms) lft, (pat itms) rght)
+|   TUPLE3 (Logic_typespec, LOC _, Logic_net) -> _Place itms (308, Void 0, Void 0)
+|   TUPLE3 (Logic_typespec, LOC _, rng) -> _Type_spec_rng itms (typrng itms rng)
 |   TUPLE3 (If_stmt, TUPLE2 (Vpicondition, cond), then_) -> _If itms ((pat itms) cond, (pat itms) then_)
 |   TUPLE3 (Event_control, TUPLE2 (Vpicondition, _),
      TUPLE4 (Input.If_else, _, _, _)) -> _Void    itms 321
@@ -412,7 +452,7 @@ let rec pat' itms = function
            TUPLE2 (Vpisize, Int _)))),
      TUPLE3 (Begin, TLIST _, TLIST _)) -> _Void    itms 370
 |   TUPLE3 (Begin, _, TLIST lst) -> _seq itms lst
-|   TUPLE3 (STRING _, STRING _, LOC (_, _, _, _)) -> _Void    itms 373
+|   TUPLE3 (STRING _, STRING _, LOC _) -> _Void    itms 373
 |   TUPLE2 (Weaklyreferenced, TLIST lst) -> seq itms lst      
 |   TUPLE2 (Vpivisibility, Int _) -> _Void    itms 375
 |   TUPLE2 (Vpivariables,
@@ -424,8 +464,8 @@ let rec pat' itms = function
      TUPLE5 (Enum_var,
        TUPLE2 (Vpitypespec,
          TUPLE3 (Ref_typespec, TLIST _,
-           TUPLE2 (Vpiactual, TUPLE2 (Enum_typespec, _)))),
-       STRING s, TLIST _, TUPLE2 (Vpivisibility, Int _))) -> _Ident itms s
+           TUPLE2 (Vpiactual, TUPLE2 (Enum_typespec, typ)))),
+       STRING s, TLIST _, TUPLE2 (Vpivisibility, Int _))) -> _Enumvar itms s (pat itms typ)
 |   TUPLE2 (Vpitypespec,
      TUPLE3 (Ref_typespec, TLIST _,
        TUPLE2 (Vpiactual, TUPLE2 (Int_typespec, _)))) -> _Void    itms 398
@@ -434,10 +474,10 @@ let rec pat' itms = function
        TUPLE2 (Vpiactual, TUPLE2 (Enum_typespec, _)))) -> _Void    itms 403
 |   TUPLE2 (Vpitypespec,
      TUPLE3 (Ref_typespec, TLIST _,
-       TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC (_, _, _, _), rng)))) -> _TypespecRange itms (typrng itms rng)
+       TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC _, rng)))) -> _TypespecRange itms (typrng itms rng)
 |   TUPLE2 (Vpitypespec,
      TUPLE3 (Ref_typespec, TLIST _,
-       TUPLE2 (Vpiactual, NOT_FOUND (Array_typespec, LOC (_, _, _, _))))) -> _Void    itms 413
+       TUPLE2 (Vpiactual, NOT_FOUND (Array_typespec, LOC _)))) -> _Void    itms 413
 |   TUPLE2 (Vpitypedef, TUPLE2 (Enum_typespec,
 	TLIST (STRING enum_t :: TUPLE2 (Vpiinstance, TLIST _) :: lst))) -> _Enum itms enum_t lst; UNKNOWN
 |   TUPLE2 (Vpitopmodule, Int n) -> _Place itms (416, Integer n, Void 0)
@@ -451,13 +491,19 @@ let rec pat' itms = function
 |   TUPLE2 (Vpireg,
      TUPLE4 (Logic_var, Vpitypespec,
        TUPLE3 (Ref_typespec, TLIST _,
-         TUPLE2 (Vpiactual, TUPLE4 (Logic_typespec, LOC (_, _, _, _), Logic_net, rng))),
+         TUPLE2 (Vpiactual, TUPLE4 (Logic_typespec, LOC _, Logic_net, rng))),
        TLIST pth)) -> _Identrng Vpireg itms (match List.hd pth with STRING s -> s | _ -> failwith "Vpitypespec") (typrng itms rng)
 |     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpialways)),
-       TUPLE3 (Event_control, TUPLE2 (Vpicondition, cond), stmt)) -> _Always itms ((pat itms) cond, seqtok itms stmt)
+		     TUPLE3 (Event_control, TUPLE2 (Vpicondition, cond), TUPLE3 (Begin, TLIST _, TLIST (Vpiparent :: TLIST [] :: lst )))) ->
+		     othstmtlst := lst;
+		     _Always itms ((pat itms) cond, seqlst itms lst)
+|     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpialways)),
+		     TUPLE3 (Event_control, TUPLE2 (Vpicondition, cond), stmt)) ->
+		     othstmt := stmt;
+		     _Always itms ((pat itms) cond, seqtok itms stmt)
 |     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpialways)),
        TUPLE2 (Event_control,
-         TUPLE3 (Begin, TLIST _, TLIST lst))) -> _Always itms (_Edge itms [], seqlst itms lst)
+         TUPLE3 (Begin, TLIST _, TLIST lst))) -> _Always itms (_Edge itms [], seqlst itms lst); failwith "Event475"
 |   TUPLE2 (Vpiposedgeop, p) -> _Posedge itms (pat itms p)
 |   TUPLE2 (Vpiparamassign, TLIST lst) -> _Place itms (488, seq itms lst, Void 0)
 |   TUPLE2 (Vpioverriden, Int n) -> _Place itms (489, Integer n, Void 0)
@@ -480,6 +526,18 @@ let rec pat' itms = function
      TUPLE4 (Logic_net, STRING s, TLIST _, TUPLE2 (Vpinettype, (Vpinet|Vpireg|Vpialways)))) -> _Ident itms s
 |   TUPLE2 (Vpinet,
      TUPLE3 (Logic_net, STRING s, TLIST _)) -> _Ident itms s
+|   TUPLE2 (Vpinet,
+    TUPLE6 (Array_net, TUPLE2 (Vpisize, Int siz), mem,
+      TLIST _,
+      Vpirange,
+      TUPLE2 (Vpinet,
+        TUPLE4 (Logic_net,
+          TUPLE2 (Vpitypespec,
+            TUPLE3 (Ref_typespec,
+              TLIST _,
+              TUPLE2 (Vpiactual, actual))),
+          TLIST _,
+          TUPLE2 (Vpinettype, Vpireg))))) -> _Array_net itms (pat itms mem, pat itms actual, siz)
 |   TUPLE2 (Vpiname, Semaphore) -> _Void    itms 540
 |   TUPLE2 (Vpiname, Process) -> _Void    itms 541
 |   TUPLE2 (Vpiname, Mailbox) -> _Void    itms 542
@@ -505,7 +563,7 @@ let rec pat' itms = function
          TUPLE5 (Logic_net,
            TUPLE2 (Vpitypespec,
              TUPLE3 (Ref_typespec, TLIST _,
-               TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _))))),
+               TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _)))),
            STRING _, TLIST _, TUPLE2 (Vpinettype, Vpireg))))) -> _Void    itms 577
 |   TUPLE2 (Vpiindex, TUPLE3 (Ref_obj, STRING _, TLIST _)) -> _Void    itms 578
 |   TUPLE2 (Vpihighconn, _) -> _Void    itms 579
@@ -550,25 +608,25 @@ let rec pat' itms = function
 |   TUPLE2 (Vpiactual,
      TUPLE5 (Logic_var, Vpitypespec,
        TUPLE3 (Ref_typespec, TLIST _,
-         TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _)))),
+         TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _))),
        STRING _, TLIST _)) -> _Void    itms 676
 |   TUPLE2 (Vpiactual,
      TUPLE5 (Logic_net,
        TUPLE2 (Vpitypespec,
          TUPLE3 (Ref_typespec, TLIST _,
-           TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _))))),
+           TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _)))),
        STRING _, TLIST _, TUPLE2 (Vpinettype, Vpireg))) -> _Void    itms 686
 |   TUPLE2 (Vpiactual,
      TUPLE5 (Logic_net,
        TUPLE2 (Vpitypespec,
          TUPLE3 (Ref_typespec, TLIST _,
-           TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _))))),
+           TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _)))),
        STRING _, TLIST _, TUPLE2 (Vpinettype, Vpinet))) -> _Void    itms 696
 |   TUPLE2 (Vpiactual,
      TUPLE5 (Logic_net,
        TUPLE2 (Vpitypespec,
          TUPLE3 (Ref_typespec, TLIST _,
-           TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _))))),
+           TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _)))),
        STRING _, TLIST _, TUPLE2 (Vpinettype, Vpialways))) -> _Void    itms 706
 |   TUPLE2 (Vpiactual,
      TUPLE5 (Enum_const, STRING _, TUPLE2 (INT, Int _), Vpidecompile _,
@@ -583,13 +641,12 @@ let rec pat' itms = function
      TUPLE4 (Logic_net, STRING _, TLIST _, TUPLE2 (Vpinettype, Vpinet))) -> _Void    itms 724
 |   TUPLE2 (Vpiactual,
      TUPLE4 (Logic_net, STRING _, TLIST _, TUPLE2 (Vpinettype, Vpialways))) -> _Void    itms 728
-|   TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC (_, _, _, _),
-       TUPLE3 (Vpirange, TUPLE2 (Vpileftrange, _), TUPLE2 (Vpirightrange, _)))) -> _Void    itms 734
+|   TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC _, rng)) -> _Type_spec_rng itms (typrng itms rng)
 |   TUPLE2 (Vpiactual, TUPLE2 (Int_typespec, _)) -> _Void    itms 735
 |   TUPLE2 (Vpiactual, TUPLE2 (Enum_typespec, _)) -> _Void    itms 736
 |   TUPLE2 (Vpiactual, TLIST lst) ->seq itms lst
-|   TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC (_, _, _, _))) -> _Void    itms 738
-|   TUPLE2 (Vpiactual, NOT_FOUND (Array_typespec, LOC (_, _, _, _))) -> _Void    itms 739
+|   TUPLE2 (Vpiactual, NOT_FOUND (Logic_typespec, LOC _)) -> _Void    itms 738
+|   TUPLE2 (Vpiactual, NOT_FOUND (Array_typespec, LOC _)) -> _Void    itms 739
 |   TUPLE2 (Uhdmtoppackages,
      TUPLE10 (Package, Builtin, STRING _, Builtin, TUPLE2 (Vpitop, Int _),
        TUPLE2 (Vpiclassdefn,
@@ -630,19 +687,17 @@ let rec pat' itms = function
 |   TUPLE2 (UINT, Int n) -> _Integer itms n
 |   TUPLE2 (Ref_typespec,
      TUPLE2 (Vpiactual,
-       TUPLE3 (Logic_typespec, LOC (_, _, _, _),
-         TUPLE3 (Vpirange, TUPLE2 (Vpileftrange, _),
-           TUPLE2 (Vpirightrange, _))))) -> _Void    itms 785
+       TUPLE3 (Logic_typespec, LOC _, rng))) -> _Type_spec_rng itms (typrng itms rng)
 |   TUPLE2 (Ref_obj, STRING s) -> _Ident itms s
 (*
 |   TUPLE5 (Port, STRING _, TUPLE2 (Vpidirection, Vpioutput),
      TUPLE2 (Vpilowconn, _),
      TUPLE3 (Ref_typespec, TLIST _,
-       TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC (_, _, _, _), rng)))) -> _Void     itms 63
+       TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC _, rng)))) -> _Void     itms 63
 |   TUPLE5 (Port, STRING _, TUPLE2 (Vpidirection, Vpiinput),
      TUPLE2 (Vpilowconn, _),
      TUPLE3 (Ref_typespec, TLIST _,
-       TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC (_, _, _, _), rng)))) -> _Void     itms 69
+       TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC _, rng)))) -> _Void     itms 69
 |   TUPLE3 (Port, STRING _, TUPLE2 (Vpihighconn, _)) -> _Void    itms 305
 *)
 |   TUPLE2 (Vpiport, Port) -> _Place itms (452, Void 0, Void 0)
@@ -655,12 +710,12 @@ let rec pat' itms = function
      TUPLE5 (Port, STRING s, TUPLE2 (Vpidirection, (Vpiinput|Vpioutput as dir)),
        TUPLE2 (Vpilowconn, _),
        TUPLE3 (Ref_typespec, TLIST _,
-         TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC (_, _, _, _), rng))))) -> _Portrng itms (dirmap dir) s (typrng itms rng)
+         TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC _, rng))))) -> _Portrng itms (dirmap dir) s (typrng itms rng)
 |   TUPLE2 (Vpiport,
      TUPLE5 (Port, STRING s, TUPLE2 (Vpidirection, (Vpiinput|Vpioutput as dir)),
        TUPLE2 (Vpilowconn, _),
        TUPLE3 (Ref_typespec, TLIST _,
-         TUPLE2 (Vpiactual, TUPLE4 (Logic_typespec, LOC (_, _, _, _), rng, Vpisigned))))) -> _Portrng itms (dirmap dir) s (typrng itms rng)
+         TUPLE2 (Vpiactual, TUPLE4 (Logic_typespec, LOC _, rng, Vpisigned))))) -> _Portrng itms (dirmap dir) s (typrng itms rng)
 |   TUPLE2 (Vpiport, TUPLE3 (Port, STRING s, TUPLE2 (Vpihighconn, _))) -> _Place itms (462, Ident s, Void 0)
 |   TUPLE2 (Vpiport, TUPLE2 (Port, TUPLE2 (Vpihighconn, s))) -> _Place itms (486, (pat itms) s, Void 0)
 |   TUPLE2 (Vpiport, TUPLE2 (Port, STRING s)) -> _Place itms (487, Ident s, Void 0)
@@ -739,7 +794,7 @@ let rec pat' itms = function
 |   TUPLE2 (Int_typespec, _) -> _Place itms (789, Void 0, Void 0)
 |   oth -> othpat := oth; failwith "pat"
 
-and pat itms x = patlst := x :: !patlst; let p = pat' itms x in patlst := List.tl !patlst; p
+and pat itms x = oldpat' := !oldpat; oldpat := x; patlst := x :: !patlst; let p = pat' itms x in patlst := List.tl !patlst; p
 
 and asgntyp itms lhs rhs = function
 | Vpiaddop -> _Add itms (lhs, rhs)
@@ -773,7 +828,7 @@ and typrng itms = function
 |   TUPLE2 (Vpielemtypespec,
      TUPLE2 (Ref_typespec,
        TUPLE2 (Vpiactual,
-         TUPLE3 (Logic_typespec, LOC (_, _, _, _),
+         TUPLE3 (Logic_typespec, LOC _,
            TUPLE3 (Vpirange, TUPLE2 (Vpileftrange, lft),
 			     TUPLE2 (Vpirightrange, rght)))))) -> _Range itms (pat itms lft, pat itms rght)
 |   Logic_net -> TYPNONE			     
