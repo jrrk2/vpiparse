@@ -128,6 +128,11 @@ let _Identyp itms nam = function
 itms.v := (nam, ("", (BASDTYP, (identypmap typ), TYPNONE, []), (identypmap typ), (UNKDTYP, "", TYPNONE, []))) :: !(itms.v)
 | oth -> identyp := oth; failwith "identyp"
 
+let _Identyprng itms nam rng = function
+| (Vpinet | Vpireg | Vpialways as typ) -> if not (List.mem_assoc nam !(itms.io)) then
+itms.v := (nam, ("", (BASDTYP, (identypmap typ), rng, []), (identypmap typ), (UNKDTYP, "", TYPNONE, []))) :: !(itms.v)
+| oth -> identyp := oth; failwith "identyp"
+
 let _Port itms dir nam = itms.io := (nam, ("", (BASDTYP, "logic", TYPNONE, []), dir, "logic", [])) :: !(itms.io)
 let _Portrng itms dir nam typrng = itms.io := (nam, ("", (BASDTYP, "logic", typrng, []), dir, "logic", [])) :: !(itms.io)
 let _Porthigh itms dir nam = itms.v := (nam, ("", (BASDTYP, "logic", TYPNONE, []), "logic", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v)
@@ -257,7 +262,7 @@ let rec top_pat' itms = function
      TUPLE6 (Logic_var, Vpitypespec,
        TUPLE3 (Ref_typespec, TLIST _,
          TUPLE2 (Vpiactual, TUPLE3(Logic_typespec, LOC _, rng))),
-       STRING s, TLIST _,  TUPLE2 (Vpivisibility, Int _))) -> _Identyp itms s Vpireg
+       STRING s, TLIST _,  TUPLE2 (Vpivisibility, Int _))) -> _Identyprng itms s (typrng itms rng) Vpireg
 |   TUPLE2 (Vpivariables,
      TUPLE6 (Logic_var, Vpitypespec,
        TUPLE3 (Ref_typespec, TLIST _,

@@ -1128,7 +1128,7 @@ let rec cntbasic = function
 | (PACKADTYP, _, RECTYP subtyp, TYPRNG((HEX n|SHEX n), (HEX n'|SHEX n'))::_) -> PACKED(n, n') :: findmembers subtyp
 | (UNPACKADTYP, _, RECTYP subtyp, TYPRNG ((HEX n|SHEX n), (HEX n'|SHEX n'))::_) -> UNPACKED(n, n') :: findmembers subtyp
 | (MEMBDTYP, id, SUBTYP subtyp, []) -> failwith ("SUBTYP")
-| (BASDTYP, ("logic"|"bit"|"wire"), TYPRNG(lft,rght), []) -> VECTOR (lft, rght) :: []
+| (BASDTYP, ("logic"|"bit"|"wire"|"reg"), TYPRNG(lft,rght), []) -> VECTOR (lft, rght) :: []
 | oth -> typopt := Some oth; failwith ("typopt;;1425:"^dumptab oth)
 
 and cntmembers = function
@@ -1466,7 +1466,7 @@ let rec taskstmt modul dly nam = function
 | BGN(_,rw_lst) -> List.flatten (List.map (taskstmt modul dly nam) rw_lst)
 | itm -> cstmt modul dly itm @ SEMI :: []
 
-let outnam f = f^".v"
+let outnam f = f^"_chk.v"
 let outnamopt f = let l = String.length f in f^(if l < 4 || String.sub f (l-4) 4 <> "_opt" then "_opt.v" else ".v")
 let outtok f = f^"_tokens.txt"
 let outtcl f = "./"^f^"_fm.tcl"

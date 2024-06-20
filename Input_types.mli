@@ -228,3 +228,18 @@ and itms = {
   remove_interfaces: bool;
   names'': (string * typetable_t ref) list;
 }
+
+type remap =
+  | Invalid
+  | Con of Hardcaml.Constant.t
+  | Sig of Hardcaml.Signal.t
+  | Sigs of Hardcaml.Signal.Signed.v
+  | Alw of Hardcaml.Always.t
+  | Var of Hardcaml.Always.Variable.t
+  | Itm of (Hardcaml.Signal.t * Hardcaml.Always.t list)
+
+type attr = {
+  pass: bool;
+  clock: string option;
+  reset: string option;
+}

@@ -46,18 +46,19 @@ open Input
 open Input_types
 open Input_pat4
 open Input_dump
-open Input_lex
+open Input_hardcaml
 
 let p' = ref []
 
 let tran f =
   let ch = if f = "-" then stdin else open_in f in
-  let cache, p = parse_output_ast_from_chan ch in
+  let cache, p = Input_lex.parse_output_ast_from_chan ch in
   close_in ch;
   p' := p;
   let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
   if false then List.iter dump' !allmods;
   List.iter dump' !topmods;
+  List.iter cnv !topmods;
   if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) modnam | _ -> failwith "multiple top modules"
 
 let _ = if Array.length Sys.argv > 1 then tran Sys.argv.(1)

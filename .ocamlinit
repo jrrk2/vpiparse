@@ -5,6 +5,7 @@ open Input
 open Input_types
 open Input_pat4
 open Input_dump
+open Input_hardcaml
 open Input_equiv
 open Dump_types
 open Hardcaml
