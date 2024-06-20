@@ -1743,7 +1743,7 @@ module_inst_opt:
   | Vpiprocess COLON process { TUPLE2(Vpiprocess, $3) }
   | Vpitop COLON Int { TUPLE2(Vpitop, Int $3) }
   | Vpitopmodule COLON Int { TUPLE2(Vpitopmodule, Int $3) }
-  | Vpiparameter COLON Parameter parameter_def Indent parameter_lst Unindent { TUPLE3(Vpiparameter, $4, TLIST $6) }
+  | Vpiparameter COLON Parameter parameter_def Indent parameter_lst Unindent { loc_cache Parameter $4 (to_tuple Parameter $6) }
   | Vpiparamassign COLON Param_assign COLON loc Indent param_assign_lst Unindent { TUPLE2(Vpiparamassign, TLIST $7) }
   | Vpicontassign COLON cont_assign { $3 }
   | Vpitaskfunc COLON vpi_method_arg { TUPLE2(Vpitaskfunc, $3) }
@@ -1813,7 +1813,7 @@ gen_case_opt:
   | Vpistmt COLON stmt { $3 }
   | Vpicaseitem COLON stmt { TUPLE2(Vpicaseitem, $3) }
 
-parameter_def: COLON LPAREN Work AT pth_lst RPAREN loc { List.hd (List.rev $5) }
+parameter_def: COLON LPAREN Work AT pth_lst RPAREN loc { $7 }
 
 process:
   | Always COLON loc Indent always_lst always_typ Unindent { loc_cache Always $3 (to_tuple (TUPLE2(Always,$6)) $5) }
@@ -1871,7 +1871,7 @@ stmt:
   | For_stmt COLON for_stmt_def Indent for_stmt_lst Unindent { to_tuple For_stmt $5 }
   | Case_stmt COLON loc Indent case_stmt_lst Unindent { TUPLE2 (Case_stmt, TLIST $5) }
   | Case_item COLON loc Indent case_item_lst Unindent { to_tuple Case_item $5 }
-  | Task_call COLON task_call_def Indent task_call_lst Unindent { to_tuple Case_item $5 }
+  | Task_call COLON task_call_def Indent task_call_lst Unindent { to_tuple Task_call $5 }
   | Gen_if_else COLON loc Indent gen_if_else_lst Unindent { to_tuple If_else $5 }
   | Ref_module COLON ref_module_def Indent ref_module_lst Unindent { TUPLE3 (Ref_module, $3, TLIST $5) }
   | Always COLON loc Indent always_lst always_typ Unindent { loc_cache Always $3  (to_tuple (TUPLE2(Always,$6)) $5) }
@@ -1887,7 +1887,7 @@ ref_module_opt:
   | Vpifullname COLON fullnam { $3 }
   | Vpidefname COLON def_name { $3 }
   | Vpiport COLON vport { TUPLE2(Vpiport, $3) }
-  | Vpiparameter COLON Parameter parameter_def Indent parameter_lst Unindent { TUPLE3(Vpiparameter, $4, TLIST $6) }
+  | Vpiparameter COLON Parameter parameter_def Indent parameter_lst Unindent { loc_cache Parameter $4 (to_tuple Parameter $6) }
   | Vpiparamassign COLON Param_assign COLON loc Indent param_assign_lst Unindent { TUPLE2(Vpiparamassign, TLIST $7) }
   | Vpiactual COLON Module_inst COLON module_inst_def { TUPLE2(Vpiactual, $5) }
 
@@ -1912,7 +1912,7 @@ case_stmt_opt:
   | Vpifullname COLON fullnam { $3 }
   | Vpicondition COLON oexpr { TUPLE2(Vpicondition, $3) }
   | Vpistmt COLON stmt { $3 }
-  | Vpicaseitem COLON stmt { TUPLE2(Vpicaseitem, $3) }
+  | Vpicaseitem COLON stmt { $3 }
   | Vpiattribute COLON attr { TUPLE2(Vpiattribute, $3) }
   | Vpicasetype COLON Int { TUPLE2(Vpicasetype, Int $3) }
 
@@ -2006,12 +2006,12 @@ param_assign_opt:
   | Vpioverriden COLON Int { TUPLE2(Vpioverriden, Int $3) }
 
 lhs:
-  | Parameter parameter_def { Parameter }
+  | Parameter parameter_def { TUPLE2 (Parameter, $2) }
 
 rhs:
   | Var_select COLON var_select_def Indent var_select_lst Unindent { to_tuple Var_select $5 }
-  | Constant COLON constant_def Indent constant_lst Unindent { to_tuple Constant $5 }
-  | Constant COLON constant_def { Constant }
+  | Constant COLON constant_def Indent constant_lst Unindent { loc_cache Constant $3 (to_tuple Constant $5) }
+  | Constant COLON constant_def { TUPLE2(Constant, $3) }
   | oexpr { $1 }
 
 var_select_lst: { [] }
@@ -2305,7 +2305,7 @@ task_call_def: { Work }
   | LPAREN STRING RPAREN loc { Work }
   
 constant_def: { Work }
-  | loc { Work }
+  | loc { $1 }
 
 operation_def: { Work }
   | loc { Work }

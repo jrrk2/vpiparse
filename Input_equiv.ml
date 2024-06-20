@@ -55,7 +55,7 @@ let tran f =
   let cache, p = parse_output_ast_from_chan ch in
   close_in ch;
   p' := p;
-  let _ = List.map (pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
+  let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
   if false then List.iter dump' !allmods;
   List.iter dump' !topmods;
   if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) modnam | _ -> failwith "multiple top modules"

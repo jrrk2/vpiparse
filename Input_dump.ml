@@ -751,6 +751,7 @@ let rec dumpitm = function
 | TIM _ -> "TIM"
 | SCOPE tid -> "SCOPE "^tid
 | ITM _ -> "ITM"
+| CONTAINER (itms, SCOPE top) -> "CONTAINER"
 
 and dumplst lst = "["^String.concat ";\n\t" (List.map dumpitm lst)^"]"
 and dumpcstlst lst = "["^String.concat ";\n\t" (List.map dumpcnst lst)^"]"
@@ -1334,6 +1335,7 @@ and cstmt modul dly = function
 | SCOPE s -> LCOMMENT :: IDENT s :: RCOMMENT :: []
 | UNKNOWN -> LCOMMENT :: IDENT "UNKNOWN" :: RCOMMENT :: []
 | LOGIC _ as exp -> LCOMMENT :: expr modul exp @ RCOMMENT :: []
+| CONTAINER (itms, SCOPE scope) -> LCOMMENT :: SP :: IDENT scope :: SP :: RCOMMENT :: []
 | oth -> stmtothlst := oth :: !stmtothlst; failwith ("stmtothlst: "^dumpitm oth)
 
 let flatten1 modul dly = function
