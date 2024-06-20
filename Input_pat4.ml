@@ -38,8 +38,23 @@ let _Void itms n = othvoid := List.hd !patlst; UNKNOWN
 let othstmt = ref Work
 let othstmtlst = ref []
 
+(* an example blocking converter *)
+let rec nonblocking = function
+| ASGN (false, "", (VRF (a, typrnga, []) :: VRF (c, typrngc, []) :: [])) ::
+  ASGN (false, "",
+               (ARITH (op,
+		       (VRF (c', typrngc', []) ::
+			    VRF (b, typrngb, []) :: [])) :: VRF (c'', typrngc'', []) :: [])) :: tl
+when c=c' && c'=c'' && typrnga=typrngc && typrngc=typrngc' && typrngc'=typrngc'' ->
+
+  ASGN (false, "",
+               (ARITH (op,
+		       (VRF (a, typrnga, []) ::
+			    VRF (b, typrngb, []) :: [])) :: VRF (c, typrngc, []) :: [])) :: nonblocking tl
+| oth -> oth
+
 let _Always itms (deplst, body) = match deplst with
-| SNTRE items -> itms.alwys := ("", COMB, (SNTRE items :: body)) :: !(itms.alwys)
+| SNTRE items -> itms.alwys := ("", COMB, (SNTRE items :: nonblocking body)) :: !(itms.alwys)
 | POSPOS (clk, rst) as edg -> itms.alwys := ("", edg, body) :: !(itms.alwys)
 | POSEDGE (clk) as edg -> itms.alwys := ("", edg, body) :: !(itms.alwys)
 | deplst -> othalwys := (deplst, body); failwith "_Always"
@@ -166,12 +181,12 @@ let _AshiftR itms (a, b) = LOGIC(Lshiftrs, [a;b])
 let _Ternary itms (cond, a, b) = CND ("", [cond;a;b])
 let _Gen_case itms cond lst = itms.gen := ("", lst) :: !(itms.gen); UNKNOWN
 let _Posedge itms = function
-| VRF (id, (Dump_types.BASDTYP, "logic", TYPNONE, []), []) -> POSEDGE id
+| VRF (id, (BASDTYP, "logic", TYPNONE, []), []) -> POSEDGE id
 | oth -> oth' := oth; failwith "_Posedge oth'"
 let rec _cnstexpr = function
 | CNST (w, lft) -> lft
 | ARITH(arithop, args) -> CNSTEXP(arithop, List.map _cnstexpr args)
-| VRF (param, (Dump_types.BASDTYP, "logic", TYPNONE, []), []) -> STRING param
+| VRF (param, (BASDTYP, "logic", TYPNONE, []), []) -> STRING param
 | SYS ("", syscall, args) -> CNSTEXP(Aunknown, STRING syscall :: List.map _cnstexpr args)
 | oth -> oth' := oth; failwith "_cnstexpr oth'"
 let _Range itms (lft, rght) = TYPRNG(_cnstexpr lft, _cnstexpr rght)
@@ -190,12 +205,13 @@ let _Array_net itms = function
 let _Edge itms = function
 | [POSEDGE clk; POSEDGE rst] -> POSPOS (clk, rst)
 | VRF _ :: _ as lst -> SNTRE lst
+| [] -> SNTRE []
 | oth -> othlst' := oth; failwith "_Edge oth'"
 let _ArrayRange itms = function
 | TYPRNG(lo,hi) as rng, (TYPRNG(lft,rght) as elm) -> VRF ("", (UNPACKADTYP, "logic", rng, [elm]), [])
 | oth -> othrng2' := oth; failwith "_ArrayRange othrng2'"
 let _TypespecRange itms = function
-| TYPRNG(lft,rght) as rng -> VRF ("", (Dump_types.BASDTYP, "logic", rng, []), [])
+| TYPRNG(lft,rght) as rng -> VRF ("", (BASDTYP, "logic", rng, []), [])
 | oth -> othrng' := oth; failwith "_TypespecRange othrng'"
 
 let _Asgn itms = function
@@ -269,15 +285,19 @@ let rec top_pat' itms = function
   | TUPLE2 (Vpinet, _) as vpi -> let _ = top_pat itms vpi in ()
   | TUPLE2 (Vpivariables, _) as vpi -> let _ = top_pat itms vpi in ()
   | oth -> oldpat := oth; failwith "gen_scope") lst
-|     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpialways)),
+|     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, (Vpialways|Vpiassignstmt))),
+		     TUPLE3 (Begin, TLIST _, TLIST (Vpiparent :: TLIST [] :: lst))) ->
+		     othstmtlst := lst;
+		     _Always itms (SNTRE [], seqlst itms lst)
+|     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, (Vpialways|Vpiassignstmt))),
 		     TUPLE3 (Event_control, TUPLE2 (Vpicondition, cond), TUPLE3 (Begin, TLIST _, TLIST (Vpiparent :: TLIST [] :: lst )))) ->
 		     othstmtlst := lst;
 		     _Always itms ((expr itms) cond, seqlst itms lst)
-|     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpialways)),
+|     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, (Vpialways|Vpiassignstmt))),
 		     TUPLE3 (Event_control, TUPLE2 (Vpicondition, cond), stmt)) ->
 		     othstmt := stmt;
 		     _Always itms ((expr itms) cond, seqtok itms stmt)
-|     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpialways)),
+|     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, (Vpialways|Vpiassignstmt))),
        TUPLE2 (Event_control,
          TUPLE3 (Begin, TLIST _, TLIST lst))) -> _Always itms (_Edge itms [], seqlst itms lst)
 |   TUPLE2 (Vpinet,
@@ -636,6 +656,13 @@ and asgntyp itms lhs rhs = function
 | Vpibitorop -> _Or itms (lhs, rhs)
 | Vpibitxorop -> _Xor itms (lhs, rhs)
 | Vpibitxnorop -> _Xnor itms (lhs, rhs)
+| Vpieqop -> _Eq itms (lhs, rhs)
+| Vpibitxorop -> _Xor itms (lhs, rhs)
+| Vpibitorop -> _Or itms (lhs, rhs)
+| Vpineqop -> _Ne itms (lhs, rhs)
+| Vpilshiftop -> _LshiftL itms (lhs, rhs)
+| Vpilogandop -> _LogAnd itms (lhs, rhs)
+| Vpigeop -> _Ge itms (lhs, rhs)
 | oth -> failwith "asgntyp"
 
 and (seqlst:itms->token list->rw list) = fun itms lst -> List.filter (function (UNKNOWN|SCOPE "Place767"|SCOPE "") -> false | _ -> true) (List.map (pat itms) lst)
@@ -726,16 +753,9 @@ and expr itms = function
 |   TUPLE4 (Bit_select, STRING s, TLIST _, TUPLE2 (Vpiindex,
      TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int _), TUPLE2 (UINT, Int n), Vpiuintconst))) -> _Bitsel itms (_Ident itms s, _Integer itms n)
 |   TUPLE4 (Bit_select, STRING s, TLIST _, TUPLE2 (Vpiindex, ix)) -> _Bitsel itms (_Ident itms s, (expr itms) ix)
-|   TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop as op), lft, rght) -> asgntyp itms (expr itms lft) (expr itms rght) op
-|   TUPLE3 (Vpineqop, a, b) -> _Ne itms ((expr itms) a, (expr itms) b)
-|   TUPLE3 (Vpilshiftop, a, b) -> _LshiftL itms ((expr itms) a, (expr itms) b)
-|   TUPLE3 (Vpilogandop, a, b) -> _LogAnd itms ((expr itms) a, (expr itms) b)
-|   TUPLE3 (Vpigeop, a, b) -> _Ge itms ((expr itms) a, (expr itms) b)
+|   TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), lft, rght) -> asgntyp itms (expr itms lft) (expr itms rght) op
 |   TUPLE2 (Vpieventorop, TLIST lst) -> _Edge itms (List.map (expr itms) lst)
 |   TUPLE3 (Vpieventorop, a, b) -> _Edge itms ((expr itms) a :: (expr itms) b :: [])
-|   TUPLE3 (Vpieqop, a, b) -> _Eq itms ((expr itms) a, (expr itms) b)
-|   TUPLE3 (Vpibitxorop, a, b) -> _Xor itms ((expr itms) a, (expr itms) b)
-|   TUPLE3 (Vpibitorop, a, b) -> _Or itms ((expr itms) a, (expr itms) b)
 |   TUPLE2 (Vpibitnegop, a) -> _Lneg itms ((expr itms) a)
 |   TUPLE2 (Vpiconcatop as op, TLIST lst) -> concat op (List.map (expr itms) lst)
 |   TUPLE2 (Vpicondition, c) -> expr itms c

@@ -1532,12 +1532,12 @@ let dump intf f modul =
                  append (fsrc "" :: ASSIGN :: SP :: expr modul dst @ (SP :: ASSIGNMENT :: SP:: expr modul src @ SEMI :: NL :: []));
                  ) (List.rev !(modul.ca));
   List.iter (function
+    | ("", COMB, (SNTRE []) :: lst) -> othcomb := lst;
+      append (fsrc "" :: ALWAYS :: AT :: STAR :: flatten1 modul false lst);
     | ("", COMB, (SNTRE deplst) :: lst) ->
       append (fsrc "" :: ALWAYS :: AT :: let delim = ref [SP;LPAREN] in List.flatten (List.map (function
       | VRF (nam, _, _) -> let dep = !delim @ [IDENT nam] in delim := SP :: IDENT "or" :: SP :: []; dep
       | oth -> []) deplst) @ RPAREN :: SP :: flatten1 modul false lst);
-    | ("", COMB, (SNTRE []) :: lst) -> othcomb := lst;
-      append (fsrc "" :: ALWAYS :: AT :: STAR :: flatten1 modul false lst);
     | ("", POSPOS (ck, rst), lst) ->
       append (fsrc "" :: ALWAYS :: AT :: LPAREN :: POSEDGE :: SP :: IDENT ck :: COMMA :: POSEDGE :: SP :: IDENT rst :: RPAREN :: flatten1 modul true lst);
     | ("", POSNEG (ck, rst), lst) ->
