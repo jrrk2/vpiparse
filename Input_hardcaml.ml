@@ -29,6 +29,7 @@ open Hardcaml
 open Always
 open Signal
 
+let othtokens = ref Rtl_parser.ENDOFFILE
 let othcnst = ref (ERR "othcnst")
 let othalwystran = ref None
 let othasgn = ref Work
@@ -247,6 +248,7 @@ let add_decl k x = function
 
 let declare_input port = function
 | Width(hi,lo,signed) as w ->
+  print_endline ("Input: "^port);
   let s = Signal.input port (hi-lo+1) in
   add_decl port (if signed then Sigs (Signed.of_signal s) else Sig s) w
 | oth -> otht := Some oth; failwith "declare_input" in
@@ -324,15 +326,18 @@ let declare_orphan = function
   add_decl wire (if signed then Sigs (Signed.of_signal s) else Sig s) wid
 | oth -> othrw := oth; failwith "declare_orphan" in
 
+let declare_option enable width = function
+    | Some r_sync ->
+      Always.Variable.reg ~enable r_sync ~width
+    | None -> Always.Variable.wire ~default:(Signal.zero width) in
+
 let declare_reg attr reg =
   if exists reg then () else
   begin
-  let wid' _ = function Width(hi,lo,signed) as wid -> let width = hi-lo+1 in
-  let r_sync = match attr.r_sync with Some x -> x | None -> failwith "r_sync" in
-  let enable = attr.enable in
-  if false then print_endline (reg^": "^string_of_int width);
-  add_decl reg (Var (Always.Variable.reg ~enable r_sync ~width)) wid
-  | _ -> failwith "declare_reg" in
+  let wid' _ = function
+    | Width(hi,lo,signed) as wid ->
+      add_decl reg (Var (declare_option attr.enable (hi-lo+1) attr.r_sync)) wid
+    | _ -> failwith "declare_reg" in
   tran_search wid' wid' reg;
   end in
 
@@ -434,13 +439,15 @@ let sys_func x = function
 | "$unsigned" -> Unsigned x
 | oth -> othfunc := oth; failwith "sys_func" in
 
+let _ = List.iter (fun (io,_ as args) -> if not (exists io) then iofunc declare_input (fun _ _ -> ()) args) (List.rev !(modul.io)) in
+
 let alwystran = List.flatten (List.map (function
   | ("", COMB, (SNTRE [] :: lst)) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in List.map (tranitm attr) lst
   | ("", POSEDGE clk, lst) -> let attr = {enable=Signal.vdd; r_sync=Some (Reg_spec.create ~clock:(sig' (find_decl clk)) ()); dest=false} in List.map (tranitm attr) lst
   | ("", POSPOS (clk, rst), lst) -> let attr = {enable=Signal.vdd; r_sync=Some (Reg_spec.create ~clock:(sig' (find_decl clk)) ~reset:(sig' (find_decl rst)) ()); dest=false} in List.map (tranitm attr) lst
   | oth -> othalwystran := Some oth; failwith "alwystran") !(modul.alwys)) in
 
-let _ = List.iter (fun (io,_ as args) -> if not (exists io) then iofunc declare_input declare_wire args) !(modul.io) in
+let _ = List.iter (fun (io,_ as args) -> if not (exists io) then iofunc (fun _ _ -> ()) declare_wire args) !(modul.io) in
 
 let _ = List.iter (fun (v,_ as args) -> if not (exists v) then vfunc declare_input declare_wire args) !(modul.v) in
 
@@ -632,9 +639,8 @@ let remap' = List.filter (function Invalid -> false | Sig _ -> false |_ -> true)
 let remap'' = List.map alw' remap' in
 let _ = Always.compile remap'' in
 let oplst = ref [] in
-let callback_input _ = function Width(hi,lo,signed) as wid -> () in
-let callback_wire io = function Width(hi,lo,signed) as wid -> cnv_op oplst io (find_decl io) in
-List.iter (iofunc callback_input callback_wire) !(modul.io);
-
-Hardcaml.Rtl.output Verilog (Hardcaml.Circuit.create_exn ~name:modnam !oplst);
+List.iter (iofunc (fun _ _ -> ()) (fun io _ -> cnv_op oplst io (find_decl io))) !(modul.io);
+let rtl = Buffer.create 65535 in
+Hardcaml.Rtl.output ~output_mode:(Hardcaml.Rtl.Output_mode.To_buffer rtl) Verilog (Hardcaml.Circuit.create_exn ~name:modnam !oplst);
+Rtl_dump.dump modnam rtl
 end

@@ -6,10 +6,12 @@ open Input_types
 open Input_pat4
 open Input_dump
 open Input_hardcaml
+open Rtl_parser
 open Input_equiv
 open Dump_types
 open Hardcaml
 open Signal
+open Rtl_dump
 
 #print_length 1000000;;
 #print_depth 1000000;;

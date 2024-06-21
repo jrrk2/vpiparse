@@ -330,9 +330,14 @@ let rec top_pat' itms = function
        STRING nam, TLIST _, TUPLE2 (Vpinettype, (Vpireg|Vpinet|Vpialways as typ)))) ->
         let rng' = typrng itms rng in
         _Porthighrng itms typ nam rng'
-	(*
-         _Identrng typ itms nam rng'
-	 *)
+|   TUPLE2 (Vpinet,
+     TUPLE5 (Logic_net,
+       TUPLE2 (Vpitypespec,
+         TUPLE3 (Ref_typespec, TLIST _,
+           TUPLE2 (Vpiactual, TUPLE4 (Logic_typespec, LOC _, rng, Vpisigned)))),
+       STRING nam, TLIST _, (Vpisigned as typ))) ->
+        let rng' = typrng itms rng in
+        _Porthighrng itms typ nam rng'
 |   TUPLE2 (Vpiport,
      TUPLE5 (Port, STRING s, TUPLE2 (Vpidirection, (Vpiinput|Vpioutput as dir)),
        TUPLE2 (Vpilowconn, _),
@@ -703,6 +708,13 @@ and expr itms = function
            TUPLE3 (Ref_typespec, TLIST _,
              TUPLE2 (Vpiactual, TUPLE3 (Logic_typespec, LOC _, rng)))),
          STRING s, TLIST _, TUPLE2 (Vpinettype, (Vpireg|Vpialways|Vpinet as typ))))) -> _Identrng typ itms s (typrng itms rng)
+|   TUPLE4 (Ref_obj, STRING _, TLIST _,
+     TUPLE2 (Vpiactual,
+       TUPLE5 (Logic_net,
+         TUPLE2 (Vpitypespec,
+           TUPLE3 (Ref_typespec, TLIST _,
+             TUPLE2 (Vpiactual, TUPLE4 (Logic_typespec, LOC _, rng, Vpisigned)))),
+         STRING s, TLIST _, (Vpisigned as typ)))) -> _Identrng typ itms s (typrng itms rng)
 |   TUPLE4 (Ref_obj, STRING s, TLIST _,
      TUPLE2 (Vpiactual,
        TUPLE3 (Logic_net,
