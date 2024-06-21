@@ -238,8 +238,10 @@ type remap =
   | Var of Hardcaml.Always.Variable.t
   | Itm of (Hardcaml.Signal.t * Hardcaml.Always.t list)
 
+(*
 type attr = {
   pass: bool;
   clock: string option;
   reset: string option;
 }
+*)

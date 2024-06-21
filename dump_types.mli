@@ -3,6 +3,7 @@ type attr = {
   clock: string option;
   reset: string option;
   enable: string option;
+  dest: bool;
 }
 
 type var =

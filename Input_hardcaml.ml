@@ -29,6 +29,7 @@ open Hardcaml
 open Always
 open Signal
 
+let othalwystran = ref None
 let othasgn = ref Work
 let othr = ref Invalid
 let othv = ref None
@@ -207,18 +208,145 @@ let arithopvpi = function
 | Amuls -> Vpimultop
 | Aunknown -> Vpirhs
 
-let rec tranitm = function
+let logopvpi = function
+| Lunknown -> Vpirhs
+| Land -> Vpibitandop
+| Lredand -> Vpilogandop
+| Lor -> Vpibitorop
+| Lredor -> Vpilogorop
+| Lxor -> Vpibitxorop
+| Lxnor -> Vpibitxnorop
+| Lredxor -> Vpibitxorop
+| Lredxnor -> Vpibitxnorop
+| Lshiftl -> Vpilshiftop
+| Lshiftr -> Vpirshiftop
+| Lshiftrs -> Vpiarithrshiftop
+
+let cnv_op oplst k = function
+        | Var v -> oplst := output k v.value :: !oplst
+        | Itm v -> ()
+        | Con v -> ()
+        | Alw v -> ()
+        | Sig v -> ()
+        | Sigs v -> ()
+        | Invalid -> ()
+
+let cnv (modnam, (_, modul)) =
+begin
+let declare_lst = ref [] in
+let exists k = List.mem_assoc k !declare_lst in
+let add_decl k x = function
+| Width(hi,lo,signed) as wid ->
+  if exists k then print_endline (k^": redeclared") else
+  begin
+    declare_lst := (k, x) :: !declare_lst;
+    othdecl := (k, (wid, summary x)) :: !othdecl
+  end
+| oth -> otht := Some oth; failwith "add_decl" in
+
+let declare_input port = function
+| Width(hi,lo,signed) as w ->
+  let s = Signal.input port (hi-lo+1) in
+  add_decl port (if signed then Sigs (Signed.of_signal s) else Sig s) w
+| oth -> otht := Some oth; failwith "declare_input" in
+
+let declare_wire wire = function
+| Width(hi,lo,signed) as wid -> let wid' = hi-lo+1 in
+  add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid'))) wid
+| oth -> otht := Some oth; failwith "declare_wire" in
+
+let iofunc declare_input declare_wire = function
+   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Dinput, "logic", [])) -> declare_input io (Width(0,0,false))
+   | (io, ("", (BASDTYP, "logic", TYPRNG (HEX hi, HEX lo), []), Dinput, "logic", [])) -> declare_input io (Width(hi,lo,false))
+   | (io, ("", (BASDTYP, "logic", TYPRNG (HEX hi, HEX lo), []), Doutput, "logic", [])) -> declare_wire io (Width(hi,lo,false))
+   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Doutput, "logic", [])) -> declare_wire io (Width(0,0,false))
+   | oth -> othio := Some oth; failwith "othio" in
+
+let vfunc declare_input declare_wire = function
+   | (v, ("", (BASDTYP, "reg", TYPNONE, []), "reg", (UNKDTYP, "", TYPNONE, []))) -> declare_wire v (Width(0,0,false))
+   | (v, ("", (BASDTYP, "reg", TYPRNG (HEX hi, HEX lo), []), "reg", (UNKDTYP, "", TYPNONE, []))) -> declare_wire v (Width(hi,lo,false))
+   | oth -> othv := Some oth; failwith "othv" in
+
+let tran_search declare_input declare_wire id =
+  if List.mem_assoc id !(modul.io) then iofunc declare_input declare_wire (id, List.assoc id !(modul.io))
+  else if List.mem_assoc id !(modul.v) then vfunc declare_input declare_wire (id, List.assoc id !(modul.v))
+  else print_endline (id^": not found") in
+
+let find_decl k = if not (List.mem_assoc k !declare_lst) then tran_search declare_input declare_wire k; List.assoc k !declare_lst in
+let iter_decl fn = List.iter (fun (k,x) -> fn k x) !declare_lst in
+
+let unsigned x = Signed.to_signal x in
+
+let sig' = function
+| Con x -> Signal.of_constant x
+| Sig x -> x
+| Sigs x -> unsigned x
+| Var x -> x.value
+| oth -> othr := oth; failwith "sig'" in
+
+let alw' = function
+| Alw x -> x
+| oth -> othr := oth; failwith "alw'" in
+
+let var' = function
+| Var x -> x
+| oth -> othr := oth; failwith "var'" in
+
+let declare_orphan = function
+| TUPLE2 (Vpitypespec, TUPLE3 (Ref_typespec, TLIST pth,
+					     TUPLE2 (Vpiactual, TUPLE2 (Logic_typespec, (Width(hi, lo, signed) as wid))))) ->
+  let wire = List.hd (List.rev (List.map (function Input.STRING s -> s | oth -> failwith "declare_orphan") pth)) in
+  let wid' = hi-lo+1 in
+ let s = Signal.input wire (hi-lo+1) in
+  add_decl wire (if signed then Sigs (Signed.of_signal s) else Sig s) wid
+| oth -> othrw := oth; failwith "declare_orphan" in
+
+let clock attr = match attr.clock with
+| Some clk -> if true then print_endline ("clock: "^clk); sig' (find_decl clk)
+| None -> failwith ("failed to identify clock for declare_reg") in
+
+let r_sync attr = match attr.reset with
+  | Some rst -> let reset = sig' (find_decl rst) in
+    let clock = clock attr in
+    Reg_spec.create ~clock ~reset ()
+  | None -> 
+    let clock = clock attr in
+    Reg_spec.create ~clock () in
+
+let declare_reg attr reg =
+  if exists reg then () else
+  begin
+  let wid' _ = function Width(hi,lo,signed) as wid -> let width = hi-lo+1 in let r_sync = r_sync attr in
+  if false then print_endline (reg^": "^string_of_int width);
+  add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width)) wid
+  | _ -> failwith "declare_reg" in
+  tran_search wid' wid' reg;
+  end in
+
+let rec tranitm attr = function
 | UNKNOWN -> Void 0
-| ASGN (bool, str2, src::dst::[]) -> Asgn(tranitm dst, tranitm src)
+| VRF (id, _, []) -> if attr.dest then declare_reg attr id; Ident id
+| ASGN (bool, str2, src::dst::[]) -> Asgn((tranitm {attr with dest=true}) dst, (tranitm attr) src)
 | ASGN (bool, str2, rw_lst) -> failwith "ASGN"
-| ARITH (arithop, lft::rght::[]) -> Dyadic(arithopvpi arithop, tranitm lft, tranitm rght)
-| VRF (id, _, []) -> Ident id
+| ARITH (arithop, lft::rght::[]) -> Dyadic(arithopvpi arithop, (tranitm attr) lft, (tranitm attr) rght)
+| LOGIC (logop, lft::rght::[]) -> Dyadic(logopvpi logop, (tranitm attr) lft, (tranitm attr) rght)
+| IF (str1, cond::then_::else_::[]) -> If_ ((tranitm attr) cond, (tranitm attr) then_::[], (tranitm attr) else_::[])
+| IF (str1, rw_lst) -> failwith "IF"
+| CNST (w, HEX n) -> Hex (string_of_int n, w)
+(*
+| CNST (_, BIN n) -> (String.make 1 n)
+| CNST (_, SHEX n) -> (string_of_int n)
+| CNST (w, BIGINT n) -> hex_of_bigint w n
+| CNST (_, STRING s) -> String.map (function '0'..'9' | 'a'..'f' | 'A'..'F' as ch -> ch | oth -> '_') s
+| CNST (_, FLT f) -> (string_of_float f)
+| CNST (_, ERR err) -> failwith "ERR"
+*)
+| CNST (_, err) -> failwith "CNST"
 | XML (rw_lst) -> failwith "XML"
 | EITM (str1, str2, str3, int2, rw_lst) -> failwith "EITM"
 | IO (str1, str2lst, typ2, dirop, str3, rw_lst) -> failwith "IO"
 | VAR (str1, str2lst, typ2, str3) -> failwith "VAR"
 | IVAR (str1, str2, typ2, rw_lst, int3) -> failwith "IVAR"
-| CNST (int, cexp) -> failwith "CNST"
 | VRF (str1, typ', rw_lst) -> failwith "VRF"
 | TYP (idx, (typenc, str1, typmap, typ_lst)) -> failwith "TYP"
 | FNC (str1, str2, typ2, rw_lst) -> failwith "FNC"
@@ -235,7 +363,6 @@ let rec tranitm = function
 | SEL (str1, rw_lst) -> failwith "SEL"
 | ASEL (rw_lst) -> failwith "ASEL"
 | SNITM (str1, rw_lst) -> failwith "SNITM"
-| LOGIC (logop, rw_lst) -> failwith "LOGIC"
 | CMP (cmpop, rw_lst) -> failwith "CMP"
 | FRF (str1, str2, rw_lst) -> failwith "FRF"
 | XRF (str1, str2, str3, str4, dirop) -> failwith "XRF"
@@ -250,7 +377,6 @@ let rec tranitm = function
 | RNG (rw_lst) -> failwith "RNG"
 | ALWYS (str1, rw_lst) -> failwith "ALWYS"
 | SNTRE (rw_lst) -> failwith "SNTRE"
-| IF (str1, rw_lst) -> failwith "IF"
 | INIT (str1, str2, rw_lst) -> failwith "INIT"
 | IRNG (str1, rw_lst) -> failwith "IRNG"
 | IFC (str1, str2, rw_lst) -> failwith "IFC"
@@ -281,96 +407,7 @@ let rec tranitm = function
 | TIM _ -> failwith "TIM"
 | SCOPE tid -> failwith "SCOPE"
 | ITM _ -> failwith "ITM"
-| CONTAINER (itms, SCOPE top) -> failwith "CONTAINER"
-
-let cnv_op oplst k = function
-        | Var v -> oplst := output k v.value :: !oplst
-        | Itm v -> ()
-        | Con v -> ()
-        | Alw v -> ()
-        | Sig v -> ()
-        | Sigs v -> ()
-        | Invalid -> ()
-
-let cnv (modnam, (_, modul)) =
-begin
-let declare_lst = ref [] in
-let exists k = List.mem_assoc k !declare_lst in
-let add_decl k x = function
-| Width(hi,lo,signed) as wid ->
-  if exists k then print_endline (k^": redeclared") else
-  begin
-    declare_lst := (k, x) :: !declare_lst;
-    othdecl := (k, (wid, summary x)) :: !othdecl
-  end
-| oth -> otht := Some oth; failwith "add_decl" in
-
-let find_decl k = List.assoc k !declare_lst in
-let iter_decl fn = List.iter (fun (k,x) -> fn k x) !declare_lst in
-
-let unsigned x = Signed.to_signal x in
-
-let sig' = function
-| Con x -> Signal.of_constant x
-| Sig x -> x
-| Sigs x -> unsigned x
-| Var x -> x.value
-| oth -> othr := oth; failwith "sig'" in
-
-let alw' = function
-| Alw x -> x
-| oth -> othr := oth; failwith "alw'" in
-
-let var' = function
-| Var x -> x
-| oth -> othr := oth; failwith "var'" in
-
-let declare_input port = function
-| Width(hi,lo,signed) as w ->
-  let s = Signal.input port (hi-lo+1) in
-  add_decl port (if signed then Sigs (Signed.of_signal s) else Sig s) w
-| oth -> otht := Some oth; failwith "declare_input" in
-
-let declare_wire = function
-| wire, (Width(hi,lo,signed) as wid) -> let wid' = hi-lo+1 in
-  add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid'))) wid
-| oth -> othdecl' := oth; failwith "declare_wire" in
-
-let declare_orphan = function
-| TUPLE2 (Vpitypespec, TUPLE3 (Ref_typespec, TLIST pth,
-					     TUPLE2 (Vpiactual, TUPLE2 (Logic_typespec, (Width(hi, lo, signed) as wid))))) ->
-  let wire = List.hd (List.rev (List.map (function Input.STRING s -> s | oth -> failwith "declare_orphan") pth)) in
-  let wid' = hi-lo+1 in
- let s = Signal.input wire (hi-lo+1) in
-  add_decl wire (if signed then Sigs (Signed.of_signal s) else Sig s) wid
-| oth -> othrw := oth; failwith "declare_orphan" in
-
-let clock attr = match attr.clock with
-| Some clk -> if true then print_endline ("clock: "^clk); sig' (find_decl clk)
-| None -> failwith ("failed to identify clock for declare_reg") in
-
-let r_sync attr = match attr.reset with
-  | Some rst -> let reset = sig' (find_decl rst) in
-    let clock = clock attr in
-    Reg_spec.create ~clock ~reset ()
-  | None -> 
-    let clock = clock attr in
-    Reg_spec.create ~clock () in
-
-let declare_reg attr = function
-| TUPLE2 (TUPLE2 (Vpiactual, TUPLE2 (Logic_net, TUPLE2(TLIST pth, (Width(hi,lo, signed) as wid)))), STRING reg) -> if exists reg then () else
-  begin
-  let width = hi-lo+1 in let r_sync = r_sync attr in
-  if true then print_endline (reg^": "^string_of_int width);
-  add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width)) wid;
-  end
-| TUPLE5 (Part_select, STRING reg,
-      TUPLE3 (Vpiuintconst, Int lft, Int _),
-      TUPLE3 (Vpiuintconst, Int rght, Int _), (Width(hi, lo, signed) as wid)) -> let wid' = hi-lo+1 in let r_sync = r_sync attr in
-  add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid')) wid;
-| TUPLE3 (Bit_select, STRING reg, TUPLE3 (Vpiuintconst, Int lft, Int _)) -> let wid' = 1 in let r_sync = r_sync attr in
-  add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width:wid')) (Width(0,0,false))
-| oth -> othrw := oth; failwith "declare_reg" in
+| CONTAINER (itms, SCOPE top) -> failwith "CONTAINER" in
 
 let edgstmt = ref Work in
 let edgstmt' = ref (Void 0) in
@@ -383,21 +420,16 @@ let sys_func x = function
 | "$unsigned" -> Unsigned x
 | oth -> othfunc := oth; failwith "sys_func" in
 
-let othalwystran = List.flatten (List.map (function
-  | ("", COMB, (SNTRE [] :: lst)) -> List.map tranitm lst
-  | oth -> []) !(modul.alwys)) in
+let alwystran = List.flatten (List.map (function
+  | ("", COMB, (SNTRE [] :: lst)) -> List.map (tranitm {enable=None; clock=None; reset=None; dest=false}) lst
+  | ("", POSEDGE clk, lst) -> List.map (tranitm {enable=None; clock=Some clk; reset=None; dest=false}) lst
+  | oth -> othalwystran := Some oth; failwith "alwyastran") !(modul.alwys)) in
 
-let _ = List.iter (function
-	   | (io, ("", (BASDTYP, "logic", TYPRNG (HEX hi, HEX lo), []), Dinput, "logic", [])) -> declare_input io (Width(hi,lo,false))
-	   | (io, ("", (BASDTYP, "logic", TYPRNG (HEX hi, HEX lo), []), Doutput, "logic", [])) -> declare_wire (io, Width(hi,lo,false))
-           | oth -> othio := Some oth; failwith "othio") !(modul.io) in
+let _ = List.iter (fun (io,_ as args) -> if not (exists io) then iofunc declare_input declare_wire args) !(modul.io) in
 
-let _ = List.iter (function
-           | (v, ("", (BASDTYP, "reg", TYPNONE, []), "reg", (UNKDTYP, "", TYPNONE, []))) -> declare_wire (v, Width(0,0,false))
-           | (v, ("", (BASDTYP, "reg", TYPRNG (HEX hi, HEX lo), []), "reg", (UNKDTYP, "", TYPNONE, []))) -> declare_wire (v, Width(hi,lo,false))
-           | oth -> othv := Some oth; failwith "othv") !(modul.v) in
+let _ = List.iter (fun (v,_ as args) -> if not (exists v) then vfunc declare_input declare_wire args) !(modul.v) in
 
-let remapp' = List.filter (function Void _ -> false |_ -> true) othalwystran in
+let remapp' = List.filter (function Void _ -> false |_ -> true) alwystran in
 
 let rec strength_reduce = function
 | Asgn (Ident c, 
@@ -586,10 +618,10 @@ let remap'' = List.map alw' remap' in
 let _ = Always.compile remap'' in
 let oplst = ref [] in
 List.iter (function
-    | (io, ("", (BASDTYP, "logic", TYPRNG (HEX hi, HEX lo), []), Dinput, "logic", [])) -> ()
+    | (io, ("", (BASDTYP, "logic", _, []), Dinput, "logic", [])) -> ()
     | (io, ("", (BASDTYP, "logic", TYPRNG (HEX hi, HEX lo), []), Doutput, "logic", [])) ->
        cnv_op oplst io (find_decl io)
-    | oth -> othio := Some oth; failwith "othio") !(modul.io);
+    | oth -> othio := Some oth; failwith "othio'") !(modul.io);
 
 Hardcaml.Rtl.output Verilog (Hardcaml.Circuit.create_exn ~name:modnam !oplst);
 end

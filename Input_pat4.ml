@@ -51,6 +51,17 @@ when c=c' && c'=c'' && typrnga=typrngc && typrngc=typrngc' && typrngc'=typrngc''
                (ARITH (op,
 		       (VRF (a, typrnga, []) ::
 			    VRF (b, typrngb, []) :: [])) :: VRF (c, typrngc, []) :: [])) :: nonblocking tl
+| ASGN (false, "", (VRF (a, typrnga, []) :: VRF (c, typrngc, []) :: [])) ::
+  ASGN (false, "",
+               (LOGIC (op,
+		       (VRF (c', typrngc', []) ::
+			    VRF (b, typrngb, []) :: [])) :: VRF (c'', typrngc'', []) :: [])) :: tl
+when c=c' && c'=c'' && typrnga=typrngc && typrngc=typrngc' && typrngc'=typrngc'' ->
+
+  ASGN (false, "",
+               (LOGIC (op,
+		       (VRF (a, typrnga, []) ::
+			    VRF (b, typrngb, []) :: [])) :: VRF (c, typrngc, []) :: [])) :: nonblocking tl
 | oth -> oth
 
 let _Always itms (deplst, body) = match deplst with
