@@ -1,8 +1,7 @@
 
 type attr = {
-  clock: string option;
-  reset: string option;
-  enable: string option;
+  r_sync: Hardcaml.Signal.register option;
+  enable: Hardcaml.Signal.t;
   dest: bool;
 }
 

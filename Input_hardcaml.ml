@@ -301,24 +301,14 @@ let declare_orphan = function
   add_decl wire (if signed then Sigs (Signed.of_signal s) else Sig s) wid
 | oth -> othrw := oth; failwith "declare_orphan" in
 
-let clock attr = match attr.clock with
-| Some clk -> if true then print_endline ("clock: "^clk); sig' (find_decl clk)
-| None -> failwith ("failed to identify clock for declare_reg") in
-
-let r_sync attr = match attr.reset with
-  | Some rst -> let reset = sig' (find_decl rst) in
-    let clock = clock attr in
-    Reg_spec.create ~clock ~reset ()
-  | None -> 
-    let clock = clock attr in
-    Reg_spec.create ~clock () in
-
 let declare_reg attr reg =
   if exists reg then () else
   begin
-  let wid' _ = function Width(hi,lo,signed) as wid -> let width = hi-lo+1 in let r_sync = r_sync attr in
+  let wid' _ = function Width(hi,lo,signed) as wid -> let width = hi-lo+1 in
+  let r_sync = match attr.r_sync with Some x -> x | None -> failwith "r_sync" in
+  let enable = attr.enable in
   if false then print_endline (reg^": "^string_of_int width);
-  add_decl reg (Var (Always.Variable.reg ~enable:Signal.vdd r_sync ~width)) wid
+  add_decl reg (Var (Always.Variable.reg ~enable r_sync ~width)) wid
   | _ -> failwith "declare_reg" in
   tran_search wid' wid' reg;
   end in
@@ -421,9 +411,10 @@ let sys_func x = function
 | oth -> othfunc := oth; failwith "sys_func" in
 
 let alwystran = List.flatten (List.map (function
-  | ("", COMB, (SNTRE [] :: lst)) -> List.map (tranitm {enable=None; clock=None; reset=None; dest=false}) lst
-  | ("", POSEDGE clk, lst) -> List.map (tranitm {enable=None; clock=Some clk; reset=None; dest=false}) lst
-  | oth -> othalwystran := Some oth; failwith "alwyastran") !(modul.alwys)) in
+  | ("", COMB, (SNTRE [] :: lst)) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in List.map (tranitm attr) lst
+  | ("", POSEDGE clk, lst) -> let attr = {enable=Signal.vdd; r_sync=Some (Reg_spec.create ~clock:(sig' (find_decl clk)) ()); dest=false} in List.map (tranitm attr) lst
+  | ("", POSPOS (clk, rst), lst) -> let attr = {enable=Signal.vdd; r_sync=Some (Reg_spec.create ~clock:(sig' (find_decl clk)) ~reset:(sig' (find_decl rst)) ()); dest=false} in List.map (tranitm attr) lst
+  | oth -> othalwystran := Some oth; failwith "alwystran") !(modul.alwys)) in
 
 let _ = List.iter (fun (io,_ as args) -> if not (exists io) then iofunc declare_input declare_wire args) !(modul.io) in
 
