@@ -29,6 +29,7 @@ open Hardcaml
 open Always
 open Signal
 
+let othcnst = ref (ERR "othcnst")
 let othalwystran = ref None
 let othasgn = ref Work
 let othr = ref Invalid
@@ -255,21 +256,43 @@ let declare_wire wire = function
   add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid'))) wid
 | oth -> otht := Some oth; failwith "declare_wire" in
 
-let iofunc declare_input declare_wire = function
-   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Dinput, "logic", [])) -> declare_input io (Width(0,0,false))
-   | (io, ("", (BASDTYP, "logic", TYPRNG (HEX hi, HEX lo), []), Dinput, "logic", [])) -> declare_input io (Width(hi,lo,false))
-   | (io, ("", (BASDTYP, "logic", TYPRNG (HEX hi, HEX lo), []), Doutput, "logic", [])) -> declare_wire io (Width(hi,lo,false))
-   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Doutput, "logic", [])) -> declare_wire io (Width(0,0,false))
+let arithopint = function
+| Aadd -> ( + )
+| Asub -> ( - )
+| Amul -> ( * )
+| Amuls -> ( * )
+| Aunknown -> (fun _ _ -> failwith "Aunknown") in
+
+let rec cnstexpr = function
+| HEX int -> int
+| SHEX int -> int
+| ENUMVAL (int, string) -> int
+| CNSTEXP (Aunknown, STRING fn::rght::[]) -> failwith fn
+| CNSTEXP (arithop, lft::rght::[]) -> (arithopint arithop) (cnstexpr lft) (cnstexpr rght)
+| STRING string -> (match List.assoc string !(modul.cnst) with (_, (w, cnst)) -> cnstexpr cnst | oth -> failwith "cnstparam")
+(*
+| BIN char -> SP :: []
+| FLT float -> SP :: []
+| BIGINT int64t -> SP :: []
+*)
+| ERR string -> failwith string
+| oth -> othcnst := oth; failwith "cnstexpr" in
+
+let iofunc callback_input callback_wire = function
+   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Dinput, "logic", [])) -> callback_input io (Width(0,0,false))
+   | (io, ("", (BASDTYP, "logic", TYPRNG (hi, lo), []), Dinput, "logic", [])) -> callback_input io (Width(cnstexpr hi,cnstexpr lo,false))
+   | (io, ("", (BASDTYP, "logic", TYPRNG (hi, lo), []), Doutput, "logic", [])) -> callback_wire io (Width(cnstexpr hi,cnstexpr lo,false))
+   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Doutput, "logic", [])) -> callback_wire io (Width(0,0,false))
    | oth -> othio := Some oth; failwith "othio" in
 
-let vfunc declare_input declare_wire = function
-   | (v, ("", (BASDTYP, "reg", TYPNONE, []), "reg", (UNKDTYP, "", TYPNONE, []))) -> declare_wire v (Width(0,0,false))
-   | (v, ("", (BASDTYP, "reg", TYPRNG (HEX hi, HEX lo), []), "reg", (UNKDTYP, "", TYPNONE, []))) -> declare_wire v (Width(hi,lo,false))
+let vfunc callback_input callback_wire = function
+   | (v, ("", (BASDTYP, "reg", TYPNONE, []), "reg", (UNKDTYP, "", TYPNONE, []))) -> callback_wire v (Width(0,0,false))
+   | (v, ("", (BASDTYP, "reg", TYPRNG (HEX hi, HEX lo), []), "reg", (UNKDTYP, "", TYPNONE, []))) -> callback_wire v (Width(hi,lo,false))
    | oth -> othv := Some oth; failwith "othv" in
 
-let tran_search declare_input declare_wire id =
-  if List.mem_assoc id !(modul.io) then iofunc declare_input declare_wire (id, List.assoc id !(modul.io))
-  else if List.mem_assoc id !(modul.v) then vfunc declare_input declare_wire (id, List.assoc id !(modul.v))
+let tran_search callback_input callback_wire id =
+  if List.mem_assoc id !(modul.io) then iofunc callback_input callback_wire (id, List.assoc id !(modul.io))
+  else if List.mem_assoc id !(modul.v) then vfunc callback_input callback_wire (id, List.assoc id !(modul.v))
   else print_endline (id^": not found") in
 
 let find_decl k = if not (List.mem_assoc k !declare_lst) then tran_search declare_input declare_wire k; List.assoc k !declare_lst in
@@ -321,6 +344,7 @@ let rec tranitm attr = function
 | ARITH (arithop, lft::rght::[]) -> Dyadic(arithopvpi arithop, (tranitm attr) lft, (tranitm attr) rght)
 | LOGIC (logop, lft::rght::[]) -> Dyadic(logopvpi logop, (tranitm attr) lft, (tranitm attr) rght)
 | IF (str1, cond::then_::else_::[]) -> If_ ((tranitm attr) cond, (tranitm attr) then_::[], (tranitm attr) else_::[])
+| IF (str1, cond::then_::[]) -> If_ ((tranitm attr) cond, (tranitm attr) then_::[], [])
 | IF (str1, rw_lst) -> failwith "IF"
 | CNST (w, HEX n) -> Hex (string_of_int n, w)
 (*
@@ -608,11 +632,9 @@ let remap' = List.filter (function Invalid -> false | Sig _ -> false |_ -> true)
 let remap'' = List.map alw' remap' in
 let _ = Always.compile remap'' in
 let oplst = ref [] in
-List.iter (function
-    | (io, ("", (BASDTYP, "logic", _, []), Dinput, "logic", [])) -> ()
-    | (io, ("", (BASDTYP, "logic", TYPRNG (HEX hi, HEX lo), []), Doutput, "logic", [])) ->
-       cnv_op oplst io (find_decl io)
-    | oth -> othio := Some oth; failwith "othio'") !(modul.io);
+let callback_input _ = function Width(hi,lo,signed) as wid -> () in
+let callback_wire io = function Width(hi,lo,signed) as wid -> cnv_op oplst io (find_decl io) in
+List.iter (iofunc callback_input callback_wire) !(modul.io);
 
 Hardcaml.Rtl.output Verilog (Hardcaml.Circuit.create_exn ~name:modnam !oplst);
 end
