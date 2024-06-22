@@ -38,7 +38,7 @@ and remapp =
   | Always of remapp * remapp list
   | Asgn of remapp * remapp
   | Block of remapp * remapp
-  | Concat of token * remapp * remapp
+  | Concat of remapp * remapp
   | Selection of remapp * int * int * int * int
   | Update of remapp * int * int * int * int
   | Bitsel of remapp * remapp
@@ -237,11 +237,3 @@ type remap =
   | Alw of Hardcaml.Always.t
   | Var of Hardcaml.Always.Variable.t
   | Itm of (Hardcaml.Signal.t * Hardcaml.Always.t list)
-
-(*
-type attr = {
-  pass: bool;
-  clock: string option;
-  reset: string option;
-}
-*)

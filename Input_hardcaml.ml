@@ -29,6 +29,8 @@ open Hardcaml
 open Always
 open Signal
 
+let othcmp = ref Cunknown
+let othirng = ref UNKNOWN
 let othtokens = ref Rtl_parser.ENDOFFILE
 let othcnst = ref (ERR "othcnst")
 let othalwystran = ref None
@@ -341,6 +343,26 @@ let declare_reg attr reg =
   tran_search wid' wid' reg;
   end in
 
+let rec concat = function
+     | [] -> failwith "concat"
+     | hd :: [] -> hd
+     | hd :: tl -> Concat(hd, concat tl) in
+
+let compare lft rght = function
+| Ceq -> Dyadic(Vpieqop, lft, rght)
+| Cneq -> Dyadic(Vpineqop, lft, rght)
+| Cgt -> Dyadic(Vpigtop, lft, rght)
+| Cgts -> Dyadic(Vpigtop, lft, rght)
+| Cgte -> Dyadic(Vpigeop, lft, rght)
+| Cgtes -> Dyadic(Vpigtop, lft, rght)
+| Ceqwild -> Dyadic(Vpieqop, lft, rght)
+| Cneqwild -> Dyadic(Vpineqop, lft, rght)
+| Cltes -> Dyadic(Vpiltop, lft, rght)
+| Clte -> Dyadic(Vpileop, lft, rght)
+| Clt -> Dyadic(Vpiltop, lft, rght)
+| Clts -> Dyadic(Vpiltop, lft, rght)
+| Cunknown as oth -> othcmp := oth; failwith "compare" in
+
 let rec tranitm attr = function
 | UNKNOWN -> Void 0
 | VRF (id, _, []) -> if attr.dest then declare_reg attr id; Ident id
@@ -351,6 +373,15 @@ let rec tranitm attr = function
 | IF (str1, cond::then_::else_::[]) -> If_ ((tranitm attr) cond, (tranitm attr) then_::[], (tranitm attr) else_::[])
 | IF (str1, cond::then_::[]) -> If_ ((tranitm attr) cond, (tranitm attr) then_::[], [])
 | IF (str1, rw_lst) -> failwith "IF"
+| CND (str1, cond::lft::rght::[]) -> Mux2 (tranitm attr cond, tranitm attr lft, tranitm attr rght)
+| CND (str1, rw_lst) -> failwith "CND"
+| CAT (str1, rw_lst) -> concat (List.map (tranitm attr) rw_lst)
+| CAT (str1, rw_lst) -> failwith "CAT"
+| SEL (str1, nam::CNST (_, HEX lft)::CNST (_, HEX rght)::[]) -> Selection (tranitm attr nam, rght, lft, 0, 0)
+| SEL (str1, rw_lst) -> failwith "SEL"
+| CMP (cmpop, lft::rght::[]) -> compare (tranitm attr lft) (tranitm attr rght) cmpop
+| CMP (cmpop, rw_lst) -> failwith "CMP"
+| IRNG (str1, rw_lst) as irng -> othirng := irng; failwith "IRNG"
 | CNST (w, HEX n) -> Hex (string_of_int n, w)
 (*
 | CNST (_, BIN n) -> (String.make 1 n)
@@ -379,16 +410,12 @@ let rec tranitm attr = function
 | PORT (str1, str2, dirop, rw_lst) -> failwith "PORT"
 | CA (str1, rw_lst) -> failwith "CA"
 | UNRY (unaryop, rw_lst) -> failwith "UNRY"
-| SEL (str1, rw_lst) -> failwith "SEL"
 | ASEL (rw_lst) -> failwith "ASEL"
 | SNITM (str1, rw_lst) -> failwith "SNITM"
-| CMP (cmpop, rw_lst) -> failwith "CMP"
 | FRF (str1, str2, rw_lst) -> failwith "FRF"
 | XRF (str1, str2, str3, str4, dirop) -> failwith "XRF"
 | PKG (str1, str2, rw_lst) -> failwith "PKG"
-| CAT (str1, rw_lst) -> failwith "CAT"
 | CPS (str1, rw_lst) -> failwith "CPS"
-| CND (str1, rw_lst) -> failwith "CND"
 | REPL (str1, int2, rw_lst) -> failwith "REPL"
 | MODUL (str1, str2, rw_lst, tmp) -> failwith "MODUL"
 | BGN (None, rw_lst) -> failwith "BGN"
@@ -397,7 +424,6 @@ let rec tranitm attr = function
 | ALWYS (str1, rw_lst) -> failwith "ALWYS"
 | SNTRE (rw_lst) -> failwith "SNTRE"
 | INIT (str1, str2, rw_lst) -> failwith "INIT"
-| IRNG (str1, rw_lst) -> failwith "IRNG"
 | IFC (str1, str2, rw_lst) -> failwith "IFC"
 | IMP (str1, str2, rw_lst) -> failwith "IMP"
 | IMRF (str1, str2, dir, rw_lst) -> failwith "IMRF"
@@ -468,7 +494,7 @@ let rec combiner = function
   combiner (Asgn(Ident blk', Dyadic(op, exp1, exp2)) :: tl @ tl')
 | Seq lst :: tl -> combiner (lst @ tl)
 | Asgn (Update (Ident dest, lfthi, lftlo, hi, lo), a) :: Asgn (Update (Ident dest', rghthi, rghtlo, hi', lo'), b) :: tl
-when dest=dest' && lfthi=hi && lftlo=rghthi+1 && rghtlo=lo && hi=hi' && lo=lo' -> Asgn(Ident dest, Concat ( Vpiconcatop, a, b )) :: combiner tl
+when dest=dest' && lfthi=hi && lftlo=rghthi+1 && rghtlo=lo && hi=hi' && lo=lo' -> Asgn(Ident dest, Concat ( a, b )) :: combiner tl
 | Block(id, expr) :: tl -> Asgn(id, expr) :: combiner tl
 | Asgn (_, Void 585) :: tl -> combiner tl
 | hd :: tl -> hd :: combiner tl in
@@ -615,7 +641,7 @@ if exists wire then find_decl wire else Invalid
 | Dec (s,width) -> Con (Constant.of_z ~width (Z.of_string s))
 | Oct (s,width) -> Con (Constant.of_octal_string ~width ~signedness:Unsigned s)
 | Bin (s,width) -> Con (Constant.of_binary_string_hum s)
-| Concat (op, lhs, rhs) -> 
+| Concat (lhs, rhs) -> 
    othlhs' := lhs;
    othrhs' := rhs;
    othrmlhs' := remap lhs;

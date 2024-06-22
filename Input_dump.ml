@@ -127,6 +127,10 @@ let hex_to_bigint s = let rslt = ref 0L in String.iter (function
 | 'a'..'f' as ch -> rslt := Int64.add (Int64.of_int (int_of_char ch - int_of_char 'a' + 10)) (Int64.mul 16L !rslt)
 | ch -> failwith (String.make 1 ch)) s; !rslt
 
+let bin_to_bigint s = let rslt = ref 0L in String.iter (function
+| '0'..'1' as ch -> rslt := Int64.add (Int64.of_int (int_of_char ch - int_of_char '0')) (Int64.mul 2L !rslt)
+| ch -> failwith (String.make 1 ch)) s; !rslt
+
 let rec hex_of_bigint w n = Printf.sprintf "%Lx" n
 
 let hex_to_ascii len str =
@@ -147,16 +151,31 @@ let hex_to_ascii len str =
     end
   else invalid_arg str
 
+let bin_to_ascii len str =
+  let bytes = String.length str in
+  let h = ref 0 in
+  let mychar_of_int x = if x >= 32 && x <= 127 && (len > 8 || x >= int_of_char 'a') then char_of_int x else failwith "ascii" in
+  String.iteri (fun ix -> function
+    | '0'..'1' as ch -> h := !h * 2 + (int_of_char ch - int_of_char '0');
+    | _ -> h := -1) str;
+  !h
+
 let decode len str =
   decopt := Some (len,str);
   try STRING (Bytes.to_string (hex_to_ascii len str))
   with err -> let num = hex_to_bigint str in try HEX(Int64.to_int num) with err -> BIGINT num
+
+let decodebin len str =
+  decopt := Some (len,str);
+  try HEX (bin_to_ascii len str)
+  with err -> let num = bin_to_bigint str in try HEX(Int64.to_int num) with err -> BIGINT num
 
 let cexp exp = match exp.[0] with
 | '"' -> let n = String.length exp - 2 in let s = String.sub exp 1 n in (n, STRING s)
 | _ ->
     try Scanf.sscanf exp "%d'h%x" (fun b n -> (b, HEX n)) with err ->
     try Scanf.sscanf exp "%d'h%s" (fun b s -> (b, decode b s)) with err ->
+    try Scanf.sscanf exp "%d'b%s" (fun b s -> (b, decodebin b s)) with err ->
     try Scanf.sscanf exp "%d'sh%x" (fun b n -> (b, SHEX n)) with err ->
     try Scanf.sscanf exp "%d'bx" (fun b -> (b, BIN 'x')) with err ->
     try Scanf.sscanf exp "%d" (fun n -> (32, SHEX n)) with err ->
@@ -1042,7 +1061,9 @@ let rec expr modul = function
     let initarr ix itm = let lst' = !delim :: num ix :: COLON :: expr modul itm in delim := COMMA; lst' in
     QUOTE :: LCURLY :: List.flatten (List.mapi initarr arglst) @ [RCURLY]
 | SYS ("", fn, arglst) -> IDENT fn :: LPAREN :: eiter modul SP arglst @ [RPAREN]
+(*
 | SEL _ as sel -> IDENT (dumpitm sel) :: []
+*)
 | SEL ("", expr1 :: lo :: wid :: []) as sel -> selopt := Some sel; failwith "expr: selopt"
 | TIM (origin) -> IDENT "$time" :: []
 | ITM ("", itm, CNST (s, n) :: []) -> SIZED (s,n) :: []

@@ -29,28 +29,47 @@ let uitms = ref []
 let dir = function
 | INPUT -> Dinput
 | OUTPUT -> Doutput
+| oth -> othfail := oth; failwith "dir"
 
 let arithop = function
 | PLUS -> Aadd
 | MINUS -> Asub
 | TIMES -> Amul
+| oth -> othfail := oth; failwith "arithop"
 
 let logicop = function
 | AND -> Land
 | OR -> Lor
 | XOR -> Lxor
+| oth -> othfail := oth; failwith "logicop"
+
+let cmpop = function
+| P_EQUAL -> Ceq
+| oth -> othfail := oth; failwith "cmpop"
 
 let rec expr itms = function
 | IDSTR id -> _Ident itms id
+| BINNUM c -> CNST (cexp c)
+| INT n -> CNST (32, HEX n)
 | TRIPLE((AND|OR|XOR as op), lft, rght) -> LOGIC(logicop op, [expr itms lft;expr itms rght])
 | TRIPLE((PLUS|MINUS|TIMES as op), lft, rght) -> ARITH(arithop op, [expr itms lft;expr itms rght])
+| TRIPLE((P_EQUAL as op), lft, rght) -> CMP(cmpop op, [expr itms lft;expr itms rght])
+| DOUBLE(CONCAT, TLIST lst) -> concat CONCAT (List.map (expr itms) lst)
+| QUADRUPLE (PARTSEL, id, hi, lo) -> _Selection itms (expr itms id, expr itms hi, expr itms lo, 0, 0)
+| QUADRUPLE (QUERY, cond, lft, rght) -> _Ternary itms (expr itms cond, expr itms lft, expr itms rght) 
 | oth -> othfail := oth; failwith "expr"
 
 let ports = List.iter (function IDSTR id -> print_endline id)
+
+let rec body itms = function
+| QUADRUPLE(DLYASSIGNMENT, src, EMPTY, dest) -> _Asgn itms (expr itms src, expr itms dest)
+| oth -> othfail := oth; failwith "body"
 					
 let rec dump itms = function
 | TLIST lst -> List.iter (dump itms) lst
 | DOUBLE(POSEDGE,arg) as pat -> othfail := pat; failwith "DOUBLE(POSEDGE,arg)"
+| DOUBLE(ALWAYS, TLIST [DOUBLE (DOUBLE (AT, TLIST [DOUBLE (POSEDGE, IDSTR clk)]), TLIST [TLIST lst])]) ->
+  _Always itms (POSEDGE clk, List.map (body itms) lst)
 | DOUBLE(tok,arg) as pat -> othfail := pat; failwith "DOUBLE(tok,arg)"
 | TRIPLE(EQUALS, arg1, arg2) as pat -> othfail := pat; failwith "TRIPLE(EQUALS,"
 | TRIPLE(IF, arg1, arg2) as pat -> othfail := pat; failwith "TRIPLE(IF,"
@@ -63,11 +82,23 @@ let rec dump itms = function
 | QUADRUPLE(PARTSEL, IDSTR id, hi, lo) as pat -> othfail := pat; failwith "QUADRUPLE(PARTSEL,"
 | QUADRUPLE(EQUALS, arg1, arg2, arg3) as pat -> othfail := pat; failwith "QUADRUPLE(EQUALS,"
 | QUADRUPLE(IF, arg1, arg2, arg3) as pat -> othfail := pat; failwith "QUADRUPLE(IF,"
-| QUADRUPLE(WIRE, EMPTY, TRIPLE (EMPTY, RANGE (INT hi, INT lo), EMPTY),
+| QUADRUPLE(WIRE, EMPTY, TRIPLE (EMPTY, EMPTY, EMPTY),
+    TLIST [DOUBLE (IDSTR nam, EMPTY)]) -> _Identyp itms nam Vpinet
+| QUADRUPLE((WIRE|REG), EMPTY, TRIPLE (EMPTY, RANGE (INT hi, INT lo), EMPTY),
     TLIST [DOUBLE (IDSTR nam, EMPTY)]) -> _Identyprng itms nam (TYPRNG(HEX hi, HEX lo)) Vpinet
+| QUADRUPLE((WIRE|REG), EMPTY, RANGE (INT hi, INT lo),
+    TLIST [TRIPLE (IDSTR nam, EMPTY, EMPTY)]) -> _Identyprng itms nam (TYPRNG(HEX hi, HEX lo)) Vpinet
+| QUADRUPLE((WIRE|REG), EMPTY, TRIPLE (EMPTY, EMPTY, EMPTY),
+	  TLIST [TRIPLE (IDSTR nam, EMPTY, init)]) ->
+		  _Identyp itms nam Vpinet; _Cont_assign itms (expr itms init, _Ident itms nam)
+| QUADRUPLE((WIRE|REG), EMPTY, TRIPLE (EMPTY, RANGE (INT hi, INT lo), EMPTY),
+	  TLIST [TRIPLE (IDSTR nam, EMPTY, init)]) ->
+		  _Identyprng itms nam (TYPRNG(HEX hi, HEX lo)) Vpinet; _Cont_assign itms (expr itms init, _Ident itms nam)
 | QUADRUPLE(tok, arg1, arg2, arg3) as pat -> othfail := pat; failwith "QUADRUPLE(tok,"
 | QUINTUPLE(MODULE, arg1, arg2, TLIST arg3, arg4) -> let u = empty_itms [] in uitms := u :: !uitms; dump u arg2; ports arg3; dump u arg4
-| QUINTUPLE ((INPUT|OUTPUT as dir'), EMPTY, EMPTY, RANGE (INT hi, INT lo),
+| QUINTUPLE((INPUT|OUTPUT as dir'), EMPTY, EMPTY, EMPTY,
+        TLIST [TRIPLE (IDSTR nam, EMPTY, EMPTY)]) -> _Port itms (dir dir') nam
+| QUINTUPLE((INPUT|OUTPUT as dir'), EMPTY, EMPTY, RANGE (INT hi, INT lo),
         TLIST [TRIPLE (IDSTR nam, EMPTY, EMPTY)]) -> _Portrng itms (dir dir') nam (TYPRNG(HEX hi, HEX lo))
 | QUINTUPLE(tok, arg1, arg2, arg3, arg4) as pat -> othfail := pat; failwith "QUINTUPLE(tok,"
 | SEXTUPLE(tok, arg1, arg2, arg3, arg4, arg5) as pat -> othfail := pat; failwith "SEXTUPLE(tok,"
@@ -100,8 +131,14 @@ let rec dump itms = function
 | WEAK strength as pat -> othfail := pat; failwith "WEAK"
 | WIDTHNUM(radix,sz,num) as pat -> othfail := pat; failwith "WIDTHNUM(radix,sz,num)"
 | INT n as pat -> othfail := pat; failwith "INT"
+| oth -> othfail := oth; failwith "dump"
 
 let dump modnam rtl =
+let chk = modnam^"_hardcaml.v" in
+print_endline chk;
+let fd = open_out chk in
+output_string fd (Buffer.contents rtl);
+close_out fd;
 let lexbuf = Lexing.from_string (Buffer.contents rtl) in
 let rslt = Rtl_parser.start Rtl_lexer.token lexbuf in
 othrtl := rslt;
@@ -109,6 +146,4 @@ let u = empty_itms [] in
 uitms := u :: [];
 let _ = dump u rslt in
 dump' (modnam, ((), (List.hd !uitms)));
-let fd = open_out (modnam^"_hardcaml.v") in
-output_string fd (Buffer.contents rtl);
-close_out fd
+()

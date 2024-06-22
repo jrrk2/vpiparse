@@ -96,7 +96,7 @@ let _Mux2 itms (_, _, _) = failwith "Mux2"
 let _Block itms (_, _) = failwith "Block"
 let _Block_array itms t s r = ASGN(true, s, [])
 let _Integer itms n = CNST(32, HEX n)
-let _Selection itms (nam, lft, rght, _, _) = IRNG (nam, [rght; lft])
+let _Selection itms (nam, lft, rght, _, _) = SEL ("", [nam; rght; lft])
 let _Update itms (_, _, _, _, _) = failwith "Update"
 let _Bitsel itms (a, b) = SEL ("", a :: b :: _Integer itms 1 :: [])
 let _Unary itms (_, _) = failwith "Unary"
@@ -301,6 +301,9 @@ let rec top_pat' itms = function
   | TUPLE2 (Vpinet, _) as vpi -> let _ = top_pat itms vpi in ()
   | TUPLE2 (Vpivariables, _) as vpi -> let _ = top_pat itms vpi in ()
   | oth -> oldpat := oth; failwith "gen_scope") lst
+|     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, (Vpialways|Vpiassignstmt))),
+		     (TUPLE5 (Assignment, _, _, _, _) as stmt)) ->
+		     _Always itms (SNTRE [], seqtok itms stmt)
 |     TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, (Vpialways|Vpiassignstmt))),
 		     TUPLE3 (Begin, TLIST _, TLIST (Vpiparent :: TLIST [] :: lst))) ->
 		     othstmtlst := lst;
@@ -763,7 +766,7 @@ and expr itms = function
 |   TUPLE7 (Part_select, TUPLE2 (Vpiname, STRING part),
      TUPLE2 (Vpifullname, TLIST _), TUPLE2 (Vpidefname, STRING _),
      TUPLE2 (Vpiconstantselect, Int _), TUPLE2 (Vpileftrange, lft),
-     TUPLE2 (Vpirightrange, rght)) -> _Selection itms (part,  (expr itms lft),  (expr itms rght), 0, 0)
+     TUPLE2 (Vpirightrange, rght)) -> _Selection itms (_Ident itms part,  (expr itms lft),  (expr itms rght), 0, 0)
 |   TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w),
      TUPLE2 (UINT, Int n), Vpiuintconst) -> _Dec itms (string_of_int n, w)
 |   TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w), TUPLE2 (INT, Int n),
