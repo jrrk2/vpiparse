@@ -18,8 +18,8 @@ Input_remapp
 *.tok
 junk*
 logfile.txt
-Input_dump
-Input_dump_top
+Input_equiv
+Input_equiv_top
 ord.ml
 ord.sh
 rtl_lexer.ml
