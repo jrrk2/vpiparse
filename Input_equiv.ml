@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *)
 
-let eqv gold stem =
+let eqv gold gate stem =
   let script = stem^".eqy" in
   let fd = open_out script in
   output_string fd ("[options]\n");
@@ -32,7 +32,7 @@ let eqv gold stem =
   output_string fd ("prep -top "^stem^"\n");
   output_string fd ("\n");
   output_string fd ("[gate]\n");
-  output_string fd ("read -sv "^stem^".v\n");
+  output_string fd ("read -sv "^gate^"\n");
   output_string fd ("prep -top "^stem^"\n");
   output_string fd ("\n");
   output_string fd ("[strategy simple]\n");
@@ -56,9 +56,10 @@ let tran f =
   close_in ch;
   p' := p;
   let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
-  if false then List.iter dump' !allmods;
-  List.iter dump' !topmods;
+  if true then List.iter (dump' "_all") !allmods;
+  List.iter (dump' "_top") !topmods;
   List.iter cnv !topmods;
-  if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) modnam | _ -> failwith "multiple top modules"
+  if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) (modnam^"_hardcaml.v") modnam | _ -> failwith "multiple top modules"
 
-let _ = if Array.length Sys.argv > 1 then tran Sys.argv.(1)
+let _ = if Array.length Sys.argv > 3 then eqv Sys.argv.(3) Sys.argv.(2) Sys.argv.(1)
+        else if Array.length Sys.argv > 1 then tran Sys.argv.(1)

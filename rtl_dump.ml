@@ -55,7 +55,10 @@ let rec expr itms = function
 | TRIPLE((PLUS|MINUS|TIMES as op), lft, rght) -> ARITH(arithop op, [expr itms lft;expr itms rght])
 | TRIPLE((P_EQUAL as op), lft, rght) -> CMP(cmpop op, [expr itms lft;expr itms rght])
 | DOUBLE(CONCAT, TLIST lst) -> concat CONCAT (List.map (expr itms) lst)
-| QUADRUPLE (PARTSEL, id, hi, lo) -> _Selection itms (expr itms id, expr itms hi, expr itms lo, 0, 0)
+| QUADRUPLE (PARTSEL, id, INT hi, INT lo) -> SEL ("", [expr itms id; CNST (32, HEX lo); CNST (32, HEX (hi-lo+1))])
+(*
+ | QUADRUPLE (PARTSEL, id, hi, lo) -> _Selection itms (expr itms id, expr itms hi, expr itms lo, 0, 0)
+*)
 | QUADRUPLE (QUERY, cond, lft, rght) -> _Ternary itms (expr itms cond, expr itms lft, expr itms rght) 
 | oth -> othfail := oth; failwith "expr"
 
@@ -145,5 +148,5 @@ othrtl := rslt;
 let u = empty_itms [] in
 uitms := u :: [];
 let _ = dump u rslt in
-dump' (modnam, ((), (List.hd !uitms)));
+dump' "_callback" (modnam, ((), (List.hd !uitms)));
 ()

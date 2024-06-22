@@ -161,7 +161,7 @@ else if wlhs > wrhs then
 Sig (relation lhs (uresize rhs wlhs))
 else failwith "relational"
 
-let relationalc relation lhs rhs = Sig (relation lhs rhs)
+let relationalc relation lhs rhs = print_endline ("sll by: "^string_of_int rhs); Sig (relation lhs rhs)
 let relationalc' relation lhs rhs = Sigs (relation lhs rhs)
 
 let relational' relation lhs rhs =
@@ -572,7 +572,7 @@ let signed_relationalc x = let open Signed in match x with
 |Vpiarithrshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.sra (Signed.to_signal lhs) rhs))
 |oth -> otht := Some oth; failwith "unsigned_relationalc" in
 
-let detect_dyadic = function
+let _detect_dyadic = function
 | op,Sig lhs, Sig rhs -> relational (unsigned_relational op) lhs rhs
 | op,Sigs lhs, Sig rhs -> relational (unsigned_relational op) (Signed.to_signal lhs) rhs
 | op,Sig lhs, Sigs rhs -> relational (unsigned_relational op) lhs (Signed.to_signal rhs)
@@ -580,7 +580,7 @@ let detect_dyadic = function
 | (Vpisubop as op), Sig lhs, Con rhs -> relational (unsigned_relational op) lhs (Signal.of_constant rhs)
 | op, Con lhs, Sig rhs -> relational (unsigned_relational op) (Signal.of_constant lhs) rhs
 | op, Con lhs, Sigs rhs -> relational' (signed_relational op) (Signed.of_signal (Signal.of_constant lhs)) rhs
-| (Vpirshiftop|Vpiarithrshiftop as op), Sig lhs, Con rhs -> relationalc (unsigned_relationalc op) lhs (Constant.to_int rhs)
+| (Vpilshiftop|Vpirshiftop|Vpiarithrshiftop as op), Sig lhs, Con rhs -> relationalc (unsigned_relationalc op) lhs (Constant.to_int rhs)
 | op,Sig lhs, Con rhs -> relational (unsigned_relational op) lhs (Signal.of_constant rhs)
 | op,Sigs lhs, Con rhs -> relationalc' (signed_relationalc op) lhs (Constant.to_int rhs)
 | (Vpilshiftop|Vpirshiftop|Vpiarithrshiftop as op), Var lhs, Con rhs -> relationalc (unsigned_relationalc op) lhs.value (Constant.to_int rhs)
@@ -588,6 +588,8 @@ let detect_dyadic = function
 | (Vpilshiftop|Vpirshiftop|Vpiarithrshiftop as op), Con lhs, Con rhs -> relationalc (unsigned_relationalc op) (Signal.of_constant lhs) (Constant.to_int rhs)
 | op, Var lhs, Sig rhs -> relational (unsigned_relational op) lhs.value rhs
 | op,lhs,rhs -> othop := (op, summary lhs, summary rhs); failwith "detect_dyadic" in
+
+let detect_dyadic (op, lhs,rhs) = othop := (op, summary lhs, summary rhs); _detect_dyadic (op, lhs, rhs) in
 
 (*
 let unimplu = let seen = ref [] in fun lbl rhs ->

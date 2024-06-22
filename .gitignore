@@ -4,6 +4,7 @@ Input.mli
 Input_lex.ml
 *.cm?
 *.o
+a.out
 Input
 Input_opt
 Input_top
@@ -66,3 +67,6 @@ types/
 uart_baudgen/
 uart_interrupt/
 uart_receiver/
+ternary_test/
+test_shl_const/
+test_shl_hardcamlv/

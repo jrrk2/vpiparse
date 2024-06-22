@@ -1487,10 +1487,8 @@ let rec taskstmt modul dly nam = function
 | BGN(_,rw_lst) -> List.flatten (List.map (taskstmt modul dly nam) rw_lst)
 | itm -> cstmt modul dly itm @ SEMI :: []
 
-let outnam f = f^".v"
-let outnamopt f = let l = String.length f in f^(if l < 4 || String.sub f (l-4) 4 <> "_opt" then "_opt.v" else ".v")
+let outnam ext f = f^ext^".v"
 let outtok f = f^"_tokens.txt"
-let outtcl f = "./"^f^"_fm.tcl"
 let othcomb = ref []
 
 let needed modul (kind,nam) = match kind with
@@ -1518,7 +1516,6 @@ let needed modul (kind,nam) = match kind with
 let dump intf f modul =
   let appendlst = ref [] in
   let append lst = appendlst := lst :: !appendlst in
-  if true then print_endline ("f \""^f^"\";; /* "^outnam f^" : "^outtcl f ^" */");
   let head = ref [fsrc ""; if intf then INTERFACE else MODULE; SP; IDENT f] in
   let parmlst = List.filter (function (nam, (_, (w, HEX n))) -> true | _ -> false) (!(modul.cnst)) in
   if parmlst <> [] then
@@ -1580,12 +1577,14 @@ let dump intf f modul =
                  ) !(modul.init);
   !head @ List.flatten (List.sort compare !appendlst) @ [NL;if intf then ENDINTERFACE else ENDMODULE;NL;NL]
 
-let dump' (k, (_, tophash)) =
-    let rawtok = dump false k tophash in
+  let dump' ext (f, (_, tophash)) =
+    print_endline ("dump' "^f);
+    if true then print_endline ("f \""^f^"\";; /* "^outnam ext f^" */");
+    let rawtok = dump false f tophash in
     let d = reformat0 rawtok in
     let lst = reformat2 (reformat1 d) in
     let indent = ref 0 in
-    Hashtbl.add modtokens k (rawtok,d,lst);
-    let fd = open_out (outnam k) in
+    Hashtbl.add modtokens f (rawtok,d,lst);
+    let fd = open_out (outnam ext f) in
     List.iter (tokenout fd indent) lst;
     close_out fd
