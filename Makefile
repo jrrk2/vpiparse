@@ -18,7 +18,7 @@ Input.ml: Input.mly Makefile
 rtl_lexer.ml: rtl_lexer.mll
 	ocamllex $<
 
-rtl_parser.ml: rtl_parser.mly Makefile
+rtl_parser.ml rtl_parser.mli: rtl_parser.mly Makefile
 	menhir $(TRACE) --infer $<
 
 ############################################################################
