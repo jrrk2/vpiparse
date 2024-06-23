@@ -70,3 +70,6 @@ uart_receiver/
 ternary_test/
 test_shl_const/
 test_shl_hardcamlv/
+unary/
+optest/
+const_test/

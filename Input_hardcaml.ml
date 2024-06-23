@@ -29,6 +29,9 @@ open Hardcaml
 open Always
 open Signal
 
+let otharith = ref UNKNOWN
+let othlogop = ref Lunknown
+let othcs = ref None
 let othcmp = ref Cunknown
 let othirng = ref UNKNOWN
 let othtokens = ref Rtl_parser.ENDOFFILE
@@ -44,8 +47,10 @@ let othlhs = ref (Void 0)
 let othrhs = ref (Void 0)
 let othrmlhs = ref Invalid
 let othrmrhs = ref Invalid
+let othcond' = ref (Void 0)
 let othlhs' = ref (Void 0)
 let othrhs' = ref (Void 0)
+let othrmcond' = ref Invalid
 let othrmlhs' = ref Invalid
 let othrmrhs' = ref Invalid
 let othp = ref (Void 0)
@@ -82,7 +87,8 @@ let mult_wallace a_sig b_sig =
              (a_sig)
              (b_sig))
 
-let mux2' cond lhs rhs =
+let mux2' cond' lhs rhs =
+let cond = cond' >=: Signal.zero (width cond') in
 let wlhs = width lhs in
 let wrhs = width rhs in
 if wlhs = wrhs then
@@ -208,16 +214,20 @@ let othtok = ref INVALID
 let arithopvpi = function
 | Aadd -> Vpiaddop
 | Asub -> Vpisubop
-| Amul -> Vpimultop
-| Amuls -> Vpimultop
-| Aunknown -> Vpirhs
+| Amul | Amuls -> Vpimultop
+| Adiv | Adivs -> Vpidivop
+| Amod | Amods -> Vpimodop
+| Apow | Apows -> Vpipowerop
+| Aunknown -> failwith "Aunknown"
 
 let logopvpi = function
-| Lunknown -> Vpirhs
+| Lunknown -> failwith "Lunknown"
 | Land -> Vpibitandop
 | Lredand -> Vpilogandop
+| Lrednand -> Vpiunarynandop
 | Lor -> Vpibitorop
 | Lredor -> Vpilogorop
+| Lrednor -> Vpiunarynorop
 | Lxor -> Vpibitxorop
 | Lxnor -> Vpibitxnorop
 | Lredxor -> Vpibitxorop
@@ -225,6 +235,17 @@ let logopvpi = function
 | Lshiftl -> Vpilshiftop
 | Lshiftr -> Vpirshiftop
 | Lshiftrs -> Vpiarithrshiftop
+| oth -> othlogop := oth; failwith "logopvpi"
+
+let unaryvpi = function
+| Unot -> Vpinotop
+| Unknown -> failwith "Unknown"
+| Ulognot -> Vpinotprim
+| Usigned -> Vpisigned
+| Unegate -> Vpinegative
+| Uunsigned -> Vpipositive
+| Uextend(int1, int2) -> failwith "Uextend"
+| Uextends(string, int1, int2) -> failwith "Uextends"
 
 let cnv_op oplst k = function
         | Var v -> oplst := output k v.value :: !oplst
@@ -368,8 +389,10 @@ let rec tranitm attr = function
 | VRF (id, _, []) -> if attr.dest then declare_reg attr id; Ident id
 | ASGN (bool, str2, src::dst::[]) -> Asgn((tranitm {attr with dest=true}) dst, (tranitm attr) src)
 | ASGN (bool, str2, rw_lst) -> failwith "ASGN"
-| ARITH (arithop, lft::rght::[]) -> Dyadic(arithopvpi arithop, (tranitm attr) lft, (tranitm attr) rght)
+| ARITH (arithop, lft::rght::[]) as a -> otharith := a; Dyadic(arithopvpi arithop, (tranitm attr) lft, (tranitm attr) rght)
 | LOGIC (logop, lft::rght::[]) -> Dyadic(logopvpi logop, (tranitm attr) lft, (tranitm attr) rght)
+| LOGIC (logop, rght::[]) -> Unary(logopvpi logop, (tranitm attr) rght)
+| UNRY (unaryop, rght::[]) -> Unary(unaryvpi unaryop, (tranitm attr) rght)
 | IF (str1, cond::then_::else_::[]) -> If_ ((tranitm attr) cond, (tranitm attr) then_::[], (tranitm attr) else_::[])
 | IF (str1, cond::then_::[]) -> If_ ((tranitm attr) cond, (tranitm attr) then_::[], [])
 | IF (str1, rw_lst) -> failwith "IF"
@@ -383,6 +406,8 @@ let rec tranitm attr = function
 | CMP (cmpop, rw_lst) -> failwith "CMP"
 | IRNG (str1, rw_lst) as irng -> othirng := irng; failwith "IRNG"
 | CNST (w, HEX n) -> Hex (string_of_int n, w)
+| CS (str1, expr :: cslst) as cs -> othcs := Some cs; let expr' = tranitm attr expr in
+Case (expr', List.map (function CSITM ("", (CNST _ as cexp) :: stmt :: []) -> Item (expr', tranitm attr cexp, tranitm attr stmt)) cslst)
 (*
 | CNST (_, BIN n) -> (String.make 1 n)
 | CNST (_, SHEX n) -> (string_of_int n)
@@ -430,7 +455,6 @@ let rec tranitm attr = function
 | JMPL (str1, rw_lst) -> failwith "JMPL"
 | JMPG (str1, rw_lst) -> failwith "JMPG"
 | JMPBLK (str1, rw_lst) -> failwith "JMPBLK"
-| CS (str1, rw_lst) -> failwith "CS"
 | CSITM (str1, rw_lst) -> failwith "CSITM"
 | WHL (rw_lst) -> failwith "WHL"
 | FORSTMT _ -> failwith "FORSTMT"
@@ -471,6 +495,7 @@ let alwystran = List.flatten (List.map (function
   | ("", COMB, (SNTRE [] :: lst)) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in List.map (tranitm attr) lst
   | ("", POSEDGE clk, lst) -> let attr = {enable=Signal.vdd; r_sync=Some (Reg_spec.create ~clock:(sig' (find_decl clk)) ()); dest=false} in List.map (tranitm attr) lst
   | ("", POSPOS (clk, rst), lst) -> let attr = {enable=Signal.vdd; r_sync=Some (Reg_spec.create ~clock:(sig' (find_decl clk)) ~reset:(sig' (find_decl rst)) ()); dest=false} in List.map (tranitm attr) lst
+  
   | oth -> othalwystran := Some oth; failwith "alwystran") !(modul.alwys)) in
 
 let _ = List.iter (fun (io,_ as args) -> if not (exists io) then iofunc (fun _ _ -> ()) declare_wire args) !(modul.io) in
@@ -573,6 +598,7 @@ let signed_relationalc x = let open Signed in match x with
 |oth -> otht := Some oth; failwith "unsigned_relationalc" in
 
 let _detect_dyadic = function
+| (Vpirhs as op),Sig lhs, Sig rhs -> othop := (op, summary (Sig lhs), summary (Sig rhs)); failwith "detect_dyadic_rhs"
 | op,Sig lhs, Sig rhs -> relational (unsigned_relational op) lhs rhs
 | op,Sigs lhs, Sig rhs -> relational (unsigned_relational op) (Signed.to_signal lhs) rhs
 | op,Sig lhs, Sigs rhs -> relational (unsigned_relational op) lhs (Signed.to_signal rhs)
@@ -609,7 +635,16 @@ let remapop' = function
 |Vpiunaryxnorop -> fold' (lognegate (^:))
 |Vpibitnegop -> (~:)
 |Vpinotop -> (~:)
+|Vpilogandop -> fold' (&:)
+|Vpilogorop -> fold' (|:)
+|Vpibitxorop -> fold' (^:)
+|Vpibitxnorop -> fold' (lognegate (^:))
+|Vpinegative -> fold' (-:)
 |oth -> otht := Some oth; failwith "remapop'" in
+
+let radix = function
+| Dec (n, w) -> int_of_string n
+| Hex (s, w) -> Scanf.sscanf s "%x" (fun h -> h) in
 
 let rec (remap:remapp->remap) = function
 | Ident wire ->
@@ -617,6 +652,12 @@ if exists wire then find_decl wire else Invalid
 | Unary (op, rhs) -> Sig (remapop' op (sig' (remap rhs)))
 | Dyadic (op, lhs, rhs) -> let lhs = remap lhs and rhs = remap rhs in detect_dyadic (op,lhs, rhs)
 | Mux2 (cond, lhs, rhs) ->
+   othcond' := cond;
+   othlhs' := lhs;
+   othrhs' := rhs;
+   othrmcond' := remap cond;
+   othrmlhs' := remap lhs;
+   othrmrhs' := remap rhs;
   let cond_ = sig' (remap cond) in
   let then_ = sig' (remap lhs) in
   let else_ = sig' (remap rhs) in
@@ -636,6 +677,10 @@ if exists wire then find_decl wire else Invalid
    let rhs' = rhs @: select lhs.value lft rght in (* placeholder, not working yet *)
    Alw (assign' lhs rhs')
 | Asgn (lhs, rhs) ->
+   othlhs' := lhs;
+   othrhs' := rhs;
+   othrmlhs' := remap lhs;
+   othrmrhs' := remap rhs;
    let lhs = var' (remap lhs) in
    let rhs = sig' (remap rhs) in
    Alw (assign' lhs rhs)
@@ -654,7 +699,7 @@ if exists wire then find_decl wire else Invalid
 | Selection(nam, lft, rght, hi, lo) -> Sig (select (sig' (remap nam)) (lft) (rght))
 | Bitsel(nam, Dec (n, _)) -> Sig (bit (sig' (remap nam)) (int_of_string n))
 | Bitsel(nam, sel) as b -> othp := b; Sig (mux' (sig' (remap sel)) (sig' (remap nam)))
-| Item (cond, Dec (n, _), stmt) -> let wid = width (sig' (remap cond)) in Itm (of_int ~width:wid (int_of_string n), [ alw' (remap stmt) ])
+| Item (cond, r, stmt) as itm -> othp := itm; let wid = width (sig' (remap cond)) in Itm (of_int ~width:wid (radix r), [ alw' (remap stmt) ])
 | Case (mode, lst) -> Alw (Always.switch (sig' (remap mode)) (List.map (fun itm -> match remap itm with Itm c -> c | _ -> failwith "itm") lst))
 | Signed x -> (match remap x with Sig x -> Sigs (Signed.of_signal x) | Sigs _ as x -> x | _ -> failwith "Signed")
 | Unsigned x -> (match remap x with Sigs x -> Sig (Signed.to_signal x) | Sig _ as x -> x | _ -> failwith "Unsigned")

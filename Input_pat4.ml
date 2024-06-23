@@ -27,11 +27,24 @@ let fullpth pth = String.concat "$" (List.rev (List.map (function Work -> "$" | 
 let mark n = if not (List.mem n !marklst) then marklst := n :: !marklst
 let dump () = List.iter (fun n -> print_endline (string_of_int n)) (List.sort_uniq compare !marklst)
 
-let _Concat (_, a, b) = CAT ("", [a; b])
-let rec concat op = function
+let _Concat (a, b) = CAT ("", [a; b])
+let rec concat = function
      | [] -> failwith "concat"
      | hd :: [] -> hd
-     | hd :: tl -> _Concat(op, hd, concat op tl)
+     | hd :: tl -> _Concat(hd, concat tl)
+let rec concat_multi = function
+     | [] -> failwith "concat"
+     | hd :: [] -> hd
+     | hd :: tl -> _Concat(hd, concat tl)
+
+let _Unary = function
+| Vpiunaryandop -> Lredand
+| Vpiunarynandop -> Lrednand
+| Vpiunaryorop -> Lredor
+| Vpiunarynorop -> Lrednor
+| Vpiunaryxorop -> Lredxor
+| Vpiunaryxnorop -> Lredxnor
+| oth -> othpat := oth; failwith "_Unary"
 
 let _Void itms n = othvoid := List.hd !patlst; UNKNOWN
 
@@ -99,7 +112,6 @@ let _Integer itms n = CNST(32, HEX n)
 let _Selection itms (nam, lft, rght, _, _) = SEL ("", [nam; rght; lft])
 let _Update itms (_, _, _, _, _) = failwith "Update"
 let _Bitsel itms (a, b) = SEL ("", a :: b :: _Integer itms 1 :: [])
-let _Unary itms (_, _) = failwith "Unary"
 let _Dyadic itms (_, _, _) = failwith "Dyadic"
 
 let _Case itms (exp, lst) = CS ("", List.filter (function UNKNOWN -> false | _ -> true) (List.map (function
@@ -175,9 +187,9 @@ let _Mux itms (_, _) = failwith "Mux"
 let _Add itms (a, b) = ARITH(Aadd, [a;b])
 let _Sub itms (a, b) = ARITH(Asub, [a;b])
 let _Mult itms (a, b) = ARITH(Amul, [a;b])
-let _Div itms (a, b) = ARITH(Aunknown, [a;b])
-let _Mod itms (a, b) = ARITH(Aunknown, [a;b])
-let _Pow itms (a, b) = ARITH(Aunknown, [a;b])
+let _Div itms (a, b) = ARITH(Adiv, [a;b])
+let _Mod itms (a, b) = ARITH(Amod, [a;b])
+let _Pow itms (a, b) = ARITH(Apow, [a;b])
 let _And itms (a, b) = LOGIC(Land, [a;b])
 let _Or itms (a, b) = LOGIC(Lor, [a;b])
 let _Xor itms (a, b) = LOGIC(Lxor, [a;b])
@@ -212,7 +224,7 @@ let otharray = ref None
 let _Array_net itms = function
 | VRF (nam, (BASDTYP, "logic", TYPNONE, []), []),
   VRF ("", (BASDTYP, "logic", typrng, []), []),
-  siz ->
+  siz, typrng' ->
  itms.v := (nam, ("", (UNPACKADTYP, "",
          RECTYP (BASDTYP, "logic", typrng, []),
          [TYPRNG (SHEX 0, SHEX (siz-1))]),
@@ -388,7 +400,7 @@ let rec top_pat' itms = function
 |   TUPLE2 (Vpinet,
     TUPLE6 (Array_net, TUPLE2 (Vpisize, Int siz), mem,
       TLIST _,
-      Vpirange,
+      rng,
       TUPLE2 (Vpinet,
         TUPLE4 (Logic_net,
           TUPLE2 (Vpitypespec,
@@ -396,7 +408,7 @@ let rec top_pat' itms = function
               TLIST _,
               TUPLE2 (Vpiactual, actual))),
           TLIST _,
-          TUPLE2 (Vpinettype, Vpireg))))) -> _Array_net itms (pat itms mem, pat itms actual, siz)
+          TUPLE2 (Vpinettype, Vpireg))))) -> _Array_net itms (pat itms mem, pat itms actual, siz, typrng itms rng)
 | TUPLE2 (Vpitop, Int n) -> ()
 | TUPLE2 (Uhdmtoppackages,
      TUPLE10 (Package, Builtin, STRING _, Builtin, TUPLE2 (Vpitop, Int _),
@@ -687,7 +699,10 @@ and asgntyp itms lhs rhs = function
 | Vpilshiftop -> _LshiftL itms (lhs, rhs)
 | Vpilogandop -> _LogAnd itms (lhs, rhs)
 | Vpigeop -> _Ge itms (lhs, rhs)
-| oth -> failwith "asgntyp"
+| Vpiltop -> _Lt itms (lhs, rhs)
+| Vpileop -> _Le itms (lhs, rhs)
+| Vpigtop -> _Gt itms (lhs, rhs)
+| oth -> othpat := oth; failwith "asgntyp"
 
 and (seqlst:itms->token list->rw list) = fun itms lst -> List.filter (function (UNKNOWN|SCOPE "Place767"|SCOPE "") -> false | _ -> true) (List.map (pat itms) lst)
 
@@ -773,7 +788,9 @@ and expr itms = function
      Vpiintconst) -> _Integer itms n
 |   TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w), BIN b, Vpibinaryconst) -> _Bin itms (b,w)
 |   TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w), OCT o, Vpioctconst) -> _Oct itms (o,w)
+|   TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w), DEC d, Vpidecconst) -> _Dec itms (d,w)
 |   TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w), HEXS h, Vpihexconst) -> _Hex itms (h,w)
+|   TUPLE6 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int w), DEC d, TUPLE2(Vpitypespec, _), Vpidecconst) -> _Dec itms (d,w)
 |   TUPLE6 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int _),
      TUPLE2 (UINT, Int n),
      TUPLE2 (Vpitypespec,
@@ -788,7 +805,11 @@ and expr itms = function
 |   TUPLE2 (Vpieventorop, TLIST lst) -> _Edge itms (List.map (expr itms) lst)
 |   TUPLE3 (Vpieventorop, a, b) -> _Edge itms ((expr itms) a :: (expr itms) b :: [])
 |   TUPLE2 (Vpibitnegop, a) -> _Lneg itms ((expr itms) a)
-|   TUPLE2 (Vpiconcatop as op, TLIST lst) -> concat op (List.map (expr itms) lst)
+|   TUPLE2 (Vpiplusop, a) -> expr itms a
+|   TUPLE2 (Vpiminusop, a) -> UNRY(Unegate, expr itms a :: [])
+|   TUPLE2 (Vpinotop, a) -> UNRY(Unot, expr itms a :: [])
+|   TUPLE2 ((Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop as op), a) -> LOGIC(_Unary op, expr itms a :: [])
+|   TUPLE2 (Vpiconcatop as op, TLIST lst) -> concat (List.map (expr itms) lst)
 |   TUPLE2 (Vpicondition, c) -> expr itms c
 |   TUPLE2 (Vpiposedgeop, p) -> _Posedge itms (expr itms p)
 |   TUPLE3 (Sys_func_call,
@@ -800,6 +821,7 @@ and expr itms = function
 |   TUPLE3 (Sys_func_call, exp, STRING syscall) -> SYS("", syscall, expr itms exp :: [])
 |   TUPLE6 (Parameter, _, _, _, _, _) as par -> let param, _, n = parameter itms par in _Integer itms n
 |   TUPLE2 (Ref_obj, STRING s) -> _Ident itms s
+|   TUPLE2 (Vpimulticoncatop, TLIST lst) -> concat_multi (List.map (expr itms) lst)
 |   oth -> othpat := oth; failwith "expr"
 
 and typrng itms = function

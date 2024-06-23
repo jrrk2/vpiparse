@@ -437,8 +437,10 @@ let simplify_asgn dly' attr dst = function
 let arithopv = function
 | Aadd -> "+"
 | Asub -> "-"
-| Amul -> "*"
-| Amuls -> "*"
+| Amul | Amuls -> "*"
+| Adiv | Adivs -> "/"
+| Amod | Amods -> "%"
+| Apow | Apows -> "**"
 | Aunknown -> "???"
 
 let dumpi n = string_of_int n
@@ -495,12 +497,16 @@ let cmpopv = function
 | Clt -> " < "
 | Clts -> " < "
 
+let othlogop = ref Lunknown
+
 let logopv = function
 | Lunknown -> "???"
 | Land -> " & "
 | Lredand -> " & "
+| Lrednand -> " ~& "
 | Lor -> " | "
 | Lredor -> " | "
+| Lrednor -> " ~| "
 | Lxor -> " ^ "
 | Lxnor -> " ~^ "
 | Lredxor -> " ^ "
@@ -508,6 +514,7 @@ let logopv = function
 | Lshiftl -> " << "
 | Lshiftr -> " >> "
 | Lshiftrs -> " >>> "
+| oth -> othlogop := oth; failwith "logopv"
 
 let rec cadd = function
 | [] -> HEX 0

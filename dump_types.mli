@@ -37,8 +37,10 @@ type logop =
 | Lunknown
 | Land
 | Lredand
+| Lrednand
 | Lor
 | Lredor
+| Lrednor
 | Lxor
 | Lxnor
 | Lredxor
@@ -53,6 +55,12 @@ type arithop =
 | Asub
 | Amul
 | Amuls
+| Adiv
+| Adivs
+| Amod
+| Amods
+| Apow
+| Apows
 
 type dirop = 
 | Dunknown

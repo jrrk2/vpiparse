@@ -45,16 +45,18 @@ let logicop = function
 
 let cmpop = function
 | P_EQUAL -> Ceq
+| LESS -> Clt
 | oth -> othfail := oth; failwith "cmpop"
 
 let rec expr itms = function
 | IDSTR id -> _Ident itms id
 | BINNUM c -> CNST (cexp c)
 | INT n -> CNST (32, HEX n)
+| DOUBLE(NOT,arg) -> UNRY(Unot, expr itms arg :: [])
 | TRIPLE((AND|OR|XOR as op), lft, rght) -> LOGIC(logicop op, [expr itms lft;expr itms rght])
 | TRIPLE((PLUS|MINUS|TIMES as op), lft, rght) -> ARITH(arithop op, [expr itms lft;expr itms rght])
-| TRIPLE((P_EQUAL as op), lft, rght) -> CMP(cmpop op, [expr itms lft;expr itms rght])
-| DOUBLE(CONCAT, TLIST lst) -> concat CONCAT (List.map (expr itms) lst)
+| TRIPLE((P_EQUAL|LESS as op), lft, rght) -> CMP(cmpop op, [expr itms lft;expr itms rght])
+| DOUBLE(CONCAT, TLIST lst) -> concat (List.map (expr itms) lst)
 | QUADRUPLE (PARTSEL, id, INT hi, INT lo) -> SEL ("", [expr itms id; CNST (32, HEX lo); CNST (32, HEX (hi-lo+1))])
 (*
  | QUADRUPLE (PARTSEL, id, hi, lo) -> _Selection itms (expr itms id, expr itms hi, expr itms lo, 0, 0)
