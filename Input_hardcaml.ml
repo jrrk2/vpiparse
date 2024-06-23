@@ -29,6 +29,8 @@ open Hardcaml
 open Always
 open Signal
 
+let othfunc = ref ""
+let othradix = ref (Void 0)
 let otharith = ref UNKNOWN
 let othlogop = ref Lunknown
 let othcs = ref None
@@ -66,6 +68,11 @@ let othop = ref (Work, Invalid, Invalid)
 let rec log2 n = if n <= 1 then 0 else 1 + log2 (n/2)
 
 let exact_log2 n = 1 lsl (log2 n) = n
+
+let sys_func x = function
+| "$signed" -> Signed x
+| "$unsigned" -> Unsigned x
+| oth -> othfunc := oth; failwith "sys_func"
 
 let signed_zero n = Signed.of_signal (Signal.zero n)
 let arithnegate rhs = Signal.zero (width rhs) -: rhs
@@ -235,7 +242,7 @@ let logopvpi = function
 | Lshiftl -> Vpilshiftop
 | Lshiftr -> Vpirshiftop
 | Lshiftrs -> Vpiarithrshiftop
-| oth -> othlogop := oth; failwith "logopvpi"
+
 
 let unaryvpi = function
 | Unot -> Vpinotop
@@ -286,6 +293,9 @@ let arithopint = function
 | Asub -> ( - )
 | Amul -> ( * )
 | Amuls -> ( * )
+| Adiv|Adivs -> ( / )
+| Amod|Amods -> ( mod )
+| Apow|Apows -> ( fun lft rght -> let rec pow = function n when n > 0 -> lft * pow (n-1) | _ -> 1 in pow rght )
 | Aunknown -> (fun _ _ -> failwith "Aunknown") in
 
 let rec cnstexpr = function
@@ -294,7 +304,7 @@ let rec cnstexpr = function
 | ENUMVAL (int, string) -> int
 | CNSTEXP (Aunknown, STRING fn::rght::[]) -> failwith fn
 | CNSTEXP (arithop, lft::rght::[]) -> (arithopint arithop) (cnstexpr lft) (cnstexpr rght)
-| STRING string -> (match List.assoc string !(modul.cnst) with (_, (w, cnst)) -> cnstexpr cnst | oth -> failwith "cnstparam")
+| STRING string -> let (_, (w, cnst)) = List.assoc string !(modul.cnst) in cnstexpr cnst
 (*
 | BIN char -> SP :: []
 | FLT float -> SP :: []
@@ -321,7 +331,7 @@ let tran_search callback_input callback_wire id =
   else print_endline (id^": not found") in
 
 let find_decl k = if not (List.mem_assoc k !declare_lst) then tran_search declare_input declare_wire k; List.assoc k !declare_lst in
-let iter_decl fn = List.iter (fun (k,x) -> fn k x) !declare_lst in
+(* let iter_decl fn = List.iter (fun (k,x) -> fn k x) !declare_lst in *)
 
 let unsigned x = Signed.to_signal x in
 
@@ -339,7 +349,7 @@ let alw' = function
 let var' = function
 | Var x -> x
 | oth -> othr := oth; failwith "var'" in
-
+(*
 let declare_orphan = function
 | TUPLE2 (Vpitypespec, TUPLE3 (Ref_typespec, TLIST pth,
 					     TUPLE2 (Vpiactual, TUPLE2 (Logic_typespec, (Width(hi, lo, signed) as wid))))) ->
@@ -348,7 +358,7 @@ let declare_orphan = function
  let s = Signal.input wire (hi-lo+1) in
   add_decl wire (if signed then Sigs (Signed.of_signal s) else Sig s) wid
 | oth -> othrw := oth; failwith "declare_orphan" in
-
+*)
 let declare_option enable width = function
     | Some r_sync ->
       Always.Variable.reg ~enable r_sync ~width
@@ -390,8 +400,10 @@ let rec tranitm attr = function
 | ASGN (bool, str2, src::dst::[]) -> Asgn((tranitm {attr with dest=true}) dst, (tranitm attr) src)
 | ASGN (bool, str2, rw_lst) -> failwith "ASGN"
 | ARITH (arithop, lft::rght::[]) as a -> otharith := a; Dyadic(arithopvpi arithop, (tranitm attr) lft, (tranitm attr) rght)
+| ARITH (arithop, _) as a -> otharith := a; failwith "ARITH"
 | LOGIC (logop, lft::rght::[]) -> Dyadic(logopvpi logop, (tranitm attr) lft, (tranitm attr) rght)
 | LOGIC (logop, rght::[]) -> Unary(logopvpi logop, (tranitm attr) rght)
+| LOGIC (logop, _) -> failwith "LOGIC"
 | UNRY (unaryop, rght::[]) -> Unary(unaryvpi unaryop, (tranitm attr) rght)
 | IF (str1, cond::then_::else_::[]) -> If_ ((tranitm attr) cond, (tranitm attr) then_::[], (tranitm attr) else_::[])
 | IF (str1, cond::then_::[]) -> If_ ((tranitm attr) cond, (tranitm attr) then_::[], [])
@@ -399,7 +411,6 @@ let rec tranitm attr = function
 | CND (str1, cond::lft::rght::[]) -> Mux2 (tranitm attr cond, tranitm attr lft, tranitm attr rght)
 | CND (str1, rw_lst) -> failwith "CND"
 | CAT (str1, rw_lst) -> concat (List.map (tranitm attr) rw_lst)
-| CAT (str1, rw_lst) -> failwith "CAT"
 | SEL (str1, nam::CNST (_, HEX lft)::CNST (_, HEX rght)::[]) -> Selection (tranitm attr nam, rght, lft, 0, 0)
 | SEL (str1, rw_lst) -> failwith "SEL"
 | CMP (cmpop, lft::rght::[]) -> compare (tranitm attr lft) (tranitm attr rght) cmpop
@@ -407,7 +418,10 @@ let rec tranitm attr = function
 | IRNG (str1, rw_lst) as irng -> othirng := irng; failwith "IRNG"
 | CNST (w, HEX n) -> Hex (string_of_int n, w)
 | CS (str1, expr :: cslst) as cs -> othcs := Some cs; let expr' = tranitm attr expr in
-Case (expr', List.map (function CSITM ("", (CNST _ as cexp) :: stmt :: []) -> Item (expr', tranitm attr cexp, tranitm attr stmt)) cslst)
+Case (expr', List.map (function
+  | CSITM ("", (CNST _ as cexp) :: stmt :: []) -> Item (expr', tranitm attr cexp, tranitm attr stmt)
+  | oth -> othcs := Some oth; failwith "Case") cslst)
+| CS (str1, _) as cs -> othcs := Some cs; failwith "CS"
 (*
 | CNST (_, BIN n) -> (String.make 1 n)
 | CNST (_, SHEX n) -> (string_of_int n)
@@ -476,18 +490,10 @@ Case (expr', List.map (function CSITM ("", (CNST _ as cexp) :: stmt :: []) -> It
 | TIM _ -> failwith "TIM"
 | SCOPE tid -> failwith "SCOPE"
 | ITM _ -> failwith "ITM"
-| CONTAINER (itms, SCOPE top) -> failwith "CONTAINER" in
-
-let edgstmt = ref Work in
-let edgstmt' = ref (Void 0) in
-let conlst = ref [] in
-let conlst' = ref [] in
-let othfunc = ref "" in
-
-let sys_func x = function
-| "$signed" -> Signed x
-| "$unsigned" -> Unsigned x
-| oth -> othfunc := oth; failwith "sys_func" in
+| CONTAINER (itms, top) -> failwith "CONTAINER"
+| CONSPACK (_, _) -> failwith "CONSPACK"
+| CONSPACKMEMB (_, _) -> failwith "CONSPACKMEMB"
+in
 
 let _ = List.iter (fun (io,_ as args) -> if not (exists io) then iofunc declare_input (fun _ _ -> ()) args) (List.rev !(modul.io)) in
 
@@ -644,7 +650,8 @@ let remapop' = function
 
 let radix = function
 | Dec (n, w) -> int_of_string n
-| Hex (s, w) -> Scanf.sscanf s "%x" (fun h -> h) in
+| Hex (s, w) -> Scanf.sscanf s "%x" (fun h -> h)
+| oth -> othradix := oth; failwith "radix" in
 
 let rec (remap:remapp->remap) = function
 | Ident wire ->

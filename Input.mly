@@ -247,6 +247,7 @@ let vpi_obj = function
 | 133 -> Vpigenscopearray (* array of generated scopes *)
 | 134 -> Vpigenscope (* A generated scope *)
 | 135 -> Vpigenvar (* Object used to instantiate gen scopes *)
+| oth -> STRING ("vpi_obj_"^string_of_int oth)
 
 (*********************************** METHODS **********************************)
 (**************** methods used to traverse 1 to 1 relationships ***************)
@@ -313,6 +314,7 @@ let vpi_meth = function
 (************************ methods added with 1800-2009 ************************)
 
 | 136 -> Vpiautomatics (* Automatic variables of a frame *)
+| oth -> STRING ("vpi_meth_"^string_of_int oth)
 
 (********************************* PROPERTIES *********************************)
 (************************** generic object properties *************************)
@@ -336,35 +338,30 @@ let vpi_prop = function
 | 12 -> Vpitimeprecision (* module time precision *)
 | 13 -> Vpidefnettype (* default net type *)
 | 14 -> Vpiunconndrive (* unconnected port drive strength *)
-| 1 -> Vpihighz (* No default drive given *)
-| 2 -> Vpipull1 (* default pull1 drive *)
-| 3 -> Vpipull0 (* default pull0 drive *)
 | 15 -> Vpideffile (* File name where the module is defined*)
 | 16 -> Vpideflineno (* line number for module definition *)
 | 47 -> Vpidefdelaymode (* Default delay mode for a module *)
+| 48 -> Vpidefdecaytime (* Default decay time for a module *)
+| oth -> STRING ("vpi_prop_"^string_of_int oth)
+
+let delay_mode = function
 | 1 -> Vpidelaymodenone (* no delay mode specified *)
 | 2 -> Vpidelaymodepath (* path delay mode *)
 | 3 -> Vpidelaymodedistrib (* distributed delay mode *)
 | 4 -> Vpidelaymodeunit (* unit delay mode *)
 | 5 -> Vpidelaymodezero (* zero delay mode *)
 | 6 -> Vpidelaymodemtm (* min:typ:max delay mode *)
-| 48 -> Vpidefdecaytime (* Default decay time for a module *)
+| oth -> STRING ("delay_mode_"^string_of_int oth)
+
+let drive_strength = function
+| 1 -> Vpihighz (* No default drive given *)
+| 2 -> Vpipull1 (* default pull1 drive *)
+| 3 -> Vpipull0 (* default pull0 drive *)
+| oth -> STRING ("drive_strength_"^string_of_int oth)
 
 (*************************** port and net properties **************************)
 
-let vpi_port_net = function
-| 17 -> Vpiscalar (* scalar (Boolean) *)
-| 18 -> Vpivector (* vector (Boolean) *)
-| 19 -> Vpiexplicitname (* port is explicitly named *)
-| 20 -> Vpidirection (* direction of port: *)
-| 1 -> Vpiinput (* input *)
-| 2 -> Vpioutput (* output *)
-| 3 -> Vpiinout (* inout *)
-| 4 -> Vpimixedio (* mixed input-output *)
-| 5 -> Vpinodirection (* no direction *)
-| 21 -> Vpiconnbyname (* connected by name (Boolean) *)
-
-| 22 -> Vpinettype (* net subtypes: *)
+let net_subtype = function
 | 1 -> Vpiwire (* wire net *)
 | 2 -> Vpiwand (* wire-and net *)
 | 3 -> Vpiwor (* wire-or net *)
@@ -378,7 +375,20 @@ let vpi_port_net = function
 | 11 -> Vpisupply0 (* supply-0 net *)
 | 12 -> Vpinone (* no default net type (1364-2001) *)
 | 13 -> Vpiuwire (* unresolved wire net (1364-2005) *)
+| oth -> STRING ("net_subtype_"^string_of_int oth)
 
+let vpi_port_net = function
+| 17 -> Vpiscalar (* scalar (Boolean) *)
+| 18 -> Vpivector (* vector (Boolean) *)
+| 19 -> Vpiexplicitname (* port is explicitly named *)
+| 20 -> Vpidirection (* direction of port: *)
+| 1 -> Vpiinput (* input *)
+| 2 -> Vpioutput (* output *)
+| 3 -> Vpiinout (* inout *)
+| 4 -> Vpimixedio (* mixed input-output *)
+| 5 -> Vpinodirection (* no direction *)
+| 21 -> Vpiconnbyname (* connected by name (Boolean) *)
+| 22 -> Vpinettype (* net subtypes: *)
 | 23 -> Vpiexplicitscalared (* explicitly scalared (Boolean) *)
 | 24 -> Vpiexplicitvectored (* explicitly vectored (Boolean) *)
 | 25 -> Vpiexpanded (* expanded vector net (Boolean) *)
@@ -387,18 +397,11 @@ let vpi_port_net = function
 
 (*************************** port and net properties **************************)
 
-|  17 -> Vpiscalar (* scalar (Boolean) *)
-|  18 -> Vpivector (* vector (Boolean) *)
-|  19 -> Vpiexplicitname (* port is explicitly named *)
-|  20 -> Vpidirection (* direction of port: *)
-|  1 -> Vpiinput (* input *)
-|  2 -> Vpioutput (* output *)
-|  3 -> Vpiinout (* inout *)
-|  4 -> Vpimixedio (* mixed input-output *)
-|  5 -> Vpinodirection (* no direction *)
-|  21 -> Vpiconnbyname (* connected by name (Boolean) *)
+|  28 -> Vpiarray (* variable array (Boolean) *)
+|  29 -> Vpiportindex (* Port index *)
+| oth -> STRING ("vpi_port_net_"^string_of_int oth)
 
-|  22 -> Vpinettype (* net subtypes: *)
+let vpi_net_subtype = function
 |  1 -> Vpiwire (* wire net *)
 |  2 -> Vpiwand (* wire-and net *)
 |  3 -> Vpiwor (* wire-or net *)
@@ -412,16 +415,7 @@ let vpi_port_net = function
 |  11 -> Vpisupply0 (* supply-0 net *)
 |  12 -> Vpinone (* no default net type (1364-2001) *)
 |  13 -> Vpiuwire (* unresolved wire net (1364-2005) *)
-
-|  23 -> Vpiexplicitscalared (* explicitly scalared (Boolean) *)
-|  24 -> Vpiexplicitvectored (* explicitly vectored (Boolean) *)
-|  25 -> Vpiexpanded (* expanded vector net (Boolean) *)
-|  26 -> Vpiimplicitdecl (* implicitly declared net (Boolean) *)
-|  27 -> Vpichargestrength (* charge decay strength of net *)
-
-|  28 -> Vpiarray (* variable array (Boolean) *)
-|  29 -> Vpiportindex (* Port index *)
-| oth -> STRING ("vpi_port_net_"^string_of_int oth)
+| oth -> STRING ("vpi_net_subtype_"^string_of_int oth)
 
 (************************ gate and terminal properties ************************)
 
@@ -458,22 +452,31 @@ let vpi_gate_term = function
 |  26 -> Vpipulldownprim (* pulldown *)
 |  27 -> Vpiseqprim (* sequential UDP *)
 |  28 -> Vpicombprim (* combinational UDP *)
+| oth -> STRING ("vpi_gate_term_"^string_of_int oth)
 
 (**************** path, path terminal, timing check properties ****************)
 
 let vpi_path = function
 |  34 -> Vpipolarity (* polarity of module path... *)
 |  35 -> Vpidatapolarity (* ...or data path: *)
+|  36 -> Vpiedge (* edge type of module path: *)
+|  37 -> Vpiposedge (* path delay connection subtypes: *)
+|  38 -> Vpitchktype (* timing check subtypes: *)
+|  39 -> Vpioptype (* operation subtypes: *)
+| oth -> STRING ("vpi_path_"^string_of_int oth)
+
+let vpi_polarity = function
 |  1 -> Vpipositive (* positive *)
 |  2 -> Vpinegative (* negative *)
 |  3 -> Vpiunknown (* unknown (unspecified) *)
+| oth -> STRING ("vpi_polarity_"^string_of_int oth)
 
-|  36 -> Vpiedge (* edge type of module path: *)
-|  37 -> Vpiposedge (* path delay connection subtypes: *)
+let vpi_delay = function
 |  1 -> Vpipathfull (* ( a *> b ) *)
 |  2 -> Vpipathparallel (* ( a => b ) *)
+| oth -> STRING ("vpi_delay_"^string_of_int oth)
 
-|  38 -> Vpitchktype (* timing check subtypes: *)
+let vpi_check = function
 |  1 -> Vpisetup (* $setup *)
 |  2 -> Vpihold (* $hold *)
 |  3 -> Vpiperiod (* $period *)
@@ -486,8 +489,7 @@ let vpi_path = function
 |  10 -> Vpirecrem (* $recrem -- added for 1364-2001 *)
 |  11 -> Vpiremoval (* $removal -- added for 1364-2001 *)
 |  12 -> Vpitimeskew (* $timeskew -- added for 1364-2001 *)
-
-|  39 -> Vpioptype (* operation subtypes: *)
+| oth -> STRING ("vpi_check_"^string_of_int oth)
 
 (**************************** expression properties ***************************)
 
@@ -535,17 +537,20 @@ let vpi_expr = function
 |  41 -> Vpiarithlshiftop (* arithmetic left shift (1364-2001) *)
 |  42 -> Vpiarithrshiftop (* arithmetic right shift (1364-2001) *)
 |  43 -> Vpipowerop (* arithmetic power op (1364-2001) *)
+| oth -> STRING ("vpi_expr_"^string_of_int oth)
 
+let vpi_misc_typ = function
 |  40 -> Vpiconsttype (* constant subtypes: *)
 |  41 -> Vpiblocking (* blocking assignment (Boolean) *)
 |  42 -> Vpicasetype (* case statement subtypes: *)
 |  43 -> Vpinetdeclassign (* assign part of decl (Boolean) *)
-| oth -> STRING ("vpi_expr_"^string_of_int oth)
+| oth -> STRING ("vpi_misc_"^string_of_int oth)
 
 let vpi_case_typ = function
 |  1 -> Vpicaseexact (* exact match *)
 |  2 -> Vpicasex (* ignore X's *)
 |  3 -> Vpicasez (* ignore Z's *)
+| oth -> STRING ("vpi_case_typ_"^string_of_int oth)
 
 let vpi_const_typ = function
 |  1 -> Vpidecconst (* decimal integer *)
@@ -557,17 +562,19 @@ let vpi_const_typ = function
 |  7 -> Vpiintconst (* integer constant (1364-2001) *)
 |  8 -> Vpitimeconst (* time constant *)
 |  9 -> Vpiuintconst (* unsigned integer constant !!! NOT Standard !!! *)
+| oth -> STRING ("vpi_const_typ_"^string_of_int oth)
 
 (************************** task/function properties **************************)
 
 let vpi_task_func = function
 |  44 -> Vpifunctype (* function & system function type *)
+(*
 |  1 -> Vpiintfunc (* returns integer *)
 |  2 -> Vpirealfunc (* returns real *)
 |  3 -> Vpitimefunc (* returns time *)
 |  4 -> Vpisizedfunc (* returns an arbitrary size *)
 |  5 -> Vpisizedsignedfunc (* returns sized signed value *)
-
+*)
 (** alias 1364-1995 system function subtypes to 1364-2001 function subtypes ***)
 
 |  45 -> Vpiuserdefn (*user-defined system task/func(Boolean)*)
@@ -583,9 +590,11 @@ let vpi_task_func = function
 |  54 -> Vpidecompile "" (* decompile the object *)
 |  55 -> Vpidefattribute (* Attribute defined for the obj *)
 |  56 -> Vpidelaytype (* delay subtype *)
+(*
 |  1 -> Vpimodpathdelay (* module path delay *)
 |  2 -> Vpiintermodpathdelay (* intermodule path delay *)
 |  3 -> Vpimipdelay (* module input port delay *)
+*)
 |  57 -> Vpiiteratortype (* object type of an iterator *)
 |  58 -> Vpilibrary (* configuration library *)
 |  60 -> Vpioffset (* offset from LSB *)
@@ -599,17 +608,22 @@ let vpi_task_func = function
 (*********************** properties added with 1364-2005 **********************)
 
 |  72 -> Vpiindexedpartselecttype (* Indexed part-select type *)
+(*
 |  1 -> Vpiposindexed (* +: *)
 |  2 -> Vpinegindexed (* -: *)
+*)
 |  73 -> Vpiismemory (* TRUE for a one-dimensional reg array *)
 |  74 -> Vpiisprotected (* TRUE for protected design information *)
+| oth -> STRING ("vpi_task_func_"^string_of_int oth)
 
 (*************** vpi_control() constants (added with 1364-2001) ***************)
 
+let vpi_control = function
 |  66 -> Vpistop (* execute simulator's $stop *)
 |  67 -> Vpifinish (* execute simulator's $finish *)
 |  68 -> Vpireset (* execute simulator's $reset *)
 |  69 -> Vpisetinteractivescope (* set simulator's interactive scope *)
+| oth -> STRING ("vpi_control_"^string_of_int oth)
 
   let optype x = vpi_expr (x)
 
@@ -2451,3 +2465,4 @@ unreachable:
 | TUPLE9 { Work }
 | UNDERSCORE { Work }
 | VBAR { Work }
+

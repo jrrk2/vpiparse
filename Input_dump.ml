@@ -1,3 +1,27 @@
+(*
+ MIT License
+
+Copyright (c) 2024 Jonathan Kimmitt
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*)
+
 open Input_types
 open Input
 open Dump_types
@@ -19,7 +43,6 @@ let mapothlst = ref []
 let smpothlst = ref []
 let optothlst = ref []
 let xrflst = ref []
-let smplopt = ref None
 let selopt = ref None
 let optopt = ref None
 let typopt = ref None
@@ -152,9 +175,7 @@ let hex_to_ascii len str =
   else invalid_arg str
 
 let bin_to_ascii len str =
-  let bytes = String.length str in
   let h = ref 0 in
-  let mychar_of_int x = if x >= 32 && x <= 127 && (len > 8 || x >= int_of_char 'a') then char_of_int x else failwith "ascii" in
   String.iteri (fun ix -> function
     | '0'..'1' as ch -> h := !h * 2 + (int_of_char ch - int_of_char '0');
     | _ -> h := -1) str;
@@ -302,6 +323,8 @@ let dumpsized w = function
 | STRING s -> "\""^String.escaped s^"\""
 | FLT f -> string_of_float f
 | ERR err -> ("NumberError:"^err)
+| ENUMVAL (_, _) -> failwith "ENUMVAL"
+| CNSTEXP (_, _) -> failwith "CSNTEXP"
 
 let dumpu = function
 | Unknown -> "Uunknown"
@@ -332,8 +355,10 @@ let dumplog = function
 | Lunknown -> "Lunknown"
 | Land -> "Land"
 | Lredand -> "Lredand"
+| Lrednand -> "Lrednand"
 | Lor -> "Lor"
 | Lredor -> "Lredor"
+| Lrednor -> "Lrednor"
 | Lxor -> "Lxor"
 | Lxnor -> "Lxnor"
 | Lredxor -> "Lredxor"
@@ -347,6 +372,12 @@ let dumparith = function
 | Asub -> "Asub"
 | Amul -> "Amul"
 | Amuls -> "Amuls"
+| Adiv -> "Adiv"
+| Adivs -> "Adivs"
+| Amod -> "Amod"
+| Amods -> "Amods"
+| Apow -> "Apow"
+| Apows -> "Apows"
 | Aunknown -> "Aunknown"
 
 let dumpstrlst lst = "["^String.concat ";\n\t" (List.map dumps lst)^"]"
@@ -415,7 +446,6 @@ let rec simplify_exp attr = function
 | XRF _ as xrf -> (xrf)
 | SEL (orig, expr1 :: expr2 :: expr3 :: []) ->
     SEL (orig, List.map (simplify_exp attr) (expr1 :: expr2 :: expr3 :: []))
-| SEL (origin, expr1 :: lo :: wid :: []) as sel -> smplopt := Some sel; failwith "simplify_exp: smplopt"
 | oth -> smpothlst := oth :: !smpothlst; oth
 
 let simplify_exp' arg =
@@ -455,6 +485,8 @@ let rec dumpr = function
 | BIGINT i -> hex_of_bigint 64 i
 | CNSTEXP (Aunknown, STRING fn::rght::[]) -> fn^" "^(dumpr rght)
 | CNSTEXP (op, lft::rght::[]) -> (dumpr lft)^" "^arithopv op^" "^(dumpr rght)
+| CNSTEXP _ -> failwith "CNSTEXP"
+| ENUMVAL _ -> failwith "ENUMVAL"
 
 let rec dumpmap = function
 | TYPNONE -> "TYPNONE"
@@ -514,7 +546,6 @@ let logopv = function
 | Lshiftl -> " << "
 | Lshiftr -> " >> "
 | Lshiftrs -> " >>> "
-| oth -> othlogop := oth; failwith "logopv"
 
 let rec cadd = function
 | [] -> HEX 0
@@ -535,6 +566,7 @@ let rec cadd = function
 | HEX n :: SHEX m :: tl -> cadd (HEX (n+m) :: tl)
 | SHEX n :: SHEX m :: tl -> cadd (SHEX (n+m) :: tl)
 | (HEX _ | SHEX _ | BIGINT _) ::(ERR _|BIN _|STRING _|FLT _):: tl -> ERR "cadd"
+| oth -> ERR "cadd"
 
 let diropv = function
 | Dinput -> "input"
@@ -777,7 +809,9 @@ let rec dumpitm = function
 | TIM _ -> "TIM"
 | SCOPE tid -> "SCOPE "^tid
 | ITM _ -> "ITM"
-| CONTAINER (itms, SCOPE top) -> "CONTAINER"
+| CONTAINER (itms, top) -> "CONTAINER"
+| CONSPACK (_, _) -> failwith "CONSPACK"
+| CONSPACKMEMB (_, _) -> failwith "CONSPACKMEMB"
 
 and dumplst lst = "["^String.concat ";\n\t" (List.map dumpitm lst)^"]"
 and dumpcstlst lst = "["^String.concat ";\n\t" (List.map dumpcnst lst)^"]"
@@ -1265,9 +1299,6 @@ let varlst modul delim typ' id =
         | (WIRE :: [], false, _) -> WIRE
         | (REG :: [], false, _) -> REG
         | (VECTOR _ :: [], false, _) -> LOGIC
-        | oth -> othvar := Some oth; failwith "othvar"
-        | (_, true, _) -> WIRE
-        | (_, false, _) -> LOGIC
         | oth -> othvar := Some oth; failwith "othvar" in
     let decl = !delim :: kind :: SP :: widshow id rng widlst in decl @
     comment widlst @ (if List.mem_assoc id !(modul.cnst) then
@@ -1443,7 +1474,7 @@ let optitm lst =
 let rec is_cnst itms id =
     if List.mem_assoc id !(itms.v) then
         begin
-        let ("", ((a,b,c,d) as typ'), kind', n) = List.assoc id !(itms.v) in
+        let (_, ((a,b,c,d) as typ'), kind', n) = List.assoc id !(itms.v) in
         print_endline (dumptab typ');
         b = "const"
         end
@@ -1502,7 +1533,7 @@ let needed modul (kind,nam) = match kind with
 | FUNCTION ->
     print_endline ("Searching function: "^nam);
     let found = List.mem_assoc nam !(modul.func) in
-    let ("", typ', lst, itms') = if found then
+    let (_, typ', lst, itms') = if found then
         List.assoc nam !(modul.func)
     else
         Hashtbl.find functable nam in
@@ -1512,7 +1543,7 @@ let needed modul (kind,nam) = match kind with
 | TASK ->
     print_endline ("Searching task: "^nam);
     let found = List.mem_assoc nam !(modul.task) in
-    let ("", lst, itms') = if found then
+    let (_, lst, itms') = if found then
         List.assoc nam !(modul.task)
     else
         Hashtbl.find tasktable nam in
@@ -1531,11 +1562,11 @@ let dump intf f modul =
     List.iter (function (nam, (_, (w, HEX n))) ->
       head := !head @ !delim @ SP :: IDENT nam :: EQUALS :: num n :: [];
       delim := COMMA :: [];
-      ) parmlst;
+      | oth -> ()) parmlst;
     head := !head @ [RPAREN];
     end;
   let delim = ref LPAREN in
-  List.iter (fun (io, ("", typ', dir, kind', lst)) -> 
+  List.iter (fun (io, (_, typ', dir, kind', lst)) -> 
     head := !head @ iolst modul delim dir io typ';
     delim := COMMA;
     ) (!(modul.io));
@@ -1545,15 +1576,15 @@ let dump intf f modul =
  head := !head @ NL :: List.flatten (List.map (function
 | ENUMVAL(n,s) -> let field = !delim @ (IDENT s :: EQUALS :: num n :: []) in delim := COMMA :: SP :: []; field
 | oth -> []) lst) @ [RCURLY; SP ; IDENT nam; SEMI; NL] | _ -> ()) (!(modul.cnst));
-  List.iter (fun (id, ("", typ', kind', n)) -> append (fsrc "" :: varlst modul (ref NL) typ' id @ SEMI :: NL :: []);
+  List.iter (fun (id, (_, typ', kind', n)) -> append (fsrc "" :: varlst modul (ref NL) typ' id @ SEMI :: NL :: []);
                  ) (List.rev !(modul.v));
   List.iter (fun itm -> append (needed modul itm)) (List.rev !(modul.needed));
-  List.iter (fun (a, ("", lst)) -> let delim = ref LPAREN in
+  List.iter (fun (a, (_, lst)) -> let delim = ref LPAREN in
     let lst = MODPORT :: SP :: IDENT a ::
     List.flatten (List.map (fun (nam',dir') -> let lst = !delim :: DIR dir' :: SP :: IDENT nam' :: [] in delim := COMMA; lst) lst) @
     [RPAREN; SEMI] in
     append ((fsrc "") :: lst)) !(modul.imp);  
-  List.iter (fun ("", dst, src) ->
+  List.iter (fun (_, dst, src) ->
                  append (fsrc "" :: ASSIGN :: SP :: expr modul dst @ (SP :: ASSIGNMENT :: SP:: expr modul src @ SEMI :: NL :: []));
                  ) (List.rev !(modul.ca));
   List.iter (function
@@ -1573,14 +1604,14 @@ let dump intf f modul =
       append (fsrc "" :: ALWAYS :: AT :: LPAREN :: POSEDGE :: SP :: IDENT ck :: RPAREN :: flatten1 modul true lst);
     | ("", NEGEDGE (ck), lst) ->
       append (fsrc "" :: ALWAYS :: AT :: LPAREN :: NEGEDGE :: SP :: IDENT ck :: RPAREN :: flatten1 modul true lst);
-    | ("", _, lst) -> failwith "edge specification not implemented";
-    ) (List.rev (List.map (fun ("",edg,lst) -> ("", edg, lst)) !(modul.alwys)));
-  List.iter (fun (inst, ("", kind, lst)) ->
+    | (_, _, lst) -> failwith "edge specification not implemented";
+    ) (List.rev (List.map (fun (_,edg,lst) -> ("", edg, lst)) !(modul.alwys)));
+  List.iter (fun (inst, (_, kind, lst)) ->
                  let delim = ref SP in
                  let lst = List.flatten (List.map (fun term -> let lst = !delim :: portconn modul term in delim := COMMA; lst) lst) in
                  append (fsrc "" :: IDENT kind :: SP :: IDENT inst :: LPAREN :: lst @ [RPAREN;SEMI]);
                  ) !(modul.inst);
-  List.iter (fun ("", tok, lst) -> append (fsrc "" :: tok :: flatten1 modul false lst);
+  List.iter (fun (_, tok, lst) -> append (fsrc "" :: tok :: flatten1 modul false lst);
                  ) !(modul.init);
   !head @ List.flatten (List.sort compare !appendlst) @ [NL;if intf then ENDINTERFACE else ENDMODULE;NL;NL]
 

@@ -1,3 +1,27 @@
+(*
+ MIT License
+
+Copyright (c) 2024 Jonathan Kimmitt
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*)
+
 open Input
 open Input_types
 open Input_dump
@@ -499,7 +523,7 @@ and pat' itms = function
 |   TUPLE3 (Ref_typespec, TLIST _,
      TUPLE2 (Vpiactual, TUPLE2 (Array_typespec, TLIST (Vpirange :: elem)))) -> _Void    itms 300
 |   TUPLE3 (Ref_typespec, TLIST _,
-     TUPLE2 (Vpiactual, TUPLE2 (Array_typespec, TLIST (TUPLE3(Vpirange,_,_) as rng :: elem)))) -> _Void    itms 300
+     TUPLE2 (Vpiactual, TUPLE2 (Array_typespec, TLIST (TUPLE3(Vpirange,_,_) :: elem)))) -> _Void    itms 300
 |   TUPLE3 (Ref_module, TUPLE3 (STRING _, STRING _, LOC _), TLIST lst) ->seq itms lst
 |   TUPLE3 (Named_begin, (STRING _ | TLIST _), TLIST rawlst) -> let namedmods = ref [] in
         (match List.partition (function TUPLE2 ((Vpitypedef|Vpiparamassign|Vpivariables|TUPLE2(Always,_)), _) | TUPLE3 (Vpiparameter, _,_ ) -> true | _ -> false) rawlst with
@@ -693,11 +717,7 @@ and asgntyp itms lhs rhs = function
 | Vpibitxorop -> _Xor itms (lhs, rhs)
 | Vpibitxnorop -> _Xnor itms (lhs, rhs)
 | Vpieqop -> _Eq itms (lhs, rhs)
-| Vpibitxorop -> _Xor itms (lhs, rhs)
-| Vpibitorop -> _Or itms (lhs, rhs)
 | Vpineqop -> _Ne itms (lhs, rhs)
-| Vpilshiftop -> _LshiftL itms (lhs, rhs)
-| Vpilogandop -> _LogAnd itms (lhs, rhs)
 | Vpigeop -> _Ge itms (lhs, rhs)
 | Vpiltop -> _Lt itms (lhs, rhs)
 | Vpileop -> _Le itms (lhs, rhs)
@@ -809,7 +829,7 @@ and expr itms = function
 |   TUPLE2 (Vpiminusop, a) -> UNRY(Unegate, expr itms a :: [])
 |   TUPLE2 (Vpinotop, a) -> UNRY(Unot, expr itms a :: [])
 |   TUPLE2 ((Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop as op), a) -> LOGIC(_Unary op, expr itms a :: [])
-|   TUPLE2 (Vpiconcatop as op, TLIST lst) -> concat (List.map (expr itms) lst)
+|   TUPLE2 (Vpiconcatop, TLIST lst) -> concat (List.map (expr itms) lst)
 |   TUPLE2 (Vpicondition, c) -> expr itms c
 |   TUPLE2 (Vpiposedgeop, p) -> _Posedge itms (expr itms p)
 |   TUPLE3 (Sys_func_call,

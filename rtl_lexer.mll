@@ -263,7 +263,7 @@ let anything_but_quote = [
 
 rule token = parse
 |  '\\'anything_but_blank+' ' as word {IDSTR (String.sub word 1 (String.length word -2)) }
-|  "//"anything_but_newline* as comment { (* trace_log (ASCNUM comment); *) token lexbuf}
+|  "//"anything_but_newline* { token lexbuf}
 | "/*"
     { comment (Lexing.lexeme_start lexbuf) lexbuf; token lexbuf }
 | "(*"
@@ -360,8 +360,7 @@ if Hashtbl.mem ksymbols word then let kw = Hashtbl.find ksymbols word in hlog le
 | digit+ as inum { hlog lexbuf (INTNUM inum ) }
 | '\"'anything_but_quote*'\"' as asciinum { hlog lexbuf (ASCNUM asciinum ) }
 | "`timescale" anything_but_newline+ as preproc { hlog lexbuf (P_TIMESCALE preproc) }
-| '`'ident ident_num* as presym' { let presym = Bytes.of_string presym' in
-  hlog lexbuf (PREPROC presym')
+| '`'ident ident_num* as presym' { hlog lexbuf (PREPROC presym')
 }
 | ident ident_num* as word {
 if Hashtbl.mem ksymbols word then hlog lexbuf (Hashtbl.find ksymbols word) else hlog lexbuf (IDSTR word)

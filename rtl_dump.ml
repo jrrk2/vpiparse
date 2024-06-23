@@ -64,7 +64,9 @@ let rec expr itms = function
 | QUADRUPLE (QUERY, cond, lft, rght) -> _Ternary itms (expr itms cond, expr itms lft, expr itms rght) 
 | oth -> othfail := oth; failwith "expr"
 
-let ports = List.iter (function IDSTR id -> print_endline id)
+(* *)
+let ports = List.iter (function IDSTR id -> print_endline id | _ -> failwith "ports")
+(* *)
 
 let rec body itms = function
 | QUADRUPLE(DLYASSIGNMENT, src, EMPTY, dest) -> _Asgn itms (expr itms src, expr itms dest)
