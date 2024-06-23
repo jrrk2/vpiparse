@@ -1605,7 +1605,7 @@ let dump intf f modul =
     | ("", NEGEDGE (ck), lst) ->
       append (fsrc "" :: ALWAYS :: AT :: LPAREN :: NEGEDGE :: SP :: IDENT ck :: RPAREN :: flatten1 modul true lst);
     | (_, _, lst) -> failwith "edge specification not implemented";
-    ) (List.rev (List.map (fun (_,edg,lst) -> ("", edg, lst)) !(modul.alwys)));
+    ) (List.rev !(modul.alwys));
   List.iter (fun (inst, (_, kind, lst)) ->
                  let delim = ref SP in
                  let lst = List.flatten (List.map (fun term -> let lst = !delim :: portconn modul term in delim := COMMA; lst) lst) in

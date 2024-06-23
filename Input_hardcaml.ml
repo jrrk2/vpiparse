@@ -87,6 +87,14 @@ let add_fast a_sig b_sig =
              ~input2:(b_sig)
              ~carry_in:(Signal.zero 1))
 
+let sub_fast a_sig b_sig =
+          (Hardcaml_circuits.Prefix_sum.create
+             ~config:(if exact_log2 (width a_sig) && exact_log2 (width b_sig) then Kogge_stone else Sklansky)
+             (module Signal)
+             ~input1:(a_sig)
+             ~input2:(~: b_sig)
+             ~carry_in:(Signal.vdd))
+
 let mult_wallace a_sig b_sig =
           (Hardcaml_circuits.Mul.create
              ~config:Wallace
@@ -145,11 +153,11 @@ let sub' lhs rhs =
 let wlhs = width lhs in
 let wrhs = width rhs in
 if wlhs = wrhs then
-lhs -: rhs
+sub_fast lhs rhs
 else if wlhs < wrhs then
-(uresize lhs wrhs) -: rhs
+sub_fast (uresize lhs wrhs) rhs
 else if wlhs > wrhs then
-lhs -: (uresize rhs wlhs)
+sub_fast lhs (uresize rhs wlhs)
 else failwith "sub'"
 
 let add' lhs rhs =
@@ -552,8 +560,8 @@ let signed_relational x = let open Signed in match x with
 |Vpirshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift srl (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Vpiarithlshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sll (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Vpiarithrshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sra (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Vpiaddop -> (+:)
-|Vpisubop -> (-:)
+|Vpiaddop -> (fun lhs rhs -> Signed.of_signal (add_fast (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Vpisubop -> (fun lhs rhs -> Signed.of_signal (sub_fast (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Vpimultop -> mult_wallace_signed
 |Vpidivop -> unimps "div"
 |Vpimodop -> unimps "mod"
@@ -577,8 +585,8 @@ let unsigned_relational = function
 |Vpirshiftop -> (fun lhs rhs -> Signal.log_shift srl rhs lhs)
 |Vpiarithlshiftop -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
 |Vpiarithrshiftop -> (fun lhs rhs -> Signal.log_shift sra rhs lhs)
-|Vpiaddop -> (+:)
-|Vpisubop -> (-:)
+|Vpiaddop -> add_fast
+|Vpisubop -> sub_fast
 |Vpimultop -> mult_wallace
 |Vpidivop -> unimp "div"
 |Vpimodop -> unimp "mod"
