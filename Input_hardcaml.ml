@@ -102,6 +102,26 @@ let mult_wallace a_sig b_sig =
              (a_sig)
              (b_sig))
 
+let spec width signedness architecture =
+  (module struct
+    let width = width
+    let signedness = signedness
+    let architecture = architecture
+  end : Hardcaml_circuits.Divider.Spec)
+
+let divmod_instance numerator denominator =
+  let open Hardcaml_circuits.Divider.Make (val spec (width numerator) Unsigned Combinational) in
+  let clock = Signal.vdd in
+  let clear = Signal.vdd in
+  let start = Signal.vdd in
+  let (inp : Hardcaml__.Signal.t I.t) = { clock; clear; numerator; denominator; start } in
+  let ({ quotient ; remainder ; valid } : Hardcaml__.Signal.t O.t) =
+      create (Scope.create ~flatten_design:true ~auto_label_hierarchical_ports:true ()) inp in
+  quotient, remainder
+
+let div_instance numerator denominator = let (quo,rem) = divmod_instance numerator denominator in quo
+let mod_instance numerator denominator = let (quo,rem) = divmod_instance numerator denominator in rem
+
 let mux2' cond' lhs rhs =
 let cond = cond' >=: Signal.zero (width cond') in
 let wlhs = width lhs in
@@ -588,7 +608,7 @@ let unsigned_relational = function
 |Vpiaddop -> add_fast
 |Vpisubop -> sub_fast
 |Vpimultop -> mult_wallace
-|Vpidivop -> unimp "div"
+|Vpidivop -> div_instance
 |Vpimodop -> unimp "mod"
 |Vpipowerop -> unimp "power"
 |Vpilogandop -> (&&:) 

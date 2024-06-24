@@ -1,6 +1,6 @@
 
 type attr = {
-  r_sync: Hardcaml.Signal.register option;
+  r_sync: Hardcaml__.Reg_spec.t option;
   enable: Hardcaml.Signal.t;
   dest: bool;
 }

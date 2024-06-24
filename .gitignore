@@ -73,3 +73,6 @@ test_shl_hardcamlv/
 unary/
 optest/
 const_test/
+divider_test/
+modulo_test/
+hardcaml_circuits-0.17.0/
