@@ -1,4 +1,10 @@
 *~
+File.ml
+File.mli
+File_lex.ml
+Formula.ml
+Formula.mli
+Formula_lex.ml
 Input.ml
 Input.mli
 Input_lex.ml
@@ -75,4 +81,5 @@ optest/
 const_test/
 divider_test/
 modulo_test/
+test_byte_and/
 hardcaml_circuits-0.17.0/

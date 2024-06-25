@@ -26,6 +26,52 @@ open Input_types
 open Input
 open Dump_types
 
+let othcnst = ref (ERR "othcnst")
+let othiofunc = ref None
+let othvfunc = ref None
+
+let arithopint = function
+| Aadd -> ( + )
+| Asub -> ( - )
+| Amul -> ( * )
+| Amuls -> ( * )
+| Adiv|Adivs -> ( / )
+| Amod|Amods -> ( mod )
+| Apow|Apows -> ( fun lft rght -> let rec pow = function n when n > 0 -> lft * pow (n-1) | _ -> 1 in pow rght )
+| Aunknown -> (fun _ _ -> failwith "Aunknown")
+
+let rec cnstexpr modul = function
+| HEX int -> int
+| SHEX int -> int
+| ENUMVAL (int, string) -> int
+| CNSTEXP (Aunknown, STRING fn::rght::[]) -> failwith fn
+| CNSTEXP (arithop, lft::rght::[]) -> (arithopint arithop) (cnstexpr modul lft) (cnstexpr modul rght)
+| STRING string -> let (_, (w, cnst)) = List.assoc string !(modul.cnst) in cnstexpr modul cnst
+(*
+| BIN char -> SP :: []
+| FLT float -> SP :: []
+| BIGINT int64t -> SP :: []
+*)
+| ERR string -> failwith string
+| oth -> othcnst := oth; failwith "cnstexpr"
+
+let iofunc modul callback_input callback_wire = function
+   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Dinput, "logic", [])) -> callback_input io (Width(0,0,false))
+   | (io, ("", (BASDTYP, "logic", TYPRNG (hi, lo), []), Dinput, "logic", [])) -> callback_input io (Width(cnstexpr modul hi,cnstexpr modul lo,false))
+   | (io, ("", (BASDTYP, "logic", TYPRNG (hi, lo), []), Doutput, "logic", [])) -> callback_wire io (Width(cnstexpr modul hi,cnstexpr modul lo,false))
+   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Doutput, "logic", [])) -> callback_wire io (Width(0,0,false))
+   | oth -> othiofunc := Some oth; failwith "othiofunc"
+
+let vfunc modul callback_input callback_wire = function
+   | (v, ("", (BASDTYP, _, TYPNONE, []), _, (UNKDTYP, "", TYPNONE, []))) -> callback_wire v (Width(0,0,false))
+   | (v, ("", (BASDTYP, _, TYPRNG (HEX hi, HEX lo), []), _, (UNKDTYP, "", TYPNONE, []))) -> callback_wire v (Width(hi,lo,false))
+   | oth -> othvfunc := Some oth; failwith "othvfunc"
+
+let tran_search modul callback_input callback_wire id =
+  if List.mem_assoc id !(modul.io) then iofunc modul callback_input callback_wire (id, List.assoc id !(modul.io))
+  else if List.mem_assoc id !(modul.v) then vfunc modul callback_input callback_wire (id, List.assoc id !(modul.v))
+  else print_endline (id^": not found")
+
 let files = Hashtbl.create 255
 let functable = Hashtbl.create 255
 let hierarchy = Hashtbl.create 255

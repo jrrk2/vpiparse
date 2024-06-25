@@ -12,8 +12,13 @@ open Dump_types
 open Hardcaml
 open Signal
 open Rtl_dump
+open Rtl_map
 
 #print_length 1000000;;
 #print_depth 1000000;;
 
+let _ = v ();;
+
 let _ = tran "uhdm.txt"
+
+let f = filtcells (TRIPLE(XOR,INT 0, INT 0));;

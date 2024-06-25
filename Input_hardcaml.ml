@@ -41,9 +41,7 @@ let othcnst = ref (ERR "othcnst")
 let othalwystran = ref None
 let othasgn = ref Work
 let othr = ref Invalid
-let othv = ref None
 let othdecl' = ref ("", Work)
-let othio = ref None
 let othrw = ref Work
 let othlhs = ref (Void 0)
 let othrhs = ref (Void 0)
@@ -109,8 +107,8 @@ let spec width signedness architecture =
     let architecture = architecture
   end : Hardcaml_circuits.Divider.Spec)
 
-let divmod_instance numerator denominator =
-  let open Hardcaml_circuits.Divider.Make (val spec (width numerator) Unsigned Combinational) in
+let divmod_instance signed numerator denominator =
+  let open Hardcaml_circuits.Divider.Make (val spec (width numerator) signed Combinational) in
   let clock = Signal.vdd in
   let clear = Signal.vdd in
   let start = Signal.vdd in
@@ -119,8 +117,11 @@ let divmod_instance numerator denominator =
       create (Scope.create ~flatten_design:true ~auto_label_hierarchical_ports:true ()) inp in
   quotient, remainder
 
-let div_instance numerator denominator = let (quo,rem) = divmod_instance numerator denominator in quo
-let mod_instance numerator denominator = let (quo,rem) = divmod_instance numerator denominator in rem
+let div_unsigned numerator denominator = let (quo,rem) = divmod_instance Unsigned numerator denominator in quo
+let mod_unsigned numerator denominator = let (quo,rem) = divmod_instance Unsigned numerator denominator in rem
+
+let div_signed numerator denominator = let (quo,rem) = divmod_instance Signed numerator denominator in quo
+let mod_signed numerator denominator = let (quo,rem) = divmod_instance Signed numerator denominator in rem
 
 let mux2' cond' lhs rhs =
 let cond = cond' >=: Signal.zero (width cond') in
@@ -144,12 +145,6 @@ let mult_wallace_signed a_sig b_sig =
              (mux2' (nega) (to_signal (signednegate a_sig)) (to_signal a_sig))
              (mux2' (negb) (to_signal (signednegate b_sig)) (to_signal b_sig))
           in (of_signal (mux2' (nega ^: negb) (arithnegate mult') mult'))
-
-(*
-let div =
-      Hardcaml_circuits.Divider.Div.create
-        (Scope.create ~flatten_design:true ~auto_label_hierarchical_ports:true ())
-	*)
 
 let sim_mult n_bits =
   let circuit =
@@ -316,49 +311,7 @@ let declare_wire wire = function
   add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid'))) wid
 | oth -> otht := Some oth; failwith "declare_wire" in
 
-let arithopint = function
-| Aadd -> ( + )
-| Asub -> ( - )
-| Amul -> ( * )
-| Amuls -> ( * )
-| Adiv|Adivs -> ( / )
-| Amod|Amods -> ( mod )
-| Apow|Apows -> ( fun lft rght -> let rec pow = function n when n > 0 -> lft * pow (n-1) | _ -> 1 in pow rght )
-| Aunknown -> (fun _ _ -> failwith "Aunknown") in
-
-let rec cnstexpr = function
-| HEX int -> int
-| SHEX int -> int
-| ENUMVAL (int, string) -> int
-| CNSTEXP (Aunknown, STRING fn::rght::[]) -> failwith fn
-| CNSTEXP (arithop, lft::rght::[]) -> (arithopint arithop) (cnstexpr lft) (cnstexpr rght)
-| STRING string -> let (_, (w, cnst)) = List.assoc string !(modul.cnst) in cnstexpr cnst
-(*
-| BIN char -> SP :: []
-| FLT float -> SP :: []
-| BIGINT int64t -> SP :: []
-*)
-| ERR string -> failwith string
-| oth -> othcnst := oth; failwith "cnstexpr" in
-
-let iofunc callback_input callback_wire = function
-   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Dinput, "logic", [])) -> callback_input io (Width(0,0,false))
-   | (io, ("", (BASDTYP, "logic", TYPRNG (hi, lo), []), Dinput, "logic", [])) -> callback_input io (Width(cnstexpr hi,cnstexpr lo,false))
-   | (io, ("", (BASDTYP, "logic", TYPRNG (hi, lo), []), Doutput, "logic", [])) -> callback_wire io (Width(cnstexpr hi,cnstexpr lo,false))
-   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Doutput, "logic", [])) -> callback_wire io (Width(0,0,false))
-   | oth -> othio := Some oth; failwith "othio" in
-
-let vfunc callback_input callback_wire = function
-   | (v, ("", (BASDTYP, "reg", TYPNONE, []), "reg", (UNKDTYP, "", TYPNONE, []))) -> callback_wire v (Width(0,0,false))
-   | (v, ("", (BASDTYP, "reg", TYPRNG (HEX hi, HEX lo), []), "reg", (UNKDTYP, "", TYPNONE, []))) -> callback_wire v (Width(hi,lo,false))
-   | oth -> othv := Some oth; failwith "othv" in
-
-let tran_search callback_input callback_wire id =
-  if List.mem_assoc id !(modul.io) then iofunc callback_input callback_wire (id, List.assoc id !(modul.io))
-  else if List.mem_assoc id !(modul.v) then vfunc callback_input callback_wire (id, List.assoc id !(modul.v))
-  else print_endline (id^": not found") in
-
-let find_decl k = if not (List.mem_assoc k !declare_lst) then tran_search declare_input declare_wire k; List.assoc k !declare_lst in
+let find_decl k = if not (List.mem_assoc k !declare_lst) then Input_dump.tran_search modul declare_input declare_wire k; List.assoc k !declare_lst in
 (* let iter_decl fn = List.iter (fun (k,x) -> fn k x) !declare_lst in *)
 
 let unsigned x = Signed.to_signal x in
@@ -399,7 +352,7 @@ let declare_reg attr reg =
     | Width(hi,lo,signed) as wid ->
       add_decl reg (Var (declare_option attr.enable (hi-lo+1) attr.r_sync)) wid
     | _ -> failwith "declare_reg" in
-  tran_search wid' wid' reg;
+  Input_dump.tran_search modul wid' wid' reg;
   end in
 
 let rec concat = function
@@ -523,7 +476,7 @@ Case (expr', List.map (function
 | CONSPACKMEMB (_, _) -> failwith "CONSPACKMEMB"
 in
 
-let _ = List.iter (fun (io,_ as args) -> if not (exists io) then iofunc declare_input (fun _ _ -> ()) args) (List.rev !(modul.io)) in
+let _ = List.iter (fun (io,_ as args) -> if not (exists io) then Input_dump.iofunc modul declare_input (fun _ _ -> ()) args) (List.rev !(modul.io)) in
 
 let alwystran = List.flatten (List.map (function
   | ("", COMB, (SNTRE [] :: lst)) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in List.map (tranitm attr) lst
@@ -532,9 +485,9 @@ let alwystran = List.flatten (List.map (function
   
   | oth -> othalwystran := Some oth; failwith "alwystran") !(modul.alwys)) in
 
-let _ = List.iter (fun (io,_ as args) -> if not (exists io) then iofunc (fun _ _ -> ()) declare_wire args) !(modul.io) in
+let _ = List.iter (fun (io,_ as args) -> if not (exists io) then Input_dump.iofunc modul (fun _ _ -> ()) declare_wire args) !(modul.io) in
 
-let _ = List.iter (fun (v,_ as args) -> if not (exists v) then vfunc declare_input declare_wire args) !(modul.v) in
+let _ = List.iter (fun (v,_ as args) -> if not (exists v) then Input_dump.vfunc modul declare_input declare_wire args) !(modul.v) in
 
 let remapp' = List.filter (function Void _ -> false |_ -> true) alwystran in
 
@@ -583,8 +536,8 @@ let signed_relational x = let open Signed in match x with
 |Vpiaddop -> (fun lhs rhs -> Signed.of_signal (add_fast (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Vpisubop -> (fun lhs rhs -> Signed.of_signal (sub_fast (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Vpimultop -> mult_wallace_signed
-|Vpidivop -> unimps "div"
-|Vpimodop -> unimps "mod"
+|Vpidivop -> (fun lhs rhs -> Signed.of_signal (div_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Vpimodop -> (fun lhs rhs -> Signed.of_signal (mod_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Vpipowerop -> unimps "power"
 |Vpilogandop -> (fun lhs rhs -> of_signal (to_signal lhs &&: to_signal rhs))
 |Vpilogorop -> (fun lhs rhs -> of_signal (to_signal lhs ||: to_signal rhs))
@@ -608,7 +561,7 @@ let unsigned_relational = function
 |Vpiaddop -> add_fast
 |Vpisubop -> sub_fast
 |Vpimultop -> mult_wallace
-|Vpidivop -> div_instance
+|Vpidivop -> div_unsigned
 |Vpimodop -> unimp "mod"
 |Vpipowerop -> unimp "power"
 |Vpilogandop -> (&&:) 
@@ -747,8 +700,9 @@ let remap' = List.filter (function Invalid -> false | Sig _ -> false |_ -> true)
 let remap'' = List.map alw' remap' in
 let _ = Always.compile remap'' in
 let oplst = ref [] in
-List.iter (iofunc (fun _ _ -> ()) (fun io _ -> cnv_op oplst io (find_decl io))) !(modul.io);
+List.iter (Input_dump.iofunc modul (fun _ _ -> ()) (fun io _ -> cnv_op oplst io (find_decl io))) !(modul.io);
 let rtl = Buffer.create 65535 in
 Hardcaml.Rtl.output ~output_mode:(Hardcaml.Rtl.Output_mode.To_buffer rtl) Verilog (Hardcaml.Circuit.create_exn ~name:modnam !oplst);
-Rtl_dump.dump modnam rtl
+Rtl_dump.dump modnam rtl;
+Rtl_map.map modnam rtl;
 end
