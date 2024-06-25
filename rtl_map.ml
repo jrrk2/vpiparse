@@ -37,6 +37,8 @@ let othuniq = ref None
 let othport = ref None
 let othfilt = ref ENDOFFILE
 let othchk = ref (XML [], XML [])
+let othsel = ref (XML [])
+let othalw = ref ENDOFFILE
 let sigcnt = ref 9999
 
 let stem = "liberty/NCTU_75T";;
@@ -74,6 +76,11 @@ let filtxor = function (_,
 	      TRIPLE (DOUBLE (NOT, IDSTR a'), P_AMPERSAND, IDSTR b')))
     ])) when a=a' && b=b' -> true | _ -> false
 
+let filtedge = function (_,
+  ((_,"output")::(_,"input")::(_,"input")::[],
+    [(_, IDSTR "IQ")
+    ])) -> true | _ -> false
+
 let filtmap = function
 | AND -> filt' P_AMPERSAND
 | OR -> filt' P_VBAR
@@ -95,6 +102,11 @@ let filtcells = function
 | BUF -> 
   let nlst = ref [] in
   let uniq = List.sort compare !nlst, List.sort_uniq compare (List.map (fun (nam,p) -> nlst := nam :: !nlst; p) (List.filter (filtbuf) cells)) in
+  othuniq := Some uniq;
+  uniq
+| POSEDGE -> 
+  let nlst = ref [] in
+  let uniq = List.sort compare !nlst, List.sort_uniq compare (List.map (fun (nam,p) -> nlst := nam :: !nlst; p) (List.filter (filtedge) cells)) in
   othuniq := Some uniq;
   uniq
 | oth -> othfilt := oth; failwith "filtcells"
@@ -119,7 +131,9 @@ let rec expr = function
 let v () = let fd = open_out (stem^".v") in
 List.iter (fun (nam, (portlst, funclst)) ->
 output_string fd ("module "^nam^" ("^String.concat ", " (List.map (fun (port,dir) -> dir^" "^port) portlst)^");\n"^
-String.concat "\n" (List.map (fun (lhs, exp') -> "assign "^lhs^" = "^expr exp'^";") funclst)^"\nendmodule\n\n")) cells;
+String.concat "\n" (List.map (function
+  | ("Q", IDSTR "IQ") -> "reg IQ; always @(posedge CLK) IQ <= D; assign Q = IQ;"
+  | (lhs, exp') -> "assign "^lhs^" = "^expr exp'^";") funclst)^"\nendmodule\n\n")) cells;
 close_out fd
 
 let othrtl = ref ENDOFFILE
@@ -160,17 +174,22 @@ let inports = List.filter (function (nam, "input") -> true | _ -> false) portlst
 let pnam ix = fst (try List.nth inports ix with _ -> othport := Some (inports, ix); failwith "othport") in
 chk_reg itms nam (fun hi lo i ->
 print_endline (string_of_int i);
+let op' = if hi > 0 then SEL("", op :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) else op in
+let nam' = if hi > 0 then nam^"_"^string_of_int i else nam in
 itms.inst :=
-     (cellnam^nam,
+     (cellnam^"_"^nam',
       ("", cellnam, List.mapi (fun ix -> function
-	  | VRF (nam, _, []) as p ->
-         PORT ("", pnam ix, Dinput, SEL("", p :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) :: [] )
+	  | VRF (nam, _, []) as p -> let p' = if hi > 0 then SEL("", p :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) else p in
+         let pin = pnam ix in PORT ("", pin, Dinput, (match pin with "CLK" -> p | _ -> p') :: [] )
           | CNST (wid, HEX n) -> 
          PORT ("", pnam ix, Dinput, CNST (1, HEX (if ((1 lsl i) land n) > 0 then 1 else 0)) :: [])
-          | SEL ("", _) as p -> 
+          | SEL ("", (VRF (_, _, []) as net) :: CNST (32, HEX base) :: CNST (32, HEX wid) :: []) ->
+		     let p' = SEL("", net :: CNST(32, HEX (i-lo+base)) :: CNST (32, SHEX 1) :: []) in
+         PORT ("", pnam ix, Dinput, p' :: [])
+          | SEL ("", _) as p -> othsel := p;
          PORT ("", pnam ix, Dinput, p :: [])
           | oth -> othmap := Some oth; failwith "maplib'") lst @
-         PORT ("", funy, Doutput, op :: []) :: [])) :: !(itms.inst)
+         PORT ("", funy, Doutput, op' :: []) :: [])) :: !(itms.inst)
 )
 
 let maplib itms lst cell =
@@ -216,7 +235,10 @@ let _chk_assign itms = function
 let rec map itms = function
 | TLIST lst -> List.iter (map itms) lst
 | DOUBLE(POSEDGE,arg) as pat -> othfail := pat; failwith "DOUBLE(POSEDGE,arg)"
-| DOUBLE(ALWAYS, TLIST [DOUBLE (DOUBLE (AT, TLIST [DOUBLE (POSEDGE, IDSTR clk)]), TLIST [TLIST lst])]) ->
+| DOUBLE(ALWAYS, TLIST [DOUBLE (DOUBLE (AT, TLIST [DOUBLE (POSEDGE, clk)]), TLIST
+         [TLIST [QUADRUPLE (DLYASSIGNMENT, lhs, EMPTY, rhs)]])]) ->
+maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
+| DOUBLE(ALWAYS, TLIST [DOUBLE (DOUBLE (AT, TLIST [DOUBLE (POSEDGE, IDSTR clk)]), TLIST [TLIST lst])]) as alw -> othalw := alw;
   _Always itms (POSEDGE clk, List.map (body itms) lst)
 | DOUBLE(tok,arg) as pat -> othfail := pat; failwith "DOUBLE(tok,arg)"
 | TRIPLE(EQUALS, arg1, arg2) as pat -> othfail := pat; failwith "TRIPLE(EQUALS,"

@@ -17,6 +17,7 @@ Input_top
 Input.conflicts
 uhdm.txt
 slpp_all/
+hardcaml_circuits-0.17.0/
 *.v
 *.eqy
 venv
@@ -82,4 +83,4 @@ const_test/
 divider_test/
 modulo_test/
 test_byte_and/
-hardcaml_circuits-0.17.0/
+subtract_test_map/
