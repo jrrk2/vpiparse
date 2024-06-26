@@ -43,17 +43,11 @@ let othalw = ref ENDOFFILE
 let othfail = ref UNKNOWN
 let oth_expr_fail = ref UNKNOWN
 let sigcnt = ref 9999
-let cells = ref []
 let cells' = ref []
 
 let read_lib stem =
   let rw, cellhash = File_rewrite.rewrite (stem^".lib") in
   print_endline (string_of_int (Hashtbl.length cellhash));
-  let newcells = ref [] in
-  Hashtbl.iter (fun k (iolst, formlst, purplst) ->
-	    newcells := (k,(iolst,List.map (fun (y,form) -> othf := k, form;
-		     y, (try Formula_rewrite.rewrite form with _ -> failwith form)) formlst)) :: !newcells) cellhash;
-  cells := List.sort compare !newcells;
   let newcells = ref [] in
   Hashtbl.iter (fun k (iolst, formlst, purplst) ->
 	    newcells := (k,(iolst,List.map (fun (y,form) -> othf := k, form;
@@ -139,28 +133,28 @@ let rec expr = function
 | QUADRUPLE (QUERY, cond, lft, rght) -> "("^expr cond^"?"^expr  lft^":"^expr  rght^")"
 | oth -> oth_expr_fail := oth; failwith "rtl_map_expr"
 
-let othdump = ref []
+let othdump' = ref None
 
-let dumpv stem cells = let fd = open_out (stem^".v") in
+let clocked q iq = function
+| Related ("clocked_on", clk) -> "reg "^iq^"; always @(posedge "^clk^") "^iq^" <= ~D; assign "^q^" = "^iq^";"
+| _ -> ""
+
+let enabled = function
+| Related ("enable", en) -> "reg IQ; always @("^en^") if ("^en^") IQ <= D; assign Q = IQ;"
+| _ -> ""
+
+let concat' = function
+| q, IDSTR iq, FlipFlop (oplst, relst) as oth -> othdump' := Some oth; String.concat "" (List.map (clocked q iq) relst)
+| _, _, Latch (oplst, relst) -> String.concat "" (List.map (enabled) relst)
+| (lhs, exp', (String _|Related _)) -> "assign "^lhs^" = "^expr exp'^";"
+| oth -> othdump' := Some oth; failwith "dumpv''"
+
+let dumpv stem = let fd = open_out (stem^".v") in
 List.iter (function
-| (nam, ([("Q", "output"); (en, "input"); ("D", "input")] as portlst, funclst)) -> othdump := portlst;
-output_string fd ("module "^nam^" ("^String.concat ", " (List.map (fun (port,dir) -> dir^" "^port) portlst)^");\n"^
-String.concat "\n" (List.map (function
-  | ("Q", IDSTR "IQ") -> "reg IQ; always @("^en^") if ("^en^") IQ <= D; assign Q = IQ;"
-  | ("QN", IDSTR "IQN") -> "reg IQN; always @("^en^") if ("^en^") IQN <= ~D; assign QN = IQN;"
-  | (lhs, exp') -> "assign "^lhs^" = "^expr exp'^";") funclst)^"\nendmodule\n\n")
-| (nam, ([("QN", "output"); ("Q", "output"); (clk, "input"); ("D", "input")] as portlst, funclst)) -> othdump := portlst;
-output_string fd ("module "^nam^" ("^String.concat ", " (List.map (fun (port,dir) -> dir^" "^port) portlst)^");\n"^
-String.concat "\n" (List.map (function
-  | ("Q", IDSTR "IQ") -> "reg IQ; always @(posedge "^clk^") IQ <= D; assign Q = IQ;"
-  | ("QN", IDSTR "IQN") -> "reg IQN; always @(posedge "^clk^") IQN <= ~D; assign QN = IQN;"
-  | (lhs, exp') -> "assign "^lhs^" = "^expr exp'^";") funclst)^"\nendmodule\n\n")
 | (nam, (portlst, funclst)) ->
 output_string fd ("module "^nam^" ("^String.concat ", " (List.map (fun (port,dir) -> dir^" "^port) portlst)^");\n"^
-String.concat "\n" (List.map (function
-  | ("Q", IDSTR "IQ") -> "reg IQ; always @(posedge CLK) IQ <= D; assign Q = IQ;"
-  | (lhs, exp') -> "assign "^lhs^" = "^expr exp'^";") funclst)^"\nendmodule\n\n")
-) cells;
+String.concat "\n" (List.map (concat') funclst)^"\nendmodule\n\n")
+) !cells';
 close_out fd
 
 let othrtl = ref ENDOFFILE

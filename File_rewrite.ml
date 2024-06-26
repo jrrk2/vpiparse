@@ -220,7 +220,7 @@ let rec scan attr = function
 | WireLoad _ -> ()
 | LibCell (nam, lst) -> let pins = ref [] and fn = ref [] and purpose = ref (String nam) in List.iter (function
     | Other ("pg_pin", pin, lst) when extract_pg_pins -> List.iter (function Related ("pg_type", pwr) -> pins := (pin,pwr) :: !pins | _ -> ()) lst
-    | CellPin (pin, lst) -> List.iter (function Direction dir -> pins := (pin,dir) :: !pins | Function f -> fn := (pin,f) :: !fn | _ -> ()) lst
+    | CellPin (pin, lst) -> List.iter (function Direction "internal" -> () | Direction dir -> pins := (pin,dir) :: !pins | Function f -> fn := (pin,f) :: !fn | _ -> ()) lst
     | (Latch _ | FlipFlop _ | StateTable _ | Related _) as p -> purpose := p
     | _ -> ()) lst; Hashtbl.add attr.cellhash nam (!pins,!fn,!purpose)
 | CellPin (_, _) -> ()
