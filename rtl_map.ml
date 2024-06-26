@@ -33,53 +33,72 @@ let form = "!(((C1 | C2) & A) & (B1 | B2))";;
 let rslt = Formula_rewrite.rewrite form;;
 let othf = ref ("", "");;
 let othmap = ref None
+let othmaplib = ref (XML [],([],[]))
 let othuniq = ref None
 let othport = ref None
 let othfilt = ref ENDOFFILE
 let othchk = ref (XML [], XML [])
 let othsel = ref (XML [])
 let othalw = ref ENDOFFILE
+let othfail = ref UNKNOWN
+let oth_expr_fail = ref UNKNOWN
 let sigcnt = ref 9999
+let cells = ref []
+let cells' = ref []
 
-let stem = "liberty/NCTU_75T";;
-(* https://raw.githubusercontent.com/ieee-ceda-datc/RDF-2019/master/techlibs/NCTUcell_lib/NCTU_75T.lib *)
-let rw, cellhash = File_rewrite.rewrite (stem^".lib");;
-let _ = print_endline (string_of_int (Hashtbl.length cellhash));;
-let cells = ref [];;
-let othfail = ref UNKNOWN;;
-Hashtbl.iter (fun k (iolst, formlst) ->
-cells := (k,(iolst,List.map (fun (y,form) -> othf := k, form; y, try Formula_rewrite.rewrite form with _ -> failwith form) formlst)) :: !cells) cellhash;;
-let cells = List.sort compare !cells;;
+let read_lib stem =
+  let rw, cellhash = File_rewrite.rewrite (stem^".lib") in
+  print_endline (string_of_int (Hashtbl.length cellhash));
+  let newcells = ref [] in
+  Hashtbl.iter (fun k (iolst, formlst, purplst) ->
+	    newcells := (k,(iolst,List.map (fun (y,form) -> othf := k, form;
+		     y, (try Formula_rewrite.rewrite form with _ -> failwith form)) formlst)) :: !newcells) cellhash;
+  cells := List.sort compare !newcells;
+  let newcells = ref [] in
+  Hashtbl.iter (fun k (iolst, formlst, purplst) ->
+	    newcells := (k,(iolst,List.map (fun (y,form) -> othf := k, form;
+		     y, (try Formula_rewrite.rewrite form with _ -> failwith form), purplst) formlst)) :: !newcells) cellhash;
+  cells' := List.sort compare !newcells
 
-let filt1 = List.sort compare (List.filter (function (_,
-  ([("Y", "output"); ("A", "input")],
-    [("Y", DOUBLE (NOT, arg))])) -> true | _ -> false) cells);;
+let read_liberty = function
+| None ->
+  (* https://raw.githubusercontent.com/ieee-ceda-datc/RDF-2019/master/techlibs/NCTUcell_lib/NCTU_75T.lib *)
+  let stem = "liberty/NCTU_75T" in
+  (* https://raw.githubusercontent.com/ieee-ceda-datc/RDF-2019/master/techlibs/nangate45/NangateOpenCellLibrary_typical.lib *)   
+  let stem = "liberty/NangateOpenCellLibrary_typical" in
+  (* from environment *)
+  let stem = try Sys.getenv ("LIBERTY_LIB") with _ -> stem in
+  read_lib stem
+| Some stem -> read_lib stem
 
 let filt' prop = function (_,
   (_,
-    [(_, TRIPLE (IDSTR a, p, IDSTR b))
+    [(_, TRIPLE (IDSTR a, p, IDSTR b), String _)
     ])) -> p=prop | _ -> false
 
 let filtbuf = function (_,
   ((_,"output")::(_,"input")::[],
-    [(_, IDSTR a)
+    [(_, IDSTR a, String _)
     ])) -> true | _ -> false
 
 let filtnot = function (_,
   ((_,"output")::(_,"input")::[],
-    [(_, DOUBLE (NOT, IDSTR a))
+    [(_, DOUBLE (NOT, IDSTR a), String _)
     ])) -> true | _ -> false
 
-let filtxor = function (_,
-  (_,
-    [(_, TRIPLE (TRIPLE (IDSTR a, P_AMPERSAND, DOUBLE (NOT, IDSTR b)), P_VBAR,
-	      TRIPLE (DOUBLE (NOT, IDSTR a'), P_AMPERSAND, IDSTR b')))
-    ])) when a=a' && b=b' -> true | _ -> false
+let filtxor = function
+    | (_, (_, [(_, TRIPLE (TRIPLE (IDSTR a, P_AMPERSAND, DOUBLE (NOT, IDSTR b)), P_VBAR,
+	      TRIPLE (DOUBLE (NOT, IDSTR a'), P_AMPERSAND, IDSTR b')), _)])) when a=a' && b=b' -> true
+    | (_, (_, [(_, TRIPLE (IDSTR a, XOR, IDSTR b), String _)])) -> true
+    | _ -> false
 
-let filtedge = function (_,
-  ((_,"output")::(_,"input")::(_,"input")::[],
-    [(_, IDSTR "IQ")
-    ])) -> true | _ -> false
+let filtmux = function
+    | (_, (_, [(_, TRIPLE (TRIPLE (IDSTR s, P_AMPERSAND, IDSTR b), P_VBAR,
+	      TRIPLE (IDSTR a, P_AMPERSAND, DOUBLE (NOT, IDSTR s'))), String _)])) when s=s' -> true
+    | _ -> false
+
+let filtedge = function
+    | (_, ([_;_;_;_], (_, IDSTR _, FlipFlop _) :: _)) -> true | _ -> false
 
 let filtmap = function
 | AND -> filt' P_AMPERSAND
@@ -88,28 +107,19 @@ let filtmap = function
 | NOT -> filtnot
 | oth -> othfilt := oth; failwith "filtmap"
     
-let filtcells = function
-| TRIPLE((AND|OR|XOR as op), lft, rght) ->
-  let nlst = ref [] in
-  let uniq = List.sort compare !nlst, List.sort_uniq compare (List.map (fun (nam,p) -> nlst := nam :: !nlst; p) (List.filter (filtmap op) cells)) in
-  othuniq := Some uniq;
-  uniq
-| DOUBLE((NOT as op), rght) ->
-  let nlst = ref [] in
-  let uniq = List.sort compare !nlst, List.sort_uniq compare (List.map (fun (nam,p) -> nlst := nam :: !nlst; p) (List.filter (filtmap op) cells)) in
-  othuniq := Some uniq;
-  uniq
-| BUF -> 
-  let nlst = ref [] in
-  let uniq = List.sort compare !nlst, List.sort_uniq compare (List.map (fun (nam,p) -> nlst := nam :: !nlst; p) (List.filter (filtbuf) cells)) in
-  othuniq := Some uniq;
-  uniq
-| POSEDGE -> 
-  let nlst = ref [] in
-  let uniq = List.sort compare !nlst, List.sort_uniq compare (List.map (fun (nam,p) -> nlst := nam :: !nlst; p) (List.filter (filtedge) cells)) in
-  othuniq := Some uniq;
-  uniq
+let filtcells' = function
+| TRIPLE((AND|OR|XOR as op), lft, rght) -> filtmap op
+| DOUBLE((NOT as op), rght) -> filtmap op
+| BUF -> filtbuf
+| QUERY -> filtmux
+| POSEDGE -> filtedge
 | oth -> othfilt := oth; failwith "filtcells"
+
+let filtcells func =
+  let nlst = ref [] in
+  let uniq = List.sort compare !nlst, List.sort_uniq compare (List.map (fun (nam,p) -> nlst := nam :: !nlst; p) (List.filter (filtcells' func) !cells')) in
+  othuniq := Some uniq;
+  uniq
 
 let opmap = function
 | P_AMPERSAND -> "&"
@@ -121,19 +131,36 @@ let opmap = function
 let rec expr = function
 | IDSTR id -> id
 | INT n -> string_of_int n
+| INTNUM n -> n
 | DOUBLE((NOT as op),arg) -> "("^opmap op^expr arg^")"
 | TRIPLE(lft, (P_AMPERSAND|P_VBAR|XOR as op), rght) -> "("^expr lft^opmap op^expr rght^")"
 | DOUBLE(CONCAT, TLIST lst) -> String.concat ", " (List.map expr lst)
 | QUADRUPLE (PARTSEL, id, INT hi, INT lo) -> expr id^"["^string_of_int hi^":"^string_of_int lo^"]"
 | QUADRUPLE (QUERY, cond, lft, rght) -> "("^expr cond^"?"^expr  lft^":"^expr  rght^")"
-| oth -> othfail := oth; failwith "expr"
+| oth -> oth_expr_fail := oth; failwith "rtl_map_expr"
 
-let v () = let fd = open_out (stem^".v") in
-List.iter (fun (nam, (portlst, funclst)) ->
+let othdump = ref []
+
+let dumpv stem cells = let fd = open_out (stem^".v") in
+List.iter (function
+| (nam, ([("Q", "output"); (en, "input"); ("D", "input")] as portlst, funclst)) -> othdump := portlst;
+output_string fd ("module "^nam^" ("^String.concat ", " (List.map (fun (port,dir) -> dir^" "^port) portlst)^");\n"^
+String.concat "\n" (List.map (function
+  | ("Q", IDSTR "IQ") -> "reg IQ; always @("^en^") if ("^en^") IQ <= D; assign Q = IQ;"
+  | ("QN", IDSTR "IQN") -> "reg IQN; always @("^en^") if ("^en^") IQN <= ~D; assign QN = IQN;"
+  | (lhs, exp') -> "assign "^lhs^" = "^expr exp'^";") funclst)^"\nendmodule\n\n")
+| (nam, ([("QN", "output"); ("Q", "output"); (clk, "input"); ("D", "input")] as portlst, funclst)) -> othdump := portlst;
+output_string fd ("module "^nam^" ("^String.concat ", " (List.map (fun (port,dir) -> dir^" "^port) portlst)^");\n"^
+String.concat "\n" (List.map (function
+  | ("Q", IDSTR "IQ") -> "reg IQ; always @(posedge "^clk^") IQ <= D; assign Q = IQ;"
+  | ("QN", IDSTR "IQN") -> "reg IQN; always @(posedge "^clk^") IQN <= ~D; assign QN = IQN;"
+  | (lhs, exp') -> "assign "^lhs^" = "^expr exp'^";") funclst)^"\nendmodule\n\n")
+| (nam, (portlst, funclst)) ->
 output_string fd ("module "^nam^" ("^String.concat ", " (List.map (fun (port,dir) -> dir^" "^port) portlst)^");\n"^
 String.concat "\n" (List.map (function
   | ("Q", IDSTR "IQ") -> "reg IQ; always @(posedge CLK) IQ <= D; assign Q = IQ;"
-  | (lhs, exp') -> "assign "^lhs^" = "^expr exp'^";") funclst)^"\nendmodule\n\n")) cells;
+  | (lhs, exp') -> "assign "^lhs^" = "^expr exp'^";") funclst)^"\nendmodule\n\n")
+) cells;
 close_out fd
 
 let othrtl = ref ENDOFFILE
@@ -169,11 +196,11 @@ let chk_reg itms reg fn =
   tran_search itms wid' wid' reg
 
 let maplib' itms lst = function
-| (VRF (nam, _, _) as op), (cellnam::_,(portlst,(funy,eqn)::_)::_) ->
+| (VRF (nam, _, _) as op), (cellnam::_,(portlst,(funy,eqn,liberty)::_)::_) ->
 let inports = List.filter (function (nam, "input") -> true | _ -> false) portlst in
 let pnam ix = fst (try List.nth inports ix with _ -> othport := Some (inports, ix); failwith "othport") in
 chk_reg itms nam (fun hi lo i ->
-print_endline (string_of_int i);
+if false then print_endline (string_of_int i);
 let op' = if hi > 0 then SEL("", op :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) else op in
 let nam' = if hi > 0 then nam^"_"^string_of_int i else nam in
 itms.inst :=
@@ -191,6 +218,7 @@ itms.inst :=
           | oth -> othmap := Some oth; failwith "maplib'") lst @
          PORT ("", funy, Doutput, op' :: []) :: [])) :: !(itms.inst)
 )
+| oth -> othmaplib := oth;failwith "othmaplib"
 
 let maplib itms lst cell =
 decr sigcnt;
@@ -200,25 +228,27 @@ _Identyp itms nam Vpinet;
 maplib' itms lst (outp,cell);
 outp
 
+let maplib itms lst cell = failwith "maplib_test"
+
 let rec expr itms = function
 | IDSTR id -> _Ident itms id
 | BINNUM c -> CNST (cexp c)
 | INT n -> CNST (32, HEX n)
+| QUADRUPLE (PARTSEL, id, INT hi, INT lo) -> SEL ("", [expr itms id; CNST (32, HEX lo); CNST (32, HEX (hi-lo+1))])
+| DOUBLE(CONCAT, TLIST lst) -> concat (List.map (expr itms) lst)
+(*
 | DOUBLE(NOT,arg) -> UNRY(Unot, expr itms arg :: [])
-| TRIPLE((AND|OR|XOR), lft, rght) as func -> maplib itms ([expr itms lft;expr itms rght]) (filtcells func)
+| TRIPLE((AND|OR|XOR), lft, rght) as func -> maplib itms [expr itms lft;expr itms rght] (filtcells func)
 | TRIPLE((PLUS|MINUS|TIMES as op), lft, rght) -> ARITH(arithop op, [expr itms lft;expr itms rght])
 | TRIPLE((P_EQUAL|LESS as op), lft, rght) -> CMP(cmpop op, [expr itms lft;expr itms rght])
-| DOUBLE(CONCAT, TLIST lst) -> concat (List.map (expr itms) lst)
-| QUADRUPLE (PARTSEL, id, INT hi, INT lo) -> SEL ("", [expr itms id; CNST (32, HEX lo); CNST (32, HEX (hi-lo+1))])
-(*
- | QUADRUPLE (PARTSEL, id, hi, lo) -> _Selection itms (expr itms id, expr itms hi, expr itms lo, 0, 0)
+| QUADRUPLE (PARTSEL, id, hi, lo) -> _Selection itms (expr itms id, expr itms hi, expr itms lo, 0, 0)
+| QUADRUPLE (QUERY, cond, lft, rght) -> maplib itms [expr itms cond; expr itms lft; expr itms rght] (filtcells QUERY)
 *)
-| QUADRUPLE (QUERY, cond, lft, rght) -> _Ternary itms (expr itms cond, expr itms lft, expr itms rght) 
 | oth -> othfail := oth; failwith "expr"
 
-(* *)
+let expr itms expression = othfail := expression; expr itms expression
+	 
 let ports = List.iter (function IDSTR id -> print_endline id | _ -> failwith "ports")
-(* *)
 
 let rec body itms = function
 | QUADRUPLE(DLYASSIGNMENT, src, EMPTY, dest) -> _Asgn itms (expr itms src, expr itms dest)
@@ -247,9 +277,11 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
 | TRIPLE(LESS, arg1, arg2) as pat -> othfail := pat; failwith "TRIPLE(LESS,"
 | TRIPLE(ASSIGNMENT, arg1, arg2) as pat -> othfail := pat; failwith "TRIPLE(ASSIGNMENT,"
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE((AND|OR|XOR), lft, rght) as func))]) ->
-maplib' itms ([expr itms lft;expr itms rght]) (expr itms lhs, filtcells func)
+  maplib' itms ([expr itms lft;expr itms rght]) (expr itms lhs, filtcells func)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (DOUBLE((NOT), rght) as func))]) ->
-maplib' itms ([expr itms rght]) (expr itms lhs, filtcells func)
+  maplib' itms ([expr itms rght]) (expr itms lhs, filtcells func)
+| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, QUADRUPLE (QUERY, cond, lft, rght))]) ->
+  maplib' itms [expr itms cond; expr itms lft; expr itms rght] (expr itms lhs, filtcells QUERY)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, rhs)]) -> _chk_assign itms (expr itms rhs, expr itms lhs)
 | TRIPLE(tok, arg1, arg2) as pat ->  othfail := pat; failwith "TRIPLE(tok,"
 | QUADRUPLE(QUERY, arg1, arg2, arg3) as pat ->  othfail := pat; failwith "QUADRUPLE(QUERY,"

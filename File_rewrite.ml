@@ -196,7 +196,7 @@ StateTable(List.rev_map rw' pinlst, s)
 | TUPLE4 (IDENT ("default_wire_load_mode"|"output_voltage"|"input_voltage"|"driver_waveform_fall"|"driver_waveform_rise"|"driver_waveform_name" as p), COLON, (STRING _|IDENT _), SEMI) -> Parameter (p, 0.0)
 | TUPLE4 (IDENT ("voltage_unit"|"time_unit"|"leakage_power_unit"|"pulling_resistance_unit"|"current_unit" as p), COLON, TLIST [IDENT units; NUM num], SEMI) -> Parameter (p, float_of_string num *. scaling units)
 | TUPLE4 (IDENT ("pg_type"|"voltage_name"|"timing_type"|"clock"|"nextstate_type"|"clear_preset_var2"|"clear_preset_var1"|"dont_use"|"dont_touch"|"clock_gate_out_pin"|"clock_gate_enable_pin"|"clock_gate_clock_pin"|"internal_node"|"clock_gating_integrated_cell"|"clock_gate_test_pin"|"variable_1"|"variable_2"|"default_operating_conditions"|"tree_type"|"in_place_swap_mode"|"delay_model" as p), COLON, IDENT s, SEMI) -> Related (p, s)
-| TUPLE4 (IDENT ("capacitance"|"cell_leakage_power"|"default_cell_leakage_power"|"default_fanout_load"|"default_inout_pin_cap"|"default_input_pin_cap"|"default_leakage_power_density"|"default_max_fanout"|"default_output_pin_cap"|"input_threshold_pct_fall"|"input_threshold_pct_rise"|"max_capacitance"|"nom_process"|"nom_temperature"|"nom_voltage"|"output_threshold_pct_fall"|"output_threshold_pct_rise"|"process"|"slew_derate_from_library"|"slew_lower_threshold_pct_fall"|"slew_lower_threshold_pct_rise"|"slew_upper_threshold_pct_fall"|"slew_upper_threshold_pct_rise"|"temperature"|"value"|"vih"|"vil"|"vimax"|"vimin"|"voh"|"vol"|"voltage"|"vomax"|"vomin" as p), COLON, (NUM s|STRING s), SEMI) -> if not (List.mem p !lst) then lst := p :: !lst;
+| TUPLE4 (IDENT ("area"|"capacitance"|"cell_leakage_power"|"default_cell_leakage_power"|"default_fanout_load"|"default_inout_pin_cap"|"default_input_pin_cap"|"default_leakage_power_density"|"default_max_fanout"|"default_max_transition"|"default_output_pin_cap"|"drive_strength"|"fall_capacitance"|"input_threshold_pct_fall"|"input_threshold_pct_rise"|"max_capacitance"|"nom_process"|"nom_temperature"|"nom_voltage"|"output_threshold_pct_fall"|"output_threshold_pct_rise"|"process"|"resistance"|"rise_capacitance"|"slew_derate_from_library"|"slew_lower_threshold_pct_fall"|"slew_lower_threshold_pct_rise"|"slew_upper_threshold_pct_fall"|"slew_upper_threshold_pct_rise"|"slope"|"temperature"|"value"|"vih"|"vil"|"vimax"|"vimin"|"voh"|"vol"|"voltage"|"vomax"|"vomin" as p), COLON, (NUM s|STRING s), SEMI) -> if not (List.mem p !lst) then lst := p :: !lst;
     Parameter (p, float_of_string s)
 | TUPLE4 (IDENT "define", LPAR, TLIST lst, RPAR) -> Define(List.rev_map (function IDENT id -> id | oth -> unhand := Some oth; failwith "define") lst)
 | STRING s -> String s
@@ -204,7 +204,9 @@ StateTable(List.rev_map rw' pinlst, s)
 | NUM n ->  Parameter ("", float_of_string n)
 | oth -> unhand := Some oth; failwith "rw'"
 
-type attr = {cellhash: (string,((string * string) list * (string * string) list))Hashtbl.t}
+type attr = {cellhash: (string,((string * string) list * (string * string) list * liberty))Hashtbl.t}
+
+let extract_pg_pins = try int_of_string (Sys.getenv "EXTRACT_PG_PINS") > 0 with _ -> false
 
 let rec scan attr = function
 | Library (_, lst) -> List.iter (scan attr) lst
@@ -216,10 +218,11 @@ let rec scan attr = function
 | Define _ -> ()
 | Other (_, _ , _) -> ()
 | WireLoad _ -> ()
-| LibCell (nam, lst) -> let pins = ref [] and fn = ref [] in List.iter (function
-    | Other ("pg_pin", pin, lst) -> List.iter (function Related ("pg_type", pwr) -> pins := (pin,pwr) :: !pins | _ -> ()) lst
+| LibCell (nam, lst) -> let pins = ref [] and fn = ref [] and purpose = ref (String nam) in List.iter (function
+    | Other ("pg_pin", pin, lst) when extract_pg_pins -> List.iter (function Related ("pg_type", pwr) -> pins := (pin,pwr) :: !pins | _ -> ()) lst
     | CellPin (pin, lst) -> List.iter (function Direction dir -> pins := (pin,dir) :: !pins | Function f -> fn := (pin,f) :: !fn | _ -> ()) lst
-    | _ -> ()) lst; Hashtbl.add attr.cellhash nam (!pins,!fn)
+    | (Latch _ | FlipFlop _ | StateTable _ | Related _) as p -> purpose := p
+    | _ -> ()) lst; Hashtbl.add attr.cellhash nam (!pins,!fn,!purpose)
 | CellPin (_, _) -> ()
 | Timing _ -> ()
 | IPower _ -> ()
@@ -259,7 +262,3 @@ let rewrite arg =
   let cellhash = Hashtbl.create 255 in
   let _ = scan {cellhash} rw in
   rw,cellhash
-
-(*
-let _ = if Array.length Sys.argv > 1 then ignore(parse Sys.argv.(1))
-*)

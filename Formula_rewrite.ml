@@ -45,7 +45,9 @@ let rec rw' = function
 | TUPLE2 (PLING, arg) -> DOUBLE (NOT, rw' arg)
 | TUPLE3 (lft, AMPERSAND, rght) -> TRIPLE (rw' lft, P_AMPERSAND, rw' rght)
 | TUPLE3 (lft, VBAR, rght) -> TRIPLE (rw' lft, P_VBAR, rw' rght)
+| TUPLE3 (lft, CARET, rght) -> TRIPLE (rw' lft, XOR, rw' rght)
 | TUPLE3 (LPAR, arg, RPAR) -> rw' arg
+| NUM s -> INTNUM s
 | oth -> unhand := Some oth; failwith "rw'"
 
 let rewrite arg =
