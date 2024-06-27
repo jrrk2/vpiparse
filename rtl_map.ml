@@ -40,10 +40,12 @@ let othfilt = ref ENDOFFILE
 let othchk = ref (XML [], XML [])
 let othsel = ref (XML [])
 let othalw = ref ENDOFFILE
-let othfail = ref UNKNOWN
+let othmapfail = ref UNKNOWN
 let oth_expr_fail = ref UNKNOWN
 let sigcnt = ref 9999
 let cells' = ref []
+
+let form' form = try Formula_rewrite.rewrite form with _ -> failwith ("Formula_rewrite failed: "^form)
 
 let read_lib stem =
   let rw, cellhash = File_rewrite.rewrite (stem^".lib") in
@@ -51,19 +53,18 @@ let read_lib stem =
   let newcells = ref [] in
   Hashtbl.iter (fun k (iolst, formlst, purplst) ->
 	    newcells := (k,(iolst,List.map (fun (y,form) -> othf := k, form;
-		     y, (try Formula_rewrite.rewrite form with _ -> failwith form), purplst) formlst)) :: !newcells) cellhash;
-  cells' := List.sort compare !newcells
+		     y, form' form, purplst) formlst)) :: !newcells) cellhash;
+  cells' := List.sort compare !newcells;
+  stem
 
-let read_liberty = function
+let dflt_liberty = function
 | None ->
-  (* https://raw.githubusercontent.com/ieee-ceda-datc/RDF-2019/master/techlibs/NCTUcell_lib/NCTU_75T.lib *)
-  let stem = "liberty/NCTU_75T" in
   (* https://raw.githubusercontent.com/ieee-ceda-datc/RDF-2019/master/techlibs/nangate45/NangateOpenCellLibrary_typical.lib *)   
   let stem = "liberty/NangateOpenCellLibrary_typical" in
   (* from environment *)
   let stem = try Sys.getenv ("LIBERTY_LIB") with _ -> stem in
-  read_lib stem
-| Some stem -> read_lib stem
+  stem
+| Some stem -> stem
 
 let filt' prop = function (_,
   (_,
@@ -92,7 +93,7 @@ let filtmux = function
     | _ -> false
 
 let filtedge = function
-    | (_, ([_;_;_;_], (_, IDSTR _, FlipFlop _) :: _)) -> true | _ -> false
+    | (_, (ports, (_, IDSTR _, FlipFlop (_,Related ("clocked_on", clk) :: Related ("next_state", d) :: [])) :: _)) -> clk.[0]<>'!' | _ -> false
 
 let filtmap = function
 | AND -> filt' P_AMPERSAND
@@ -112,15 +113,16 @@ let filtcells' = function
 let filtcells func =
   let nlst = ref [] in
   let uniq = List.sort compare !nlst, List.sort_uniq compare (List.map (fun (nam,p) -> nlst := nam :: !nlst; p) (List.filter (filtcells' func) !cells')) in
-  othuniq := Some uniq;
-  uniq
+  match uniq with
+    | (_,[]) -> othuniq := Some (func, uniq); failwith ("filtcells returned an empty list")
+    | _ -> othuniq := None; uniq
 
 let opmap = function
 | P_AMPERSAND -> "&"
 | P_VBAR -> "|"
 | XOR -> "^"
 | NOT -> "!"
-| oth -> othfail := oth; failwith "opmap"
+| oth -> othmapfail := oth; failwith "opmap"
 
 let rec expr = function
 | IDSTR id -> id
@@ -158,30 +160,30 @@ String.concat "\n" (List.map (concat') funclst)^"\nendmodule\n\n")
 close_out fd
 
 let othrtl = ref ENDOFFILE
-let othfail = ref ENDOFFILE
+let othmapfail = ref ENDOFFILE
 let uitms = ref []
 
 let dir = function
 | INPUT -> Dinput
 | OUTPUT -> Doutput
-| oth -> othfail := oth; failwith "dir"
+| oth -> othmapfail := oth; failwith "dir"
 
 let arithop = function
 | TIMES -> Amul
 | PLUS -> Aadd
 | MINUS -> Asub
-| oth -> othfail := oth; failwith "arithop"
+| oth -> othmapfail := oth; failwith "arithop"
 
 let logicop = function
 | AND -> Land
 | OR -> Lor
 | XOR -> Lxor
-| oth -> othfail := oth; failwith "logicop"
+| oth -> othmapfail := oth; failwith "logicop"
 
 let cmpop = function
 | P_EQUAL -> Ceq
 | LESS -> Clt
-| oth -> othfail := oth; failwith "cmpop"
+| oth -> othmapfail := oth; failwith "cmpop"
 
 let chk_reg itms reg fn =
   let wid' _ = function
@@ -189,18 +191,9 @@ let chk_reg itms reg fn =
     | _ -> failwith "chk_reg" in
   tran_search itms wid' wid' reg
 
-let maplib' itms lst = function
-| (VRF (nam, _, _) as op), (cellnam::_,(portlst,(funy,eqn,liberty)::_)::_) ->
-let inports = List.filter (function (nam, "input") -> true | _ -> false) portlst in
-let pnam ix = fst (try List.nth inports ix with _ -> othport := Some (inports, ix); failwith "othport") in
-chk_reg itms nam (fun hi lo i ->
-if false then print_endline (string_of_int i);
-let op' = if hi > 0 then SEL("", op :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) else op in
-let nam' = if hi > 0 then nam^"_"^string_of_int i else nam in
-itms.inst :=
-     (cellnam^"_"^nam',
-      ("", cellnam, List.mapi (fun ix -> function
-	  | VRF (nam, _, []) as p -> let p' = if hi > 0 then SEL("", p :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) else p in
+let connlst pnam hi lo i ix = function
+	  | VRF (nam, _, []) as p ->
+	  let p' = if hi > 0 then SEL("", p :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) else p in
          let pin = pnam ix in PORT ("", pin, Dinput, (match pin with "CLK" -> p | _ -> p') :: [] )
           | CNST (wid, HEX n) -> 
          PORT ("", pnam ix, Dinput, CNST (1, HEX (if ((1 lsl i) land n) > 0 then 1 else 0)) :: [])
@@ -209,11 +202,45 @@ itms.inst :=
          PORT ("", pnam ix, Dinput, p' :: [])
           | SEL ("", _) as p -> othsel := p;
          PORT ("", pnam ix, Dinput, p :: [])
-          | oth -> othmap := Some oth; failwith "maplib'") lst @
-         PORT ("", funy, Doutput, op' :: []) :: [])) :: !(itms.inst)
+         | oth -> othmap := Some oth; failwith "connlst"
+
+let othff = ref (String "")
+
+let conndir = function
+| "input" -> Dinput
+| "output" -> Doutput
+
+let connlst' porth hi lo i p = let pin = fst p in PORT ("", pin, conndir (snd p), Hashtbl.find porth pin)
+
+let maplib' itms lst = function
+| (VRF (nam, _, _) as op), (cellnam::_,(portlst,(funy,eqn,(liberty:liberty))::_)::_) ->
+let porth = Hashtbl.create 127 in
+List.iter (fun (nam, _) -> Hashtbl.add porth nam []) portlst;
+let inports, outports = List.partition (function (nam, "input") -> true | _ -> false) portlst in
+let pnam ix = fst (try List.nth inports ix with _ -> othport := Some (inports, ix); failwith "othport") in
+List.iter (function VRF(nam, _, []) -> chk_reg itms nam (fun hi lo i -> print_endline (nam^": "^string_of_int i)) | _ -> ()) lst;
+let _ = match liberty,lst with
+ | FlipFlop (ipins, lst),rhs::clk::[] -> List.iter (function
+	| Related ("next_state", pin) -> Hashtbl.replace porth pin (rhs :: [])
+	| Related ("clocked_on", pin) -> Hashtbl.replace porth pin (clk :: [])
+	| String ipin when ipin.[String.length ipin-1] <> 'N' -> let pin = String.sub ipin 1 (String.length ipin - 1) in Hashtbl.replace porth pin (op :: [])
+	| oth -> othff := oth) (ipins@lst)
+ | Latch (_, _), _ -> ()
+ | String _, _ ->
+ List.iteri (fun ix itm -> Hashtbl.replace porth (pnam ix) (itm :: [])) lst;
+ Hashtbl.replace porth (fst (List.hd outports)) (op :: [])
+ | oth,_ -> othff := oth; failwith "maplib'_othff" in
+chk_reg itms nam (fun hi lo i ->
+if false then print_endline (string_of_int i);
+let op' = if hi > 0 then SEL("", op :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) else op in
+let nam' = if hi > 0 then nam^"_"^string_of_int i else nam in
+itms.inst :=
+     (cellnam^"_"^nam',
+      ("", cellnam, List.map (connlst' porth hi lo i) inports @ List.map (connlst' porth hi lo i) outports)) :: !(itms.inst)
 )
 | oth -> othmaplib := oth;failwith "othmaplib"
 
+(*
 let maplib itms lst cell =
 decr sigcnt;
 let nam = "_"^string_of_int !sigcnt in
@@ -221,8 +248,7 @@ let outp = VRF (nam, (BASDTYP, "logic", TYPNONE, []), []) in
 _Identyp itms nam Vpinet;
 maplib' itms lst (outp,cell);
 outp
-
-let maplib itms lst cell = failwith "maplib_test"
+*)
 
 let rec expr itms = function
 | IDSTR id -> _Ident itms id
@@ -238,15 +264,15 @@ let rec expr itms = function
 | QUADRUPLE (PARTSEL, id, hi, lo) -> _Selection itms (expr itms id, expr itms hi, expr itms lo, 0, 0)
 | QUADRUPLE (QUERY, cond, lft, rght) -> maplib itms [expr itms cond; expr itms lft; expr itms rght] (filtcells QUERY)
 *)
-| oth -> othfail := oth; failwith "expr"
+| oth -> othmapfail := oth; failwith "expr"
 
-let expr itms expression = othfail := expression; expr itms expression
+let expr itms expression = othmapfail := expression; expr itms expression
 	 
 let ports = List.iter (function IDSTR id -> print_endline id | _ -> failwith "ports")
 
 let rec body itms = function
 | QUADRUPLE(DLYASSIGNMENT, src, EMPTY, dest) -> _Asgn itms (expr itms src, expr itms dest)
-| oth -> othfail := oth; failwith "body"
+| oth -> othmapfail := oth; failwith "body"
 
 let _chk_assign itms = function
 | CNST (wid, HEX _) as lhs, (VRF (_, (BASDTYP, "logic", TYPNONE, []), []) as rhs) -> maplib' itms ([lhs]) (rhs, filtcells BUF)
@@ -258,18 +284,18 @@ let _chk_assign itms = function
 
 let rec map itms = function
 | TLIST lst -> List.iter (map itms) lst
-| DOUBLE(POSEDGE,arg) as pat -> othfail := pat; failwith "DOUBLE(POSEDGE,arg)"
+| DOUBLE(POSEDGE,arg) as pat -> othmapfail := pat; failwith "DOUBLE(POSEDGE,arg)"
 | DOUBLE(ALWAYS, TLIST [DOUBLE (DOUBLE (AT, TLIST [DOUBLE (POSEDGE, clk)]), TLIST
          [TLIST [QUADRUPLE (DLYASSIGNMENT, lhs, EMPTY, rhs)]])]) ->
 maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
 | DOUBLE(ALWAYS, TLIST [DOUBLE (DOUBLE (AT, TLIST [DOUBLE (POSEDGE, IDSTR clk)]), TLIST [TLIST lst])]) as alw -> othalw := alw;
   _Always itms (POSEDGE clk, List.map (body itms) lst)
-| DOUBLE(tok,arg) as pat -> othfail := pat; failwith "DOUBLE(tok,arg)"
-| TRIPLE(EQUALS, arg1, arg2) as pat -> othfail := pat; failwith "TRIPLE(EQUALS,"
-| TRIPLE(IF, arg1, arg2) as pat -> othfail := pat; failwith "TRIPLE(IF,"
-| TRIPLE(PLUS, arg1, arg2) as pat -> othfail := pat; failwith "TRIPLE(PLUS,"
-| TRIPLE(LESS, arg1, arg2) as pat -> othfail := pat; failwith "TRIPLE(LESS,"
-| TRIPLE(ASSIGNMENT, arg1, arg2) as pat -> othfail := pat; failwith "TRIPLE(ASSIGNMENT,"
+| DOUBLE(tok,arg) as pat -> othmapfail := pat; failwith "DOUBLE(tok,arg)"
+| TRIPLE(EQUALS, arg1, arg2) as pat -> othmapfail := pat; failwith "TRIPLE(EQUALS,"
+| TRIPLE(IF, arg1, arg2) as pat -> othmapfail := pat; failwith "TRIPLE(IF,"
+| TRIPLE(PLUS, arg1, arg2) as pat -> othmapfail := pat; failwith "TRIPLE(PLUS,"
+| TRIPLE(LESS, arg1, arg2) as pat -> othmapfail := pat; failwith "TRIPLE(LESS,"
+| TRIPLE(ASSIGNMENT, arg1, arg2) as pat -> othmapfail := pat; failwith "TRIPLE(ASSIGNMENT,"
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE((AND|OR|XOR), lft, rght) as func))]) ->
   maplib' itms ([expr itms lft;expr itms rght]) (expr itms lhs, filtcells func)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (DOUBLE((NOT), rght) as func))]) ->
@@ -277,11 +303,13 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, QUADRUPLE (QUERY, cond, lft, rght))]) ->
   maplib' itms [expr itms cond; expr itms lft; expr itms rght] (expr itms lhs, filtcells QUERY)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, rhs)]) -> _chk_assign itms (expr itms rhs, expr itms lhs)
-| TRIPLE(tok, arg1, arg2) as pat ->  othfail := pat; failwith "TRIPLE(tok,"
-| QUADRUPLE(QUERY, arg1, arg2, arg3) as pat ->  othfail := pat; failwith "QUADRUPLE(QUERY,"
-| QUADRUPLE(PARTSEL, IDSTR id, hi, lo) as pat -> othfail := pat; failwith "QUADRUPLE(PARTSEL,"
-| QUADRUPLE(EQUALS, arg1, arg2, arg3) as pat -> othfail := pat; failwith "QUADRUPLE(EQUALS,"
-| QUADRUPLE(IF, arg1, arg2, arg3) as pat -> othfail := pat; failwith "QUADRUPLE(IF,"
+| TRIPLE(tok, arg1, arg2) as pat ->  othmapfail := pat; failwith "TRIPLE(tok,"
+| QUADRUPLE(QUERY, arg1, arg2, arg3) as pat ->  othmapfail := pat; failwith "QUADRUPLE(QUERY,"
+| QUADRUPLE(PARTSEL, IDSTR id, hi, lo) as pat -> othmapfail := pat; failwith "QUADRUPLE(PARTSEL,"
+| QUADRUPLE(EQUALS, arg1, arg2, arg3) as pat -> othmapfail := pat; failwith "QUADRUPLE(EQUALS,"
+| QUADRUPLE(IF, arg1, arg2, arg3) as pat -> othmapfail := pat; failwith "QUADRUPLE(IF,"
+| QUADRUPLE(REG, EMPTY, EMPTY,
+    TLIST [TRIPLE (IDSTR nam, EMPTY, EMPTY)]) -> _Identyp itms nam Vpinet
 | QUADRUPLE(WIRE, EMPTY, TRIPLE (EMPTY, EMPTY, EMPTY),
     TLIST [DOUBLE (IDSTR nam, EMPTY)]) -> _Identyp itms nam Vpinet
 | QUADRUPLE((WIRE|REG), EMPTY, TRIPLE (EMPTY, RANGE (INT hi, INT lo), EMPTY),
@@ -294,44 +322,44 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
 | QUADRUPLE((WIRE|REG), EMPTY, TRIPLE (EMPTY, RANGE (INT hi, INT lo), EMPTY),
 	  TLIST [TRIPLE (IDSTR nam, EMPTY, init)]) ->
 		  _Identyprng itms nam (TYPRNG(HEX hi, HEX lo)) Vpinet; _chk_assign itms (expr itms init, _Ident itms nam)
-| QUADRUPLE(tok, arg1, arg2, arg3) as pat -> othfail := pat; failwith "QUADRUPLE(tok,"
+| QUADRUPLE(tok, arg1, arg2, arg3) as pat -> othmapfail := pat; failwith "QUADRUPLE(tok,"
 | QUINTUPLE(MODULE, arg1, arg2, TLIST arg3, arg4) -> let u = empty_itms [] in uitms := u :: !uitms; map u arg2; ports arg3; map u arg4
 | QUINTUPLE((INPUT|OUTPUT as dir'), EMPTY, EMPTY, EMPTY,
         TLIST [TRIPLE (IDSTR nam, EMPTY, EMPTY)]) -> _Port itms (dir dir') nam
 | QUINTUPLE((INPUT|OUTPUT as dir'), EMPTY, EMPTY, RANGE (INT hi, INT lo),
         TLIST [TRIPLE (IDSTR nam, EMPTY, EMPTY)]) -> _Portrng itms (dir dir') nam (TYPRNG(HEX hi, HEX lo))
-| QUINTUPLE(tok, arg1, arg2, arg3, arg4) as pat -> othfail := pat; failwith "QUINTUPLE(tok,"
-| SEXTUPLE(tok, arg1, arg2, arg3, arg4, arg5) as pat -> othfail := pat; failwith "SEXTUPLE(tok,"
-| SEPTUPLE(tok, arg1, arg2, arg3, arg4, arg5, arg6) as pat -> othfail := pat; failwith "SEPTUPLE(tok,"
-| RANGE(arg1,arg2) as pat -> othfail := pat; failwith "RANGE(arg1,arg2)"
-| ALWAYS as pat -> othfail := pat; failwith "ALWAYS"
-| ASCNUM c as pat -> othfail := pat; failwith "ASCNUM"
-| ASSIGN as pat -> othfail := pat; failwith "ASSIGN"
-| AT as pat -> othfail := pat; failwith "AT"
-| BINNUM c as pat -> othfail := pat; failwith "BINNUM"
-| BITSEL as pat -> othfail := pat; failwith "BITSEL"
-| BUFIF lev as pat -> othfail := pat; failwith "BUFIF"
-| D_ATTRIBUTE as pat -> othfail := pat; failwith "D_ATTRIBUTE"
-| DECNUM c as pat -> othfail := pat; failwith "DECNUM"
-| DOT as pat -> othfail := pat; failwith "DOT"
-| EMPTY as pat -> othfail := pat; failwith "EMPTY"
-| FLOATNUM flt as pat -> othfail := pat; failwith "FLOATNUM"
-| HASH as pat -> othfail := pat; failwith "HASH"
-| HEXNUM c as pat -> othfail := pat; failwith "HEXNUM"
-| IDSTR str as pat -> othfail := pat; failwith "IDSTR"
-| ILLEGAL c as pat -> othfail := pat; failwith "ILLEGAL"
-| INOUT as pat -> othfail := pat; failwith "INOUT"
-| INPUT as pat -> othfail := pat; failwith "INPUT"
-| INTNUM c as pat -> othfail := pat; failwith "INTNUM"
-| NEGEDGE as pat -> othfail := pat; failwith "NEGEDGE"
-| OUTPUT as pat -> othfail := pat; failwith "OUTPUT"
-| PARTSEL as pat -> othfail := pat; failwith "PARTSEL"
-| PREPROC str as pat -> othfail := pat; failwith "PREPROC"
-| REG as pat -> othfail := pat; failwith "REG"
-| WEAK strength as pat -> othfail := pat; failwith "WEAK"
-| WIDTHNUM(radix,sz,num) as pat -> othfail := pat; failwith "WIDTHNUM(radix,sz,num)"
-| INT n as pat -> othfail := pat; failwith "INT"
-| oth -> othfail := oth; failwith "dump"
+| QUINTUPLE(tok, arg1, arg2, arg3, arg4) as pat -> othmapfail := pat; failwith "QUINTUPLE(tok,"
+| SEXTUPLE(tok, arg1, arg2, arg3, arg4, arg5) as pat -> othmapfail := pat; failwith "SEXTUPLE(tok,"
+| SEPTUPLE(tok, arg1, arg2, arg3, arg4, arg5, arg6) as pat -> othmapfail := pat; failwith "SEPTUPLE(tok,"
+| RANGE(arg1,arg2) as pat -> othmapfail := pat; failwith "RANGE(arg1,arg2)"
+| ALWAYS as pat -> othmapfail := pat; failwith "ALWAYS"
+| ASCNUM c as pat -> othmapfail := pat; failwith "ASCNUM"
+| ASSIGN as pat -> othmapfail := pat; failwith "ASSIGN"
+| AT as pat -> othmapfail := pat; failwith "AT"
+| BINNUM c as pat -> othmapfail := pat; failwith "BINNUM"
+| BITSEL as pat -> othmapfail := pat; failwith "BITSEL"
+| BUFIF lev as pat -> othmapfail := pat; failwith "BUFIF"
+| D_ATTRIBUTE as pat -> othmapfail := pat; failwith "D_ATTRIBUTE"
+| DECNUM c as pat -> othmapfail := pat; failwith "DECNUM"
+| DOT as pat -> othmapfail := pat; failwith "DOT"
+| EMPTY as pat -> othmapfail := pat; failwith "EMPTY"
+| FLOATNUM flt as pat -> othmapfail := pat; failwith "FLOATNUM"
+| HASH as pat -> othmapfail := pat; failwith "HASH"
+| HEXNUM c as pat -> othmapfail := pat; failwith "HEXNUM"
+| IDSTR str as pat -> othmapfail := pat; failwith "IDSTR"
+| ILLEGAL c as pat -> othmapfail := pat; failwith "ILLEGAL"
+| INOUT as pat -> othmapfail := pat; failwith "INOUT"
+| INPUT as pat -> othmapfail := pat; failwith "INPUT"
+| INTNUM c as pat -> othmapfail := pat; failwith "INTNUM"
+| NEGEDGE as pat -> othmapfail := pat; failwith "NEGEDGE"
+| OUTPUT as pat -> othmapfail := pat; failwith "OUTPUT"
+| PARTSEL as pat -> othmapfail := pat; failwith "PARTSEL"
+| PREPROC str as pat -> othmapfail := pat; failwith "PREPROC"
+| REG as pat -> othmapfail := pat; failwith "REG"
+| WEAK strength as pat -> othmapfail := pat; failwith "WEAK"
+| WIDTHNUM(radix,sz,num) as pat -> othmapfail := pat; failwith "WIDTHNUM(radix,sz,num)"
+| INT n as pat -> othmapfail := pat; failwith "INT"
+| oth -> othmapfail := oth; failwith "dump"
 
 let map modnam rtl =
 let chk = modnam^"_hardcaml.v" in

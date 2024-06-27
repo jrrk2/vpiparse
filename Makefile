@@ -28,17 +28,17 @@ rtl_parser.ml rtl_parser.mli: rtl_parser.mly Makefile
 .PHONY: everything
 PARSER=ocamlyacc
 MENHIRFLAGS= --infer # --trace
-MENHIRFLAGSF= --infer # --trace
+MENHIRFLAGST= --infer --trace
 PARSER=menhir $(MENHIRFLAGS)
 
 File_lex.ml: File_lex.mll
 	ocamllex $<
 
 File.ml File.mli: File.mly
-	menhir $(MENHIRFLAGSF) $<
+	menhir $(MENHIRFLAGS) $<
 
 Formula_lex.ml: Formula_lex.mll
 	ocamllex $<
 
 Formula.ml Formula.mli: Formula.mly
-	menhir $(MENHIRFLAGS) $<
+	menhir $(MENHIRFLAGST) $<

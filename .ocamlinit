@@ -15,18 +15,18 @@ open Rtl_dump
 open Rtl_map
 open File_rewrite
 open Formula
+open File
 
-#print_length 1000000;;
-#print_depth 1000000;;
+#print_length 1000;;
+#print_depth 1000;;
 
 (*
 let _ = read_liberty None
-let _ = read_lib  "liberty/NCTU_75T";;
 let _ = dumpv stem !cells';;
 *)
 let stem = "liberty/NangateOpenCellLibrary_typical"
 let _ = read_lib stem;;
-let cell_param = ("\""^String.concat "\"|\"" (List.sort compare !lst)^"\"");;
+let cell_param = ("\""^String.concat "\"|\"" (List.sort compare !truelst)^"\"");;
 let _ = dumpv stem;;
 
 let _ = tran "uhdm.txt"

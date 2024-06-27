@@ -149,7 +149,8 @@ type liberty =
 | LibFeatures of liberty list
 
 let unhand = ref None
-let lst = ref []
+let plst = ref []
+let truelst = ref []
 
 let scaling = function
 | "pW" -> 1e-12
@@ -160,14 +161,17 @@ let scaling = function
 | oth -> failwith ("Units: "^oth^" not recognised")
 
 let rec rw' = function
-| TUPLE4 (TUPLE4 (IDENT "library", LPAR, IDENT nam, RPAR), LCURLY, TLIST lst, RCURLY) -> Library (nam, List.rev_map rw' lst)
-| TUPLE4 (TUPLE4 (IDENT "cell", LPAR, IDENT nam, RPAR), LCURLY, TLIST lst, RCURLY) -> LibCell (nam, List.rev_map rw' lst)
-| TUPLE4 (TUPLE4 (IDENT "pin", LPAR, IDENT nam, RPAR), LCURLY, TLIST lst, RCURLY) -> CellPin (nam, List.rev_map rw' lst)
+| TUPLE4 (TUPLE4 (IDENT "library", LPAR, (STRING nam | IDENT nam), RPAR), LCURLY, TLIST lst, RCURLY) -> Library (nam, List.rev_map rw' lst)
+| TUPLE4 (TUPLE4 (IDENT "cell", LPAR, (STRING nam | IDENT nam), RPAR), LCURLY, TLIST lst, RCURLY) -> LibCell (nam, List.rev_map rw' lst)
+| TUPLE4 (TUPLE3 (IDENT ("test_cell" as nam), LPAR, RPAR), LCURLY, TLIST lst, RCURLY) -> LibCell (nam, List.rev_map rw' lst)
+| TUPLE4 (TUPLE4 (IDENT "pg_pin", LPAR, (STRING nam | IDENT nam), RPAR), LCURLY, TLIST lst, RCURLY) -> CellPin (nam, List.rev_map rw' lst)
+| TUPLE4 (TUPLE4 (IDENT "pin", LPAR, (STRING nam | IDENT nam), RPAR), LCURLY, TLIST lst, RCURLY) -> CellPin (nam, List.rev_map rw' lst)
+| TUPLE4 (TUPLE4 (IDENT "pin", LPAR, (STRING nam | IDENT nam), RPAR), LCURLY, (TUPLE4 _ as itm), RCURLY) -> CellPin (nam, rw' itm :: [])
 | TUPLE4 (TUPLE3 (IDENT "timing", LPAR, RPAR), LCURLY, TLIST lst, RCURLY) -> Timing (List.rev_map rw' lst)
 | TUPLE4 (TUPLE3 (IDENT "internal_power", LPAR, RPAR), LCURLY, TLIST lst, RCURLY) -> IPower (List.rev_map rw' lst)
-| TUPLE4 (TUPLE4 (IDENT ("rise_power"|"fall_power" as p), LPAR, IDENT nam, RPAR), LCURLY, lst, RCURLY) ->
+| TUPLE4 (TUPLE4 (IDENT ("rise_power"|"fall_power" as p), LPAR, (STRING nam | IDENT nam), RPAR), LCURLY, lst, RCURLY) ->
     Power (p, nam, match lst with TLIST lst -> List.rev_map rw' lst | oth -> rw' oth :: [])
-| TUPLE4 (TUPLE4 (IDENT ("rise_transition"|"fall_transition" as x), LPAR, IDENT ("scalar" as s), RPAR), LCURLY, values, RCURLY) ->
+| TUPLE4 (TUPLE4 (IDENT ("rise_transition"|"fall_transition" as x), LPAR, (STRING s | IDENT s), RPAR), LCURLY, values, RCURLY) ->
 Transition(x, s, rw' values)
 | TUPLE4 (TUPLE4 (IDENT "ff", LPAR, TLIST oplst, RPAR), LCURLY, TLIST lst, RCURLY) -> FlipFlop(List.rev_map rw' oplst, List.rev_map rw' lst)
 | TUPLE4 (TUPLE4 (IDENT "latch", LPAR, TLIST oplst, RPAR), LCURLY, TLIST lst, RCURLY) -> Latch(List.rev_map rw' oplst, List.rev_map rw' lst)
@@ -179,7 +183,7 @@ StateTable(List.rev_map rw' pinlst, s)
 | TUPLE4 (IDENT "voltage_map", LPAR, TLIST lst, RPAR) -> VoltageMap (List.rev_map rw' lst)
 | TUPLE4 (IDENT "capacitive_load_unit", LPAR, TLIST lst, RPAR) -> CapLoadUnit (List.rev_map rw' lst)
 | TUPLE4 (IDENT "library_features", LPAR, TLIST lst, RPAR) -> LibFeatures (List.rev_map rw' lst)
-
+| TUPLE4 (TUPLE4 (IDENT ("rise_constraint"|"fall_constraint"|"cell_rise"|"cell_fall"), LPAR, STRING s, RPAR), LCURLY, TLIST lst, RCURLY) -> CellValues (List.rev_map rw' lst)
 | TUPLE4 (IDENT "values", LPAR, TLIST lst, RPAR) -> CellValues (List.rev_map rw' lst)
 | TUPLE4 (IDENT "values", LPAR, (STRING _ as x), RPAR) -> CellValues (rw' x :: [])
 | TUPLE4 (IDENT "index_1", LPAR, STRING s, RPAR) -> CellIndex1 s
@@ -187,21 +191,27 @@ StateTable(List.rev_map rw' pinlst, s)
 | TUPLE4 (IDENT ("technology" as p), LPAR, IDENT s, RPAR) -> Related(p,s)
 | TUPLE4 (TUPLE4 (IDENT  oth, LPAR, IDENT nam, RPAR), LCURLY, TLIST lst, RCURLY) -> Other (oth, nam, List.rev_map rw' lst)
 | TUPLE4 (IDENT "when", COLON, STRING s, SEMI) -> When s
-| TUPLE4 (IDENT "timing_sense", COLON, IDENT s, SEMI) -> Sense s
-| TUPLE4 (IDENT ("related_pin"|"related_ground_pin"|"related_power_pin"|"three_state"|"enable"|"data_in"|"clocked_on"|"next_state"|"preset"|"clear"|"state_function"|"default_wire_load"|"process_corner"|"pulling_resistance_unit"|"current_unit"|"voltage_unit"|"leakage_power_unit"|"time_unit"|"comment"|"revision"|"date" as p), COLON, STRING s, SEMI) -> Related (p, s)
+| TUPLE4 (IDENT "timing_sense", COLON, (STRING s | IDENT s), SEMI) -> Sense s
+| TUPLE4 (IDENT ("input_signal_level"|"level_shifter_data_pin"|"related_pin"|"related_output_pin"|"related_bias_pin"|"related_ground_pin"|"related_power_pin"|"physical_connection"|"three_state"|"enable"|"data_in"|"clocked_on"|"next_state"|"preset"|"clear"|"state_function"|"default_wire_load"|"process_corner"|"pulling_resistance_unit"|"current_unit"|"voltage_unit"|"leakage_power_unit"|"time_unit"|"comment"|"revision"|"date"|"signal_type"|"sim_opt" as p), COLON, STRING s, SEMI) -> Related (p, s)
 | TUPLE4 (IDENT "sdf_cond", COLON, STRING s, SEMI) -> SDF_cond s
-| TUPLE4 (IDENT "function", COLON, STRING s, SEMI) -> Function s
-| TUPLE4 (IDENT "direction", COLON, IDENT s, SEMI) -> Direction s
+| TUPLE4 (IDENT ("function"), COLON, STRING s, SEMI) -> Function s
+| TUPLE4 (IDENT "direction", COLON, (STRING s | IDENT s), SEMI) -> Direction s
 | TUPLE4 (IDENT ("cell_leakage_power" as p), COLON, TUPLE3 (NUM mant, PLUS, NUM expo), SEMI) -> Parameter(p, float_of_string (mant^"+"^expo))
 | TUPLE4 (IDENT ("default_wire_load_mode"|"output_voltage"|"input_voltage"|"driver_waveform_fall"|"driver_waveform_rise"|"driver_waveform_name" as p), COLON, (STRING _|IDENT _), SEMI) -> Parameter (p, 0.0)
 | TUPLE4 (IDENT ("voltage_unit"|"time_unit"|"leakage_power_unit"|"pulling_resistance_unit"|"current_unit" as p), COLON, TLIST [IDENT units; NUM num], SEMI) -> Parameter (p, float_of_string num *. scaling units)
-| TUPLE4 (IDENT ("pg_type"|"voltage_name"|"timing_type"|"clock"|"nextstate_type"|"clear_preset_var2"|"clear_preset_var1"|"dont_use"|"dont_touch"|"clock_gate_out_pin"|"clock_gate_enable_pin"|"clock_gate_clock_pin"|"internal_node"|"clock_gating_integrated_cell"|"clock_gate_test_pin"|"variable_1"|"variable_2"|"default_operating_conditions"|"tree_type"|"in_place_swap_mode"|"delay_model" as p), COLON, IDENT s, SEMI) -> Related (p, s)
-| TUPLE4 (IDENT ("area"|"capacitance"|"cell_leakage_power"|"default_cell_leakage_power"|"default_fanout_load"|"default_inout_pin_cap"|"default_input_pin_cap"|"default_leakage_power_density"|"default_max_fanout"|"default_max_transition"|"default_output_pin_cap"|"drive_strength"|"fall_capacitance"|"input_threshold_pct_fall"|"input_threshold_pct_rise"|"max_capacitance"|"nom_process"|"nom_temperature"|"nom_voltage"|"output_threshold_pct_fall"|"output_threshold_pct_rise"|"process"|"resistance"|"rise_capacitance"|"slew_derate_from_library"|"slew_lower_threshold_pct_fall"|"slew_lower_threshold_pct_rise"|"slew_upper_threshold_pct_fall"|"slew_upper_threshold_pct_rise"|"slope"|"temperature"|"value"|"vih"|"vil"|"vimax"|"vimin"|"voh"|"vol"|"voltage"|"vomax"|"vomin" as p), COLON, (NUM s|STRING s), SEMI) -> if not (List.mem p !lst) then lst := p :: !lst;
-    Parameter (p, float_of_string s)
+| TUPLE4 (IDENT ("power_down_function"|"pg_type"|"voltage_name"|"timing_type"|"clock"|"nextstate_type"|"clear_preset_var2"|"clear_preset_var1"|"dont_use"|"dont_touch"|"clock_gate_out_pin"|"clock_gate_enable_pin"|"clock_gate_clock_pin"|"internal_node"|"clock_gating_integrated_cell"|"clock_gate_test_pin"|"variable_1"|"variable_2"|"default_operating_conditions"|"tree_type"|"in_place_swap_mode"|"delay_model" as p), COLON, (STRING s | IDENT s), SEMI) -> Related (p, s)
+| TUPLE4 (IDENT ("area"|"capacitance"|"cell_leakage_power"|"default_cell_leakage_power"|"default_fanout_load"|"default_inout_pin_cap"|"default_input_pin_cap"|"default_leakage_power_density"|"default_max_fanout"|"default_max_transition"|"default_output_pin_cap"|"drive_strength"|"fall_capacitance"|"input_threshold_pct_fall"|"input_threshold_pct_rise"|"max_capacitance"|"max_transition"|"nom_process"|"nom_temperature"|"nom_voltage"|"output_threshold_pct_fall"|"output_threshold_pct_rise"|"process"|"resistance"|"rise_capacitance"|"slew_derate_from_library"|"slew_lower_threshold_pct_fall"|"slew_lower_threshold_pct_rise"|"slew_upper_threshold_pct_fall"|"slew_upper_threshold_pct_rise"|"slope"|"temperature"|"value"|"vih"|"vil"|"vimax"|"vimin"|"violation_delay_degrade_pct"|"voh"|"vol"|"voltage"|"vomax"|"vomin"|"revision" as p), COLON, (NUM s|STRING s), SEMI) -> if not (List.mem p !plst) then plst := p :: !plst;
+Parameter (p, float_of_string s)
+| TUPLE4 (IDENT ("library_features"|"technology" as oth), LPAR, STRING nam, RPAR) -> Other(oth, nam, [])
+| TUPLE4 (IDENT ("always_on"|"is_isolation_cell"|"is_level_shifter"|"isolation_cell_data_pin"|"isolation_cell_enable_pin"|"simulation"|"switching_power_split_model" as p), COLON, STRING "true", SEMI) -> if not (List.mem p !truelst) then truelst := p :: !truelst; Parameter(p, 1.0)
+| TUPLE4 (IDENT ("min_pulse_width_mode"|"level_shifter_type"|"driver_model"|"default_constraint_arc_mode"|"default_arc_mode"|"bus_naming_style"|"cell_footprint" as oth), COLON, STRING nam, SEMI) -> Other(oth, nam, [])
+| TUPLE4 (IDENT ("input_voltage_range"|"output_voltage_range" as oth), LPAR, TLIST lst, RPAR) -> Other(oth, oth, List.rev_map rw' lst)
 | TUPLE4 (IDENT "define", LPAR, TLIST lst, RPAR) -> Define(List.rev_map (function IDENT id -> id | oth -> unhand := Some oth; failwith "define") lst)
+| TUPLE4 (TUPLE4 (IDENT ("normalized_driver_waveform"|"lu_table_template"|"power_lut_template"|"operating_conditions" as oth), LPAR, STRING (nam), RPAR), LCURLY, TLIST lst, RCURLY) -> Other(oth, nam, List.rev_map rw' lst)
 | STRING s -> String s
 | IDENT s -> String s
 | NUM n ->  Parameter ("", float_of_string n)
+| TLIST (TUPLE4 (IDENT "values", _, _, _) :: _ as lst) -> CellValues(List.rev_map rw' lst)
 | oth -> unhand := Some oth; failwith "rw'"
 
 type attr = {cellhash: (string,((string * string) list * (string * string) list * liberty))Hashtbl.t}

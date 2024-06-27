@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *)
 
-let eqv gold gate stem =
+let eqv gold gate stem liberty =
   let script = stem^".eqy" in
   let fd = open_out script in
   output_string fd ("[options]\n");
@@ -32,6 +32,7 @@ let eqv gold gate stem =
   output_string fd ("prep -top "^stem^"\n");
   output_string fd ("\n");
   output_string fd ("[gate]\n");
+  output_string fd ("read_liberty -ignore_miss_func "^liberty^".lib\n");
   output_string fd ("read -sv "^gate^"\n");
   output_string fd ("prep -top "^stem^"\n");
   output_string fd ("\n");
@@ -58,8 +59,9 @@ let tran f =
   let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
   if true then List.iter (dump' "_all") !allmods;
   List.iter (dump' "_top") !topmods;
+  let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
   List.iter cnv !topmods;
-  if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) (modnam^"_hardcaml.v") modnam | _ -> failwith "multiple top modules"
+  if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) (modnam^"_map.v") modnam liberty | _ -> failwith "multiple top modules"
 
-let _ = if Array.length Sys.argv > 3 then eqv Sys.argv.(3) Sys.argv.(2) Sys.argv.(1)
+let _ = if Array.length Sys.argv > 3 then eqv Sys.argv.(3) Sys.argv.(2) Sys.argv.(1) (Rtl_map.dflt_liberty None)
         else if Array.length Sys.argv > 1 then tran Sys.argv.(1)
