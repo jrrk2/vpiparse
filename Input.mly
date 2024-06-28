@@ -1874,6 +1874,8 @@ attribute_lst: { [] }
 attribute_opt:
   | Vpiparent COLON parent { Vpiparent }
   | Vpiname COLON vnam { $3 }
+  | Vpifullname COLON fullnam { $3 }
+  | STRING_CONST { STRING_CONST $1 }
 
 stmt:
   | Event_control COLON event_control_def Indent event_control_lst Unindent { to_tuple Event_control $5 }
@@ -2100,11 +2102,18 @@ indexed_part_select_opt:
 
 operation_opt:
   | Vpiparent COLON parent unary Vpioperand COLON oexpr { TUPLE2($4, $7) }
-  | Vpiparent COLON parent dyadic Vpioperand COLON oexpr Vpioperand COLON oexpr { TUPLE3($4, $7, $10) }
+  | Vpiparent COLON parent dyadic Vpioperand COLON oexpr Vpioperand COLON oexpr attr_opt {
+      TUPLE4($4, $11, $7, $10) }
   | Vpiparent COLON parent Vpiconditionop Vpioperand COLON oexpr Vpioperand COLON oexpr Vpioperand COLON oexpr { TUPLE4(Vpiconditionop, $7, $10, $13) }
   | Vpiparent COLON parent concatop concat_lst { TUPLE2($4, TLIST $5 ) }
   | Vpiparent COLON parent Vpinullop { Vpinullop }
 
+attr_opt : { STRING_CONST "" }
+  | Vpiattribute COLON attr { match $3 with
+          | TUPLE3(Attribute, STRING "mode", (STRING_CONST _ as mode)) -> mode
+	  | TUPLE3(Attribute, STRING str, _) -> failwith ("Invalid attribute: "^str)
+	  | _ -> STRING_CONST "" }
+  
 concat_lst: Vpioperand COLON oexpr { [ $3 ] }
   | Vpioperand COLON oexpr concat_lst { $3 :: $4 }
 

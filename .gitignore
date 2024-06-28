@@ -85,3 +85,6 @@ modulo_test/
 test_byte_and/
 subtract_test_map/
 DFF/
+DFF_nibble/
+fadd/
+attributes_operator/

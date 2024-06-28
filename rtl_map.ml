@@ -170,7 +170,7 @@ let dir = function
 
 let arithop = function
 | TIMES -> Amul
-| PLUS -> Aadd
+| PLUS -> Aadd ""
 | MINUS -> Asub
 | oth -> othmapfail := oth; failwith "arithop"
 
@@ -191,51 +191,53 @@ let chk_reg itms reg fn =
     | _ -> failwith "chk_reg" in
   tran_search itms wid' wid' reg
 
-let connlst pnam hi lo i ix = function
-	  | VRF (nam, _, []) as p ->
-	  let p' = if hi > 0 then SEL("", p :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) else p in
-         let pin = pnam ix in PORT ("", pin, Dinput, (match pin with "CLK" -> p | _ -> p') :: [] )
-          | CNST (wid, HEX n) -> 
-         PORT ("", pnam ix, Dinput, CNST (1, HEX (if ((1 lsl i) land n) > 0 then 1 else 0)) :: [])
-          | SEL ("", (VRF (_, _, []) as net) :: CNST (32, HEX base) :: CNST (32, HEX wid) :: []) ->
-		     let p' = SEL("", net :: CNST(32, HEX (i-lo+base)) :: CNST (32, SHEX 1) :: []) in
-         PORT ("", pnam ix, Dinput, p' :: [])
-          | SEL ("", _) as p -> othsel := p;
-         PORT ("", pnam ix, Dinput, p :: [])
-         | oth -> othmap := Some oth; failwith "connlst"
-
 let othff = ref (String "")
 
 let conndir = function
 | "input" -> Dinput
 | "output" -> Doutput
+| oth -> failwith ("conndir: "^oth)
 
-let connlst' porth hi lo i p = let pin = fst p in PORT ("", pin, conndir (snd p), Hashtbl.find porth pin)
+let nthexp porth pin ix = let lst = Hashtbl.find porth pin in if ix >= List.length lst then List.hd lst else List.nth lst ix
+
+let connlst' porth hi lo i p = let pin = fst p in PORT ("", pin, conndir (snd p), nthexp porth pin (i-lo) :: [])
+
+let rec explode' itms lst = function
+| VRF(nam, _, []) as p -> chk_reg itms nam (fun hi lo i ->
+  lst := (if hi > lo then SEL("", p :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) else p) :: !lst)
+| CNST (wid, HEX n) -> for i = wid-1 downto 0 do lst := (CNST (1, HEX (if ((1 lsl i) land n) > 0 then 1 else 0))) :: !lst done
+| SEL ("", (VRF (_, _, []) as net) :: CNST (32, HEX base) :: CNST (32, HEX wid) :: []) ->
+	   for i = base+wid-1 downto base do lst := (SEL("", net :: CNST(32, HEX (i)) :: CNST (32, SHEX 1) :: [])) :: !lst done
+| SEL ("", _) as p -> othsel := p;
+| CAT ("", catlst) -> List.iter (explode' itms lst) catlst
+| oth -> othmap := Some oth; failwith "explode'"
+
+let explode itms x = let lst = ref [] in explode' itms lst x; List.rev !lst
+
+let annot itms porth inports outports op = function
+ | FlipFlop (ipins, lst),rhs::clk::[] -> List.iter (function
+	| Related ("next_state", pin) -> Hashtbl.replace porth pin (explode itms rhs)
+	| Related ("clocked_on", pin) -> Hashtbl.replace porth pin (clk :: [])
+	| String ipin when ipin.[String.length ipin-1] <> 'N' -> let pin = String.sub ipin 1 (String.length ipin - 1) in Hashtbl.replace porth pin (explode itms op)
+	| oth -> othff := oth) (ipins@lst)
+ | Latch (_, _), _ -> ()
+ | String _, lst ->
+ let pnam ix = fst (try List.nth inports ix with _ -> othport := Some (inports, ix); failwith "othport") in
+ List.iteri (fun ix itm -> Hashtbl.replace porth (pnam ix) (explode itms itm)) lst;
+ Hashtbl.replace porth (fst (List.hd outports)) (explode itms op)
+ | oth,_ -> othff := oth; failwith "maplib'_othff"
 
 let maplib' itms lst = function
 | (VRF (nam, _, _) as op), (cellnam::_,(portlst,(funy,eqn,(liberty:liberty))::_)::_) ->
 let porth = Hashtbl.create 127 in
 List.iter (fun (nam, _) -> Hashtbl.add porth nam []) portlst;
 let inports, outports = List.partition (function (nam, "input") -> true | _ -> false) portlst in
-let pnam ix = fst (try List.nth inports ix with _ -> othport := Some (inports, ix); failwith "othport") in
-List.iter (function VRF(nam, _, []) -> chk_reg itms nam (fun hi lo i -> print_endline (nam^": "^string_of_int i)) | _ -> ()) lst;
-let _ = match liberty,lst with
- | FlipFlop (ipins, lst),rhs::clk::[] -> List.iter (function
-	| Related ("next_state", pin) -> Hashtbl.replace porth pin (rhs :: [])
-	| Related ("clocked_on", pin) -> Hashtbl.replace porth pin (clk :: [])
-	| String ipin when ipin.[String.length ipin-1] <> 'N' -> let pin = String.sub ipin 1 (String.length ipin - 1) in Hashtbl.replace porth pin (op :: [])
-	| oth -> othff := oth) (ipins@lst)
- | Latch (_, _), _ -> ()
- | String _, _ ->
- List.iteri (fun ix itm -> Hashtbl.replace porth (pnam ix) (itm :: [])) lst;
- Hashtbl.replace porth (fst (List.hd outports)) (op :: [])
- | oth,_ -> othff := oth; failwith "maplib'_othff" in
+annot itms porth inports outports op (liberty,lst);
 chk_reg itms nam (fun hi lo i ->
-if false then print_endline (string_of_int i);
-let op' = if hi > 0 then SEL("", op :: CNST(32, HEX i) :: CNST (32, SHEX 1) :: []) else op in
-let nam' = if hi > 0 then nam^"_"^string_of_int i else nam in
+if false then print_endline ("Iteration: "^string_of_int i);
+let cellinst = cellnam^"_"^nam^(if hi > lo then "_"^string_of_int i else "") in
 itms.inst :=
-     (cellnam^"_"^nam',
+     (cellinst,
       ("", cellnam, List.map (connlst' porth hi lo i) inports @ List.map (connlst' porth hi lo i) outports)) :: !(itms.inst)
 )
 | oth -> othmaplib := oth;failwith "othmaplib"
@@ -255,7 +257,7 @@ let rec expr itms = function
 | BINNUM c -> CNST (cexp c)
 | INT n -> CNST (32, HEX n)
 | QUADRUPLE (PARTSEL, id, INT hi, INT lo) -> SEL ("", [expr itms id; CNST (32, HEX lo); CNST (32, HEX (hi-lo+1))])
-| DOUBLE(CONCAT, TLIST lst) -> concat (List.map (expr itms) lst)
+| DOUBLE(CONCAT, TLIST lst) -> _Concat (List.map (expr itms) lst)
 (*
 | DOUBLE(NOT,arg) -> UNRY(Unot, expr itms arg :: [])
 | TRIPLE((AND|OR|XOR), lft, rght) as func -> maplib itms [expr itms lft;expr itms rght] (filtcells func)
@@ -274,13 +276,7 @@ let rec body itms = function
 | QUADRUPLE(DLYASSIGNMENT, src, EMPTY, dest) -> _Asgn itms (expr itms src, expr itms dest)
 | oth -> othmapfail := oth; failwith "body"
 
-let _chk_assign itms = function
-| CNST (wid, HEX _) as lhs, (VRF (_, (BASDTYP, "logic", TYPNONE, []), []) as rhs) -> maplib' itms ([lhs]) (rhs, filtcells BUF)
-| (VRF (_, _, []) as lhs), (VRF (_, _, []) as rhs) -> maplib' itms ([lhs]) (rhs, filtcells BUF)
-| (SEL ("", _) as lhs), (VRF (_, _, []) as rhs) -> maplib' itms ([lhs]) (rhs, filtcells BUF)
-| CAT ("", (VRF (lhs, (BASDTYP, "logic", TYPNONE, []), []) :: tl)), rhs -> print_endline "cat"
-| (ARITH (Asub, VRF (arg1, _, []) :: VRF (arg2, _, []) :: []) as lhs), (VRF (_, _, []) as rhs) -> maplib' itms ([lhs]) (rhs, filtcells BUF)
-| (rhs, lhs) -> othchk := (rhs, lhs); failwith "othchk"
+let _chk_assign itms (lhs, rhs) = maplib' itms [lhs] (rhs, filtcells BUF)
 
 let rec map itms = function
 | TLIST lst -> List.iter (map itms) lst

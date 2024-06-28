@@ -31,7 +31,7 @@ let othiofunc = ref None
 let othvfunc = ref None
 
 let arithopint = function
-| Aadd -> ( + )
+| Aadd _ -> ( + )
 | Asub -> ( - )
 | Amul -> ( * )
 | Amuls -> ( * )
@@ -174,7 +174,7 @@ let logop = function
 | _ -> Lunknown
 
 let arithop = function
-|"add" -> Aadd
+|"add" -> Aadd ""
 |"sub" -> Asub
 |"mul" -> Amul
 |"muls" -> Amuls
@@ -256,11 +256,11 @@ let rec typmap = function
 | oth -> mapothlst := oth :: !mapothlst; failwith "mapothlst"
 
 let fortailmatch ix' = function
-| ASGN(dly, _, ARITH (Aadd, CNST inc :: (VRF _ as ix'') :: []) :: (VRF _ as ix''') :: []) :: tl -> (ix'=ix'') && (ix''=ix''')
+| ASGN(dly, _, ARITH (Aadd _, CNST inc :: (VRF _ as ix'') :: []) :: (VRF _ as ix''') :: []) :: tl -> (ix'=ix'') && (ix''=ix''')
 | _ -> false
 
 let forinc = function
-| ASGN(dly,_, ARITH (Aadd, CNST inc :: (VRF _) :: []) :: (VRF _) :: []) :: tl -> (inc,List.rev tl)
+| ASGN(dly,_, ARITH (Aadd _, CNST inc :: (VRF _) :: []) :: (VRF _) :: []) :: tl -> (inc,List.rev tl)
 | tl -> ((0,ERR ""),List.rev tl)
 
 let fold1 fn = function
@@ -414,7 +414,7 @@ let dumplog = function
 | Lshiftrs -> "Lshiftrs"
 
 let dumparith = function
-| Aadd -> "Aadd"
+| Aadd _ -> "Aadd"
 | Asub -> "Asub"
 | Amul -> "Amul"
 | Amuls -> "Amuls"
@@ -511,7 +511,7 @@ let simplify_asgn dly' attr dst = function
         prep@rslt :: []
 
 let arithopv = function
-| Aadd -> "+"
+| Aadd _ -> "+"
 | Asub -> "-"
 | Amul | Amuls -> "*"
 | Adiv | Adivs -> "/"
@@ -1020,6 +1020,7 @@ inst=ref [];
 cnst=ref [];
 needed=ref [];
 remove_interfaces = false;
+mode="";
 names''=names'' }
 
 let rev_itms prev = {
@@ -1038,6 +1039,7 @@ inst=ref (List.rev !(prev.inst));
 cnst=ref (List.rev !(prev.cnst));
 needed=ref (List.rev !(prev.needed));
 remove_interfaces = prev.remove_interfaces;
+mode=prev.mode;
 names''=prev.names'' }
 
 let copy_itms prev = {
@@ -1056,6 +1058,7 @@ inst=ref !(prev.inst);
 cnst=ref !(prev.cnst);
 needed=ref !(prev.needed);
 remove_interfaces = prev.remove_interfaces;
+mode=prev.mode;
 names''=prev.names'' }
 
 let num x = NUM (HEX x)
@@ -1128,7 +1131,8 @@ let rec expr modul = function
 | ASEL (VRF (lval, _, []) :: expr1 :: []) -> IDENT lval :: LBRACK :: expr modul expr1 @ [RBRACK]
 | ASEL (ASEL _ as multi :: expr' :: []) -> expr modul multi @ LBRACK :: expr modul expr' @ [RBRACK]
 | CND ("", expr1 :: lft :: rght :: []) -> LPAREN :: expr modul expr1 @ [QUERY] @ expr modul lft @ [COLON] @ expr modul rght @ [RPAREN]
-| CAT ("", expr1 :: expr2 :: []) -> LCURLY :: expr modul expr1 @ [COMMA] @ expr modul expr2 @ [RCURLY]
+| CAT ("", exprlst) -> let delim = ref LCURLY in
+    List.flatten (List.map (fun itm -> let tok = !delim :: expr modul itm in delim := COMMA; tok) exprlst) @ [RCURLY]
 | FRF ("", fref, arglst) -> let delim = ref LPAREN in
     let lst = IDENT fref :: List.flatten (List.map (function
         | ARG (arg :: []) -> let lst = !delim :: expr modul arg in delim := COMMA; lst
@@ -1201,9 +1205,10 @@ let rec reformat1 = function
 | prior :: (BEGIN _|END|ELSE as tok) :: tl when prior <> NL -> prior :: NL :: tok :: reformat1 (NL :: tl)
 | (BEGIN _|END|ELSE as tok) :: post :: tl when post <> NL && post <> COLON -> NL :: tok :: NL :: post :: reformat1 tl
 | DIR dir :: tl -> NL :: DIR dir :: reformat1 tl
-| SP :: DOT :: tl -> NL :: DOT :: reformat1 tl
-| COMMA :: DOT :: tl -> COMMA :: NL :: DOT :: reformat1 tl
+| SP :: DOT :: tl -> DOT :: reformat1 tl
+| COMMA :: DOT :: tl -> COMMA :: SP :: DOT :: reformat1 tl
 | SEMI :: IFF :: tl -> SEMI :: NL :: IFF :: reformat1 tl
+| SEMI :: ALWAYS :: tl -> SEMI :: NL :: ALWAYS :: reformat1 tl
 | NL :: NL :: tl -> reformat1 (NL :: tl)
 | oth :: tl -> oth :: reformat1 tl
 
@@ -1653,9 +1658,9 @@ let dump intf f modul =
     | (_, _, lst) -> failwith "edge specification not implemented";
     ) (List.rev !(modul.alwys));
   List.iter (fun (inst, (_, kind, lst)) ->
-                 let delim = ref SP in
-                 let lst = List.flatten (List.map (fun term -> let lst = !delim :: portconn modul term in delim := COMMA; lst) lst) in
-                 append (fsrc "" :: IDENT kind :: SP :: IDENT inst :: LPAREN :: lst @ [RPAREN;SEMI]);
+                 let delim = ref [LPAREN; SP] in
+                 let lst = List.flatten (List.map (fun term -> let lst = !delim @ SP :: portconn modul term in delim := [COMMA;SP]; lst) lst) in
+                 append (fsrc "" :: IDENT kind :: SP :: IDENT inst :: SP :: lst @ [SP;RPAREN;SEMI;NL]);
                  ) !(modul.inst);
   List.iter (fun (_, tok, lst) -> append (fsrc "" :: tok :: flatten1 modul false lst);
                  ) !(modul.init);

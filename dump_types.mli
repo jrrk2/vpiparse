@@ -51,7 +51,7 @@ type logop =
 
 type arithop =
 | Aunknown
-| Aadd
+| Aadd of string
 | Asub
 | Amul
 | Amuls

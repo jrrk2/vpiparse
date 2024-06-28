@@ -381,7 +381,7 @@ rule token = parse
       else if old > !oldcnt then List.init ((old - !oldcnt)/2) (fun _ -> Unindent)
       else token lexbuf }
   | string_const as s
-      { tok ( STRING_CONST s ) }
+      { tok ( let prefix = String.length "|STRING:" in STRING_CONST (String.sub s prefix (String.length s - prefix))) }
   | sized as n
       { tok ( VpiNum n ) }
   | number as n

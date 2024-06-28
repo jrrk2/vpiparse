@@ -38,17 +38,17 @@ and remapp =
   | Always of remapp * remapp list
   | Asgn of remapp * remapp
   | Block of remapp * remapp
-  | Concat of remapp * remapp
+  | Concat of remapp list
   | Selection of remapp * int * int * int * int
   | Update of remapp * int * int * int * int
   | Bitsel of remapp * remapp
   | Seq of remapp list
-  | Unary of token * remapp
-  | Dyadic of token * remapp * remapp
+  | Unary of remapp * remapp
+  | Dyadic of remapp * remapp * remapp
   | Case of remapp * remapp list
   | Item of remapp * remapp * remapp
-  | Signed of remapp
-  | Unsigned of remapp
+  | Signed
+  | Unsigned
   | Conpp of token
   | Inppp of signal
   | Inpspp of signal
@@ -63,35 +63,53 @@ and remapp =
   | Integer of int
   | Port of string
   | Enum of string
+  | Negate
   | Class
-  | Not of remapp
-  | Lneg of remapp
-  | Aneg of remapp
-  | Sneg of remapp
-  | Mux of remapp * remapp list
-  | Sub of remapp * remapp
-  | Add of remapp * remapp
-  | Mult of remapp * remapp
-  | Div of remapp * remapp
-  | Mod of remapp * remapp
-  | Pow of remapp * remapp
-  | Xnor of remapp * remapp
-  | And of remapp * remapp
-  | Or of remapp * remapp
-  | Xor of remapp * remapp
-  | LogAnd of remapp * remapp
-  | LogOr of remapp * remapp
-  | Assign of remapp * remapp
-  | Partsel of remapp * int * int
-  | Lt of remapp * remapp
-  | Le of remapp * remapp
-  | Eq of remapp * remapp
-  | Ne of remapp * remapp
-  | Ge of remapp * remapp
-  | Gt of remapp * remapp
-  | LshiftL of remapp * remapp
-  | LshiftR of remapp * remapp
-  | AshiftR of remapp * remapp
+  | Not
+  | Lneg
+  | Aneg
+  | Sneg
+  | Mux
+  | Sub
+  | Add of string
+  | Mult
+  | Mults
+  | Div
+  | Divs
+  | Mod
+  | Mods
+  | Pow
+  | Pows
+  | And
+  | Nand
+  | Or
+  | Nor
+  | Xor
+  | Xnor
+  | LogNot
+  | LogAnd
+  | LogNand
+  | LogOr
+  | LogXor
+  | LogNor
+  | LogXnor
+  | Assign
+  | Partsel
+  | Lt
+  | Lts
+  | Le
+  | Les
+  | Eq
+  | Ne
+  | Newild
+  | Ge
+  | Gewild
+  | Ges
+  | Gt
+  | Gts
+  | LshiftL
+  | LshiftR
+  | AshiftR
   | Edge of remapp list
   | Posedge of remapp
   | Range of remapp * remapp
@@ -226,6 +244,7 @@ and itms = {
   cnst: (string*(bool*(int*cexp))) list ref;
   needed: (token*string) list ref;
   remove_interfaces: bool;
+  mode: string;
   names'': (string * typetable_t ref) list;
 }
 

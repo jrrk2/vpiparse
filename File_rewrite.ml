@@ -147,6 +147,7 @@ type liberty =
 | VoltageMap of liberty list
 | CapLoadUnit of liberty list
 | LibFeatures of liberty list
+| IsolationCell
 
 let unhand = ref None
 let plst = ref []
@@ -203,7 +204,8 @@ StateTable(List.rev_map rw' pinlst, s)
 | TUPLE4 (IDENT ("area"|"capacitance"|"cell_leakage_power"|"default_cell_leakage_power"|"default_fanout_load"|"default_inout_pin_cap"|"default_input_pin_cap"|"default_leakage_power_density"|"default_max_fanout"|"default_max_transition"|"default_output_pin_cap"|"drive_strength"|"fall_capacitance"|"input_threshold_pct_fall"|"input_threshold_pct_rise"|"max_capacitance"|"max_transition"|"nom_process"|"nom_temperature"|"nom_voltage"|"output_threshold_pct_fall"|"output_threshold_pct_rise"|"process"|"resistance"|"rise_capacitance"|"slew_derate_from_library"|"slew_lower_threshold_pct_fall"|"slew_lower_threshold_pct_rise"|"slew_upper_threshold_pct_fall"|"slew_upper_threshold_pct_rise"|"slope"|"temperature"|"value"|"vih"|"vil"|"vimax"|"vimin"|"violation_delay_degrade_pct"|"voh"|"vol"|"voltage"|"vomax"|"vomin"|"revision" as p), COLON, (NUM s|STRING s), SEMI) -> if not (List.mem p !plst) then plst := p :: !plst;
 Parameter (p, float_of_string s)
 | TUPLE4 (IDENT ("library_features"|"technology" as oth), LPAR, STRING nam, RPAR) -> Other(oth, nam, [])
-| TUPLE4 (IDENT ("always_on"|"is_isolation_cell"|"is_level_shifter"|"isolation_cell_data_pin"|"isolation_cell_enable_pin"|"simulation"|"switching_power_split_model" as p), COLON, STRING "true", SEMI) -> if not (List.mem p !truelst) then truelst := p :: !truelst; Parameter(p, 1.0)
+| TUPLE4 (IDENT ("is_isolation_cell"), COLON, STRING "true", SEMI) -> IsolationCell
+| TUPLE4 (IDENT ("always_on"|"is_level_shifter"|"isolation_cell_data_pin"|"isolation_cell_enable_pin"|"simulation"|"switching_power_split_model" as p), COLON, STRING "true", SEMI) -> if not (List.mem p !truelst) then truelst := p :: !truelst; Parameter(p, 1.0)
 | TUPLE4 (IDENT ("min_pulse_width_mode"|"level_shifter_type"|"driver_model"|"default_constraint_arc_mode"|"default_arc_mode"|"bus_naming_style"|"cell_footprint" as oth), COLON, STRING nam, SEMI) -> Other(oth, nam, [])
 | TUPLE4 (IDENT ("input_voltage_range"|"output_voltage_range" as oth), LPAR, TLIST lst, RPAR) -> Other(oth, oth, List.rev_map rw' lst)
 | TUPLE4 (IDENT "define", LPAR, TLIST lst, RPAR) -> Define(List.rev_map (function IDENT id -> id | oth -> unhand := Some oth; failwith "define") lst)
@@ -231,7 +233,7 @@ let rec scan attr = function
 | LibCell (nam, lst) -> let pins = ref [] and fn = ref [] and purpose = ref (String nam) in List.iter (function
     | Other ("pg_pin", pin, lst) when extract_pg_pins -> List.iter (function Related ("pg_type", pwr) -> pins := (pin,pwr) :: !pins | _ -> ()) lst
     | CellPin (pin, lst) -> List.iter (function Direction "internal" -> () | Direction dir -> pins := (pin,dir) :: !pins | Function f -> fn := (pin,f) :: !fn | _ -> ()) lst
-    | (Latch _ | FlipFlop _ | StateTable _ | Related _) as p -> purpose := p
+    | (Latch _ | FlipFlop _ | StateTable _ | Related _ | IsolationCell ) as p -> purpose := p
     | _ -> ()) lst; Hashtbl.add attr.cellhash nam (!pins,!fn,!purpose)
 | CellPin (_, _) -> ()
 | Timing _ -> ()
@@ -252,7 +254,7 @@ let rec scan attr = function
 | Latch (_, _) -> ()
 | StateTable (_, _) -> ()
 | FanoutLength _ -> ()
-
+| IsolationCell -> ()
 let rec strip = function
 | TUPLE3(STRING _, arg1, arg2) -> TUPLE2(strip arg1, strip arg2)
 | TUPLE4(STRING _, arg1, arg2, arg3) -> TUPLE3(strip arg1, strip arg2, strip arg3)

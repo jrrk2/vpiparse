@@ -17,18 +17,8 @@ open File_rewrite
 open Formula
 open File
 
-#print_length 1000;;
-#print_depth 1000;;
-
-(*
-let _ = read_liberty None
-let _ = dumpv stem !cells';;
-*)
-let stem = "liberty/NangateOpenCellLibrary_typical"
-let _ = read_lib stem;;
-let cell_param = ("\""^String.concat "\"|\"" (List.sort compare !truelst)^"\"");;
-let _ = dumpv stem;;
+#print_length 1000000;;
+#print_depth 1000000;;
 
 let _ = tran "uhdm.txt"
-
-let f = filtcells (TRIPLE(XOR,INT 0, INT 0));;
+let cell_param = ("\""^String.concat "\"|\"" (List.sort compare !truelst)^"\"");;

@@ -32,7 +32,7 @@ let dir = function
 | oth -> othdumpfail := oth; failwith "dir"
 
 let arithop = function
-| PLUS -> Aadd
+| PLUS -> Aadd ""
 | MINUS -> Asub
 | TIMES -> Amul
 | oth -> othdumpfail := oth; failwith "arithop"
@@ -56,7 +56,7 @@ let rec expr itms = function
 | TRIPLE((AND|OR|XOR as op), lft, rght) -> LOGIC(logicop op, [expr itms lft;expr itms rght])
 | TRIPLE((PLUS|MINUS|TIMES as op), lft, rght) -> ARITH(arithop op, [expr itms lft;expr itms rght])
 | TRIPLE((P_EQUAL|LESS as op), lft, rght) -> CMP(cmpop op, [expr itms lft;expr itms rght])
-| DOUBLE(CONCAT, TLIST lst) -> concat (List.map (expr itms) lst)
+| DOUBLE(CONCAT, TLIST lst) -> _Concat (List.map (expr itms) lst)
 | QUADRUPLE (PARTSEL, id, INT hi, INT lo) -> SEL ("", [expr itms id; CNST (32, HEX lo); CNST (32, HEX (hi-lo+1))])
 (*
  | QUADRUPLE (PARTSEL, id, hi, lo) -> _Selection itms (expr itms id, expr itms hi, expr itms lo, 0, 0)

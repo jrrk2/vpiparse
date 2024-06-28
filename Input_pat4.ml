@@ -51,15 +51,8 @@ let fullpth pth = String.concat "$" (List.rev (List.map (function Work -> "$" | 
 let mark n = if not (List.mem n !marklst) then marklst := n :: !marklst
 let dump () = List.iter (fun n -> print_endline (string_of_int n)) (List.sort_uniq compare !marklst)
 
-let _Concat (a, b) = CAT ("", [a; b])
-let rec concat = function
-     | [] -> failwith "concat"
-     | hd :: [] -> hd
-     | hd :: tl -> _Concat(hd, concat tl)
-let rec concat_multi = function
-     | [] -> failwith "concat"
-     | hd :: [] -> hd
-     | hd :: tl -> _Concat(hd, concat tl)
+let _Concat lst = CAT ("", lst)
+let _Concat_multi lst = CAT ("", lst)
 
 let _Unary = function
 | Vpiunaryandop -> Lredand
@@ -208,7 +201,7 @@ let _Lneg itms a = UNRY (Unegate, a :: [])
 let _Aneg itms _ = failwith "Aneg"
 let _Sneg itms _ = failwith "Sneg"
 let _Mux itms (_, _) = failwith "Mux"
-let _Add itms (a, b) = ARITH(Aadd, [a;b])
+let _Add itms (a, b) = ARITH(Aadd(itms.mode), [a;b])
 let _Sub itms (a, b) = ARITH(Asub, [a;b])
 let _Mult itms (a, b) = ARITH(Amul, [a;b])
 let _Div itms (a, b) = ARITH(Adiv, [a;b])
@@ -821,7 +814,7 @@ and expr itms = function
 |   TUPLE4 (Bit_select, STRING s, TLIST _, TUPLE2 (Vpiindex,
      TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int _), TUPLE2 (UINT, Int n), Vpiuintconst))) -> _Bitsel itms (_Ident itms s, _Integer itms n)
 |   TUPLE4 (Bit_select, STRING s, TLIST _, TUPLE2 (Vpiindex, ix)) -> _Bitsel itms (_Ident itms s, (expr itms) ix)
-|   TUPLE3 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), lft, rght) -> asgntyp itms (expr itms lft) (expr itms rght) op
+|   TUPLE4 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), STRING_CONST mode, lft, rght) -> asgntyp {itms with mode} (expr itms lft) (expr itms rght) op
 |   TUPLE2 (Vpieventorop, TLIST lst) -> _Edge itms (List.map (expr itms) lst)
 |   TUPLE3 (Vpieventorop, a, b) -> _Edge itms ((expr itms) a :: (expr itms) b :: [])
 |   TUPLE2 (Vpibitnegop, a) -> _Lneg itms ((expr itms) a)
@@ -829,7 +822,7 @@ and expr itms = function
 |   TUPLE2 (Vpiminusop, a) -> UNRY(Unegate, expr itms a :: [])
 |   TUPLE2 (Vpinotop, a) -> UNRY(Unot, expr itms a :: [])
 |   TUPLE2 ((Vpiunaryandop|Vpiunarynandop|Vpiunaryorop|Vpiunarynorop|Vpiunaryxorop|Vpiunaryxnorop as op), a) -> LOGIC(_Unary op, expr itms a :: [])
-|   TUPLE2 (Vpiconcatop, TLIST lst) -> concat (List.map (expr itms) lst)
+|   TUPLE2 (Vpiconcatop, TLIST lst) -> _Concat (List.map (expr itms) lst)
 |   TUPLE2 (Vpicondition, c) -> expr itms c
 |   TUPLE2 (Vpiposedgeop, p) -> _Posedge itms (expr itms p)
 |   TUPLE3 (Sys_func_call,
@@ -841,7 +834,7 @@ and expr itms = function
 |   TUPLE3 (Sys_func_call, exp, STRING syscall) -> SYS("", syscall, expr itms exp :: [])
 |   TUPLE6 (Parameter, _, _, _, _, _) as par -> let param, _, n = parameter itms par in _Integer itms n
 |   TUPLE2 (Ref_obj, STRING s) -> _Ident itms s
-|   TUPLE2 (Vpimulticoncatop, TLIST lst) -> concat_multi (List.map (expr itms) lst)
+|   TUPLE2 (Vpimulticoncatop, TLIST lst) -> _Concat_multi (List.map (expr itms) lst)
 |   oth -> othpat := oth; failwith "expr"
 
 and typrng itms = function

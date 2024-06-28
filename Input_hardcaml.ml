@@ -61,15 +61,15 @@ let othremapp''' = ref []
 let othdecl = ref []
 let othckedg = ref Work
 let othrstedg = ref Work
-let othop = ref (Work, Invalid, Invalid)
+let othop = ref (Void 0, Invalid, Invalid)
 
 let rec log2 n = if n <= 1 then 0 else 1 + log2 (n/2)
 
 let exact_log2 n = 1 lsl (log2 n) = n
 
 let sys_func x = function
-| "$signed" -> Signed x
-| "$unsigned" -> Unsigned x
+| "$signed" -> Unary (Signed, x)
+| "$unsigned" -> Unary (Unsigned, x)
 | oth -> othfunc := oth; failwith "sys_func"
 
 let signed_zero n = Signed.of_signal (Signal.zero n)
@@ -77,9 +77,17 @@ let arithnegate rhs = Signal.zero (width rhs) -: rhs
 let signedwidth rhs = width (Signed.to_signal rhs)
 let signednegate rhs = let open Signed in signed_zero (signedwidth rhs) -: rhs
 
-let add_fast a_sig b_sig =
+let adder_config a b = let wa, wb = width a, width b in function
+   | "Serial" | "" -> Hardcaml_circuits.Prefix_sum.Config.Serial
+   | "Sklansky" | "cla" -> Sklansky
+   | "Kogge-Stone" -> Kogge_stone
+   | "Brent-Kung" -> Brent_kung
+   | "fastest" -> if exact_log2 wa && exact_log2 wb then Kogge_stone else if wa > 2 || wb > 2 then Sklansky else Serial
+   | oth -> failwith ("Adder model not supported: "^oth)
+
+let add_fast model a_sig b_sig =
           (Hardcaml_circuits.Prefix_sum.create
-             ~config:(if exact_log2 (width a_sig) && exact_log2 (width b_sig) then Kogge_stone else Sklansky)
+           ~config:(adder_config a_sig b_sig model)
              (module Signal)
              ~input1:(a_sig)
              ~input2:(b_sig)
@@ -164,28 +172,6 @@ let sim_mult n_bits =
       done
     done
 
-let sub' lhs rhs =
-let wlhs = width lhs in
-let wrhs = width rhs in
-if wlhs = wrhs then
-sub_fast lhs rhs
-else if wlhs < wrhs then
-sub_fast (uresize lhs wrhs) rhs
-else if wlhs > wrhs then
-sub_fast lhs (uresize rhs wlhs)
-else failwith "sub'"
-
-let add' lhs rhs =
-let wlhs = width lhs in
-let wrhs = width rhs in
-if wlhs = wrhs then
-add_fast lhs rhs
-else if wlhs < wrhs then
-add_fast (uresize lhs wrhs) rhs
-else if wlhs > wrhs then
-add_fast lhs (uresize rhs wlhs)
-else failwith "mult'"
-
 let relational relation lhs rhs =
 let wlhs = width lhs in
 let wrhs = width rhs in
@@ -242,38 +228,42 @@ let summary = function
 let othtok = ref INVALID
 
 let arithopvpi = function
-| Aadd -> Vpiaddop
-| Asub -> Vpisubop
-| Amul | Amuls -> Vpimultop
-| Adiv | Adivs -> Vpidivop
-| Amod | Amods -> Vpimodop
-| Apow | Apows -> Vpipowerop
+| Aadd model -> Add model
+| Asub -> Sub
+| Amul -> Mult
+| Amuls -> Mults
+| Adiv -> Div
+| Adivs -> Divs
+| Amod -> Mod
+| Amods -> Mods
+| Apow -> Pow
+| Apows -> Pows
 | Aunknown -> failwith "Aunknown"
 
 let logopvpi = function
 | Lunknown -> failwith "Lunknown"
-| Land -> Vpibitandop
-| Lredand -> Vpilogandop
-| Lrednand -> Vpiunarynandop
-| Lor -> Vpibitorop
-| Lredor -> Vpilogorop
-| Lrednor -> Vpiunarynorop
-| Lxor -> Vpibitxorop
-| Lxnor -> Vpibitxnorop
-| Lredxor -> Vpibitxorop
-| Lredxnor -> Vpibitxnorop
-| Lshiftl -> Vpilshiftop
-| Lshiftr -> Vpirshiftop
-| Lshiftrs -> Vpiarithrshiftop
+| Land -> And
+| Lredand -> LogAnd
+| Lrednand -> LogNand
+| Lor -> Or
+| Lredor -> LogOr
+| Lrednor -> LogNor
+| Lxor -> Xor
+| Lxnor -> Xor
+| Lredxor -> LogXor
+| Lredxnor -> LogXnor
+| Lshiftl -> LshiftL
+| Lshiftr -> LshiftR
+| Lshiftrs -> AshiftR
 
 
 let unaryvpi = function
-| Unot -> Vpinotop
 | Unknown -> failwith "Unknown"
-| Ulognot -> Vpinotprim
-| Usigned -> Vpisigned
-| Unegate -> Vpinegative
-| Uunsigned -> Vpipositive
+| Unot -> Not
+| Ulognot -> LogNot
+| Usigned -> Signed
+| Unegate -> Negate
+| Uunsigned -> Unsigned
 | Uextend(int1, int2) -> failwith "Uextend"
 | Uextends(string, int1, int2) -> failwith "Uextends"
 
@@ -355,24 +345,19 @@ let declare_reg attr reg =
   Input_dump.tran_search modul wid' wid' reg;
   end in
 
-let rec concat = function
-     | [] -> failwith "concat"
-     | hd :: [] -> hd
-     | hd :: tl -> Concat(hd, concat tl) in
-
 let compare lft rght = function
-| Ceq -> Dyadic(Vpieqop, lft, rght)
-| Cneq -> Dyadic(Vpineqop, lft, rght)
-| Cgt -> Dyadic(Vpigtop, lft, rght)
-| Cgts -> Dyadic(Vpigtop, lft, rght)
-| Cgte -> Dyadic(Vpigeop, lft, rght)
-| Cgtes -> Dyadic(Vpigtop, lft, rght)
-| Ceqwild -> Dyadic(Vpieqop, lft, rght)
-| Cneqwild -> Dyadic(Vpineqop, lft, rght)
-| Cltes -> Dyadic(Vpiltop, lft, rght)
-| Clte -> Dyadic(Vpileop, lft, rght)
-| Clt -> Dyadic(Vpiltop, lft, rght)
-| Clts -> Dyadic(Vpiltop, lft, rght)
+| Ceq -> Dyadic(Eq, lft, rght)
+| Cneq -> Dyadic(Ne, lft, rght)
+| Cgt -> Dyadic(Gt, lft, rght)
+| Cgts -> Dyadic(Gts, lft, rght)
+| Cgte -> Dyadic(Ge, lft, rght)
+| Cgtes -> Dyadic(Ges, lft, rght)
+| Ceqwild -> Dyadic(Gewild, lft, rght)
+| Cneqwild -> Dyadic(Newild, lft, rght)
+| Cltes -> Dyadic(Les, lft, rght)
+| Clte -> Dyadic(Le, lft, rght)
+| Clt -> Dyadic(Lt, lft, rght)
+| Clts -> Dyadic(Lts, lft, rght)
 | Cunknown as oth -> othcmp := oth; failwith "compare" in
 
 let rec tranitm attr = function
@@ -391,7 +376,7 @@ let rec tranitm attr = function
 | IF (str1, rw_lst) -> failwith "IF"
 | CND (str1, cond::lft::rght::[]) -> Mux2 (tranitm attr cond, tranitm attr lft, tranitm attr rght)
 | CND (str1, rw_lst) -> failwith "CND"
-| CAT (str1, rw_lst) -> concat (List.map (tranitm attr) rw_lst)
+| CAT (str1, rw_lst) -> Concat (List.map (tranitm attr) rw_lst)
 | SEL (str1, nam::CNST (_, HEX lft)::CNST (_, HEX rght)::[]) -> Selection (tranitm attr nam, rght, lft, 0, 0)
 | SEL (str1, rw_lst) -> failwith "SEL"
 | CMP (cmpop, lft::rght::[]) -> compare (tranitm attr lft) (tranitm attr rght) cmpop
@@ -499,14 +484,14 @@ let rec strength_reduce = function
 
 let rec combiner = function
 | [] -> []
-| If_ (Dyadic (Vpieqop, a, b), c, d) ::
-  If_ (Dyadic (Vpieqop, a', b'), c', d') :: [] when a=a' && b=b' -> If_ (Dyadic (Vpieqop, a, b), c@c', d@d') :: []
+| If_ (Dyadic (Eq, a, b), c, d) ::
+  If_ (Dyadic (Eq, a', b'), c', d') :: [] when a=a' && b=b' -> If_ (Dyadic (Eq, a, b), c@c', d@d') :: []
 | If_ (Dyadic _ as a, b, c) :: tl -> If_ ( a, combiner b, combiner c) :: combiner tl
 | Seq (Block (Ident blk, exp1) :: Block (Ident blk', Dyadic (op, Ident blk'', exp2)) :: tl) :: tl' when blk=blk' && blk'=blk'' ->
   combiner (Asgn(Ident blk', Dyadic(op, exp1, exp2)) :: tl @ tl')
 | Seq lst :: tl -> combiner (lst @ tl)
 | Asgn (Update (Ident dest, lfthi, lftlo, hi, lo), a) :: Asgn (Update (Ident dest', rghthi, rghtlo, hi', lo'), b) :: tl
-when dest=dest' && lfthi=hi && lftlo=rghthi+1 && rghtlo=lo && hi=hi' && lo=lo' -> Asgn(Ident dest, Concat ( a, b )) :: combiner tl
+when dest=dest' && lfthi=hi && lftlo=rghthi+1 && rghtlo=lo && hi=hi' && lo=lo' -> Asgn(Ident dest, Concat ( [a; b] )) :: combiner tl
 | Block(id, expr) :: tl -> Asgn(id, expr) :: combiner tl
 | Asgn (_, Void 585) :: tl -> combiner tl
 | hd :: tl -> hd :: combiner tl in
@@ -523,82 +508,82 @@ if not (List.mem lbl !seen) then print_endline ("unimps: "^lbl); seen := lbl :: 
 let lognegate fn = fun lhs rhs -> fn lhs (~: rhs) in
 
 let signed_relational x = let open Signed in match x with
-|Vpieqop -> (==:) 
-|Vpineqop -> (<>:) 
-|Vpiltop -> (<:) 
-|Vpileop -> (<=:) 
-|Vpigeop -> (>=:) 
-|Vpigtop -> (>:) 
-|Vpilshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sll (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Vpirshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift srl (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Vpiarithlshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sll (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Vpiarithrshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sra (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Vpiaddop -> (fun lhs rhs -> Signed.of_signal (add_fast (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Vpisubop -> (fun lhs rhs -> Signed.of_signal (sub_fast (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Vpimultop -> mult_wallace_signed
-|Vpidivop -> (fun lhs rhs -> Signed.of_signal (div_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Vpimodop -> (fun lhs rhs -> Signed.of_signal (mod_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Vpipowerop -> unimps "power"
-|Vpilogandop -> (fun lhs rhs -> of_signal (to_signal lhs &&: to_signal rhs))
-|Vpilogorop -> (fun lhs rhs -> of_signal (to_signal lhs ||: to_signal rhs))
-|Vpibitandop -> (fun lhs rhs -> of_signal (to_signal lhs &: to_signal rhs))
-|Vpibitorop -> (fun lhs rhs -> of_signal (to_signal lhs |: to_signal rhs))
-|Vpibitxorop -> (fun lhs rhs -> of_signal (to_signal lhs ^: to_signal rhs))
-|Vpibitxnorop -> (fun lhs rhs -> of_signal ( ~: (to_signal lhs ^: to_signal rhs)))
-|oth -> otht := Some oth; failwith "signed_relational" in
+|Eq -> (==:) 
+|Ne -> (<>:) 
+|Lt -> (<:) 
+|Le -> (<=:) 
+|Ge -> (>=:) 
+|Gt -> (>:) 
+|LshiftL -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sll (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|LshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift srl (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|AshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sra (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Add model -> (fun lhs rhs -> Signed.of_signal (add_fast model (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Sub -> (fun lhs rhs -> Signed.of_signal (sub_fast (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Mult -> mult_wallace_signed
+|Div -> (fun lhs rhs -> Signed.of_signal (div_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Mod -> (fun lhs rhs -> Signed.of_signal (mod_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Pow -> unimps "power"
+|LogAnd -> (fun lhs rhs -> of_signal (to_signal lhs &&: to_signal rhs))
+|LogOr -> (fun lhs rhs -> of_signal (to_signal lhs ||: to_signal rhs))
+|And -> (fun lhs rhs -> of_signal (to_signal lhs &: to_signal rhs))
+|Or -> (fun lhs rhs -> of_signal (to_signal lhs |: to_signal rhs))
+|Xor -> (fun lhs rhs -> of_signal (to_signal lhs ^: to_signal rhs))
+|Xnor -> (fun lhs rhs -> of_signal ( ~: (to_signal lhs ^: to_signal rhs)))
+|oth -> othp := oth; failwith "signed_relational" in
 
 let unsigned_relational = function
-|Vpieqop -> (==:) 
-|Vpineqop -> (<>:) 
-|Vpiltop -> (<:) 
-|Vpileop -> (<=:) 
-|Vpigeop -> (>=:) 
-|Vpigtop -> (>:)
-|Vpilshiftop -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
-|Vpirshiftop -> (fun lhs rhs -> Signal.log_shift srl rhs lhs)
-|Vpiarithlshiftop -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
-|Vpiarithrshiftop -> (fun lhs rhs -> Signal.log_shift sra rhs lhs)
-|Vpiaddop -> add_fast
-|Vpisubop -> sub_fast
-|Vpimultop -> mult_wallace
-|Vpidivop -> div_unsigned
-|Vpimodop -> unimp "mod"
-|Vpipowerop -> unimp "power"
-|Vpilogandop -> (&&:) 
-|Vpilogorop -> (||:) 
-|Vpibitandop -> (&:) 
-|Vpibitorop -> (|:) 
-|Vpibitxorop -> (^:) 
-|Vpibitxnorop -> lognegate (^:)
-|oth -> otht := Some oth; failwith "unsigned_relational" in
+|Eq -> (==:) 
+|Ne -> (<>:) 
+|Lt -> (<:) 
+|Le -> (<=:) 
+|Ge -> (>=:) 
+|Gt -> (>:)
+|LshiftL -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
+|LshiftR -> (fun lhs rhs -> Signal.log_shift srl rhs lhs)
+|AshiftR -> (fun lhs rhs -> Signal.log_shift sra rhs lhs)
+|Add model  -> add_fast model
+|Sub -> sub_fast
+|Mult -> mult_wallace
+|Div -> div_unsigned
+|Mod -> unimp "mod"
+|Pow -> unimp "power"
+|LogAnd -> (&&:) 
+|LogOr -> (||:) 
+|And -> (&:) 
+|Or -> (|:) 
+|Xor -> (^:) 
+|Xnor -> lognegate (^:)
+|oth -> othp := oth; failwith "unsigned_relational" in
 
 let unsigned_relationalc = function
-|Vpilshiftop -> Signal.sll
-|Vpirshiftop -> Signal.srl
-|Vpiarithrshiftop -> Signal.sra
-|oth -> otht := Some oth; failwith "unsigned_relationalc" in
+|LshiftL -> Signal.sll
+|LshiftR -> Signal.srl
+|AshiftR -> Signal.sra
+|oth -> othp := oth; failwith "unsigned_relationalc" in
 
 let signed_relationalc x = let open Signed in match x with
-|Vpilshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.sll (Signed.to_signal lhs) rhs))
-|Vpirshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.srl (Signed.to_signal lhs) rhs))
-|Vpiarithrshiftop -> (fun lhs rhs -> Signed.of_signal (Signal.sra (Signed.to_signal lhs) rhs))
-|oth -> otht := Some oth; failwith "unsigned_relationalc" in
+|LshiftL -> (fun lhs rhs -> Signed.of_signal (Signal.sll (Signed.to_signal lhs) rhs))
+|LshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.srl (Signed.to_signal lhs) rhs))
+|AshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.sra (Signed.to_signal lhs) rhs))
+|oth -> othp := oth; failwith "unsigned_relationalc" in
 
 let _detect_dyadic = function
-| (Vpirhs as op),Sig lhs, Sig rhs -> othop := (op, summary (Sig lhs), summary (Sig rhs)); failwith "detect_dyadic_rhs"
+(*
+ | (Vpirhs as op),Sig lhs, Sig rhs -> othop := (op, summary (Sig lhs), summary (Sig rhs)); failwith "detect_dyadic_rhs"
+*)
 | op,Sig lhs, Sig rhs -> relational (unsigned_relational op) lhs rhs
 | op,Sigs lhs, Sig rhs -> relational (unsigned_relational op) (Signed.to_signal lhs) rhs
 | op,Sig lhs, Sigs rhs -> relational (unsigned_relational op) lhs (Signed.to_signal rhs)
 | op,Sigs lhs, Sigs rhs -> relational' (signed_relational op) lhs rhs
-| (Vpisubop as op), Sig lhs, Con rhs -> relational (unsigned_relational op) lhs (Signal.of_constant rhs)
+| (Sub as op), Sig lhs, Con rhs -> relational (unsigned_relational op) lhs (Signal.of_constant rhs)
 | op, Con lhs, Sig rhs -> relational (unsigned_relational op) (Signal.of_constant lhs) rhs
 | op, Con lhs, Sigs rhs -> relational' (signed_relational op) (Signed.of_signal (Signal.of_constant lhs)) rhs
-| (Vpilshiftop|Vpirshiftop|Vpiarithrshiftop as op), Sig lhs, Con rhs -> relationalc (unsigned_relationalc op) lhs (Constant.to_int rhs)
+| (LshiftL|LshiftR|AshiftR as op), Sig lhs, Con rhs -> relationalc (unsigned_relationalc op) lhs (Constant.to_int rhs)
 | op,Sig lhs, Con rhs -> relational (unsigned_relational op) lhs (Signal.of_constant rhs)
 | op,Sigs lhs, Con rhs -> relationalc' (signed_relationalc op) lhs (Constant.to_int rhs)
-| (Vpilshiftop|Vpirshiftop|Vpiarithrshiftop as op), Var lhs, Con rhs -> relationalc (unsigned_relationalc op) lhs.value (Constant.to_int rhs)
+| (LshiftL|LshiftR|AshiftR as op), Var lhs, Con rhs -> relationalc (unsigned_relationalc op) lhs.value (Constant.to_int rhs)
 | op, Var lhs, Con rhs -> relational (unsigned_relational op) lhs.value (Signal.of_constant rhs)
-| (Vpilshiftop|Vpirshiftop|Vpiarithrshiftop as op), Con lhs, Con rhs -> relationalc (unsigned_relationalc op) (Signal.of_constant lhs) (Constant.to_int rhs)
+| (LshiftL|LshiftR|AshiftR as op), Con lhs, Con rhs -> relationalc (unsigned_relationalc op) (Signal.of_constant lhs) (Constant.to_int rhs)
 | op, Var lhs, Sig rhs -> relational (unsigned_relational op) lhs.value rhs
 | op,lhs,rhs -> othop := (op, summary lhs, summary rhs); failwith "detect_dyadic" in
 
@@ -611,23 +596,21 @@ if not (List.mem lbl !seen) then print_endline ("unimplu: "^lbl); seen := lbl ::
 
 let fold' fn rhs = let expl = List.init (width rhs) (bit rhs) in List.fold_left fn (List.hd expl) (List.tl expl) in
 
-let remapop' = function
-|Vpiplusop -> (fun rhs -> rhs)
-|Vpiminusop -> arithnegate
-|Vpiunaryandop -> fold' (&:)
-|Vpiunarynandop -> fold' (lognegate (&:))
-|Vpiunaryorop -> fold' (|:)
-|Vpiunarynorop -> fold' (lognegate (|:))
-|Vpiunaryxorop -> fold' (^:)
-|Vpiunaryxnorop -> fold' (lognegate (^:))
-|Vpibitnegop -> (~:)
-|Vpinotop -> (~:)
-|Vpilogandop -> fold' (&:)
-|Vpilogorop -> fold' (|:)
-|Vpibitxorop -> fold' (^:)
-|Vpibitxnorop -> fold' (lognegate (^:))
-|Vpinegative -> fold' (-:)
-|oth -> otht := Some oth; failwith "remapop'" in
+let remapunary' = function
+|Add _ -> (fun rhs -> rhs)
+|Sub -> arithnegate
+|And -> fold' (&:)
+|Nand -> fold' (lognegate (&:))
+|Or -> fold' (|:)
+|Nor -> fold' (lognegate (|:))
+|Xor -> fold' (^:)
+|Xnor -> fold' (lognegate (^:))
+|Lneg -> (~:)
+|Not -> (~:)
+|LogAnd -> fold' (&:)
+|LogOr -> fold' (|:)
+|Negate -> fold' (-:)
+|oth -> othp := oth; failwith "remapop'" in
 
 let radix = function
 | Dec (n, w) -> int_of_string n
@@ -637,7 +620,9 @@ let radix = function
 let rec (remap:remapp->remap) = function
 | Ident wire ->
 if exists wire then find_decl wire else Invalid
-| Unary (op, rhs) -> Sig (remapop' op (sig' (remap rhs)))
+| Unary (Signed, x) -> (match remap x with Sig x -> Sigs (Signed.of_signal x) | Sigs _ as x -> x | _ -> failwith "Signed")
+| Unary (Unsigned, x) -> (match remap x with Sigs x -> Sig (Signed.to_signal x) | Sig _ as x -> x | _ -> failwith "Unsigned")
+| Unary (op, rhs) -> Sig (remapunary' op (sig' (remap rhs)))
 | Dyadic (op, lhs, rhs) -> let lhs = remap lhs and rhs = remap rhs in detect_dyadic (op,lhs, rhs)
 | Mux2 (cond, lhs, rhs) ->
    othcond' := cond;
@@ -676,21 +661,12 @@ if exists wire then find_decl wire else Invalid
 | Dec (s,width) -> Con (Constant.of_z ~width (Z.of_string s))
 | Oct (s,width) -> Con (Constant.of_octal_string ~width ~signedness:Unsigned s)
 | Bin (s,width) -> Con (Constant.of_binary_string_hum s)
-| Concat (lhs, rhs) -> 
-   othlhs' := lhs;
-   othrhs' := rhs;
-   othrmlhs' := remap lhs;
-   othrmrhs' := remap rhs;
-   let lhs = sig' (remap lhs) in
-   let rhs = sig' (remap rhs) in
-   Sig (lhs @: rhs)
+| Concat lst -> Sig (Signal.concat_msb (List.map (fun itm -> sig' (remap itm)) lst))
 | Selection(nam, lft, rght, hi, lo) -> Sig (select (sig' (remap nam)) (lft) (rght))
 | Bitsel(nam, Dec (n, _)) -> Sig (bit (sig' (remap nam)) (int_of_string n))
 | Bitsel(nam, sel) as b -> othp := b; Sig (mux' (sig' (remap sel)) (sig' (remap nam)))
 | Item (cond, r, stmt) as itm -> othp := itm; let wid = width (sig' (remap cond)) in Itm (of_int ~width:wid (radix r), [ alw' (remap stmt) ])
 | Case (mode, lst) -> Alw (Always.switch (sig' (remap mode)) (List.map (fun itm -> match remap itm with Itm c -> c | _ -> failwith "itm") lst))
-| Signed x -> (match remap x with Sig x -> Sigs (Signed.of_signal x) | Sigs _ as x -> x | _ -> failwith "Signed")
-| Unsigned x -> (match remap x with Sigs x -> Sig (Signed.to_signal x) | Sig _ as x -> x | _ -> failwith "Unsigned")
 | oth -> othp := oth; failwith "remap" in
 
 othremapp' := remapp';

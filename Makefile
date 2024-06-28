@@ -1,4 +1,5 @@
 TRACE = --explain ## --trace
+TRACET = --explain --trace
 
 ############################################################################
 
@@ -41,4 +42,4 @@ Formula_lex.ml: Formula_lex.mll
 	ocamllex $<
 
 Formula.ml Formula.mli: Formula.mly
-	menhir $(MENHIRFLAGST) $<
+	menhir $(MENHIRFLAGS) $<
