@@ -163,32 +163,34 @@ let identypmap = function
 | Vpireg -> "reg"
 | oth -> identyp := oth; failwith "identypmap"
 
+let vadd itms (nam, arg) = if not (List.mem_assoc nam !(itms.v)) then itms.v := (nam, arg) :: !(itms.v) else failwith ("vadd: duplicate "^nam)
+
 let _Identyp itms nam = function
 | Vpinet | Vpireg | Vpialways as typ -> if not (List.mem_assoc nam !(itms.io)) then
-itms.v := (nam, ("", (BASDTYP, (identypmap typ), TYPNONE, []), (identypmap typ), (UNKDTYP, "", TYPNONE, []))) :: !(itms.v)
+vadd itms (nam, ("", (BASDTYP, (identypmap typ), TYPNONE, []), (identypmap typ), (UNKDTYP, "", TYPNONE, []))) 
 | oth -> identyp := oth; failwith "identyp"
 
 let _Identyprng itms nam rng = function
 | (Vpinet | Vpireg | Vpialways as typ) -> if not (List.mem_assoc nam !(itms.io)) then
-itms.v := (nam, ("", (BASDTYP, (identypmap typ), rng, []), (identypmap typ), (UNKDTYP, "", TYPNONE, []))) :: !(itms.v)
+vadd itms (nam, ("", (BASDTYP, (identypmap typ), rng, []), (identypmap typ), (UNKDTYP, "", TYPNONE, []))) 
 | oth -> identyp := oth; failwith "identyp"
 
 let _Port itms dir nam = itms.io := (nam, ("", (BASDTYP, "logic", TYPNONE, []), dir, "logic", [])) :: !(itms.io)
 let _Portrng itms dir nam typrng = itms.io := (nam, ("", (BASDTYP, "logic", typrng, []), dir, "logic", [])) :: !(itms.io)
-let _Porthigh itms dir nam = itms.v := (nam, ("", (BASDTYP, "logic", TYPNONE, []), "logic", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v)
+let _Porthigh itms dir nam = vadd itms (nam, ("", (BASDTYP, "logic", TYPNONE, []), "logic", (UNKDTYP, "", TYPNONE, []))) 
 
 let othenum' = ref UNKNOWN
 let othcase = ref Work
 
 let _Enumvar itms nam = function
 | BGN (None, VRF (typdef, _, _) :: lst) as typ -> othenum' := typ; List.iter (function
-  | VRF ("", typ', []) -> itms.v := (nam, ("", typ', typdef, (UNKDTYP, "", TYPNONE, []))) :: !(itms.v)
+  | VRF ("", typ', []) -> vadd itms (nam, ("", typ', typdef, (UNKDTYP, "", TYPNONE, []))) 
   | oth -> ()) lst
 | oth -> othenum' := oth; failwith "_Enumvar"
 
 let _Porthighrng itms dir nam typrng =
     if not (List.mem_assoc nam !(itms.io)) then
- itms.v := (nam, ("", (BASDTYP, "logic", typrng, []), "logic", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v)
+ vadd itms (nam, ("", (BASDTYP, "logic", typrng, []), "logic", (UNKDTYP, "", TYPNONE, []))) 
 let _Enum itms enum_t lst =
   if not (List.mem_assoc enum_t !(itms.cnst)) then itms.cnst := (enum_t,(false,(0,CNSTEXP(Aunknown, List.map (function
   | TUPLE5 (Enum_const, STRING enam, TUPLE2 (INT, Int n), Vpidecompile _, TUPLE2 (Vpisize, Int _)) -> ENUMVAL (n, enam)
@@ -242,10 +244,10 @@ let _Array_net itms = function
 | VRF (nam, (BASDTYP, "logic", TYPNONE, []), []),
   VRF ("", (BASDTYP, "logic", typrng, []), []),
   siz, typrng' ->
- itms.v := (nam, ("", (UNPACKADTYP, "",
+ vadd itms (nam, ("", (UNPACKADTYP, "",
          RECTYP (BASDTYP, "logic", typrng, []),
          [TYPRNG (SHEX 0, SHEX (siz-1))]),
-		      "", (UNKDTYP, "", TYPNONE, []))) :: !(itms.v)
+		      "", (UNKDTYP, "", TYPNONE, []))) 
 | a -> otharray := Some a; failwith "actual"
 let _Edge itms = function
 | [POSEDGE clk; POSEDGE rst] -> POSPOS (clk, rst)

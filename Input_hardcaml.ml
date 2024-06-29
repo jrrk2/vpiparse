@@ -276,7 +276,7 @@ let cnv_op oplst k = function
         | Sigs v -> ()
         | Invalid -> ()
 
-let cnv (modnam, (_, modul)) =
+let cnv (modnam, modul) =
 begin
 let declare_lst = ref [] in
 let exists k = List.mem_assoc k !declare_lst in
@@ -679,6 +679,5 @@ let oplst = ref [] in
 List.iter (Input_dump.iofunc modul (fun _ _ -> ()) (fun io _ -> cnv_op oplst io (find_decl io))) !(modul.io);
 let rtl = Buffer.create 65535 in
 Hardcaml.Rtl.output ~output_mode:(Hardcaml.Rtl.Output_mode.To_buffer rtl) Verilog (Hardcaml.Circuit.create_exn ~name:modnam !oplst);
-Rtl_dump.dump modnam rtl;
-Rtl_map.map modnam rtl;
+Buffer.contents rtl;
 end

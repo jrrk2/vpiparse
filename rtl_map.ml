@@ -38,12 +38,17 @@ let othuniq = ref None
 let othport = ref None
 let othfilt = ref ENDOFFILE
 let othchk = ref (XML [], XML [])
+let othargs = ref (XML [], XML [], XML [])
+let othchkadd = ref ENDOFFILE
 let othsel = ref (XML [])
 let othalw = ref ENDOFFILE
 let othmapfail = ref UNKNOWN
 let oth_expr_fail = ref UNKNOWN
 let sigcnt = ref 9999
 let cells' = ref []
+let lastpat = ref UNKNOWN
+let othlst = ref ("",[])
+let othbody = ref []
 
 let form' form = try Formula_rewrite.rewrite form with _ -> failwith ("Formula_rewrite failed: "^form)
 
@@ -81,6 +86,15 @@ let filtnot = function (_,
     [(_, DOUBLE (NOT, IDSTR a), String _)
     ])) -> true | _ -> false
 
+let filtplus = function (_,
+  (_,
+     [(_, TRIPLE (IDSTR ci, XOR, TRIPLE (IDSTR a, XOR, IDSTR b)),
+       String _);
+      (_, TRIPLE (TRIPLE (IDSTR a', P_AMPERSAND, IDSTR b'), P_VBAR,
+         TRIPLE (IDSTR ci', P_AMPERSAND, TRIPLE (IDSTR a'', P_VBAR, IDSTR b''))),
+       String _)
+    ])) -> a=a' && b=b' && b'=b'' &&ci=ci' | _ -> false
+
 let filtxor = function
     | (_, (_, [(_, TRIPLE (TRIPLE (IDSTR a, P_AMPERSAND, DOUBLE (NOT, IDSTR b)), P_VBAR,
 	      TRIPLE (DOUBLE (NOT, IDSTR a'), P_AMPERSAND, IDSTR b')), _)])) when a=a' && b=b' -> true
@@ -103,9 +117,10 @@ let filtmap = function
 | oth -> othfilt := oth; failwith "filtmap"
     
 let filtcells' = function
-| TRIPLE((AND|OR|XOR as op), lft, rght) -> filtmap op
-| DOUBLE((NOT as op), rght) -> filtmap op
+| (AND|OR|XOR) as op -> filtmap op
+| NOT as op -> filtmap op
 | BUF -> filtbuf
+| PLUS -> filtplus
 | QUERY -> filtmux
 | POSEDGE -> filtedge
 | oth -> othfilt := oth; failwith "filtcells"
@@ -185,6 +200,12 @@ let cmpop = function
 | LESS -> Clt
 | oth -> othmapfail := oth; failwith "cmpop"
 
+let width_reg itms reg =
+  let wid' rng _ = function
+    | Width(hi,lo,signed) -> rng := TYPRNG (HEX hi, HEX lo)
+    | _ -> failwith "width_reg" in
+  let rng = ref TYPNONE in tran_search itms (wid' rng) (wid' rng) reg; !rng
+
 let chk_reg itms reg fn =
   let wid' _ = function
     | Width(hi,lo,signed) -> for i = hi downto lo do fn hi lo i; done
@@ -198,7 +219,18 @@ let conndir = function
 | "output" -> Doutput
 | oth -> failwith ("conndir: "^oth)
 
-let nthexp porth pin ix = let lst = Hashtbl.find porth pin in if ix >= List.length lst then List.hd lst else List.nth lst ix
+let rec prefix pref = function
+| IDSTR s -> IDSTR (if s.[0] = '_' && not (List.mem s pref) then (String.concat "_" pref)^s else s)
+| TLIST slst -> TLIST (List.map (prefix pref) slst)
+| DOUBLE(a,b) -> DOUBLE((prefix pref) a, (prefix pref) b)
+| TRIPLE(a,b,c) -> TRIPLE((prefix pref) a, (prefix pref) b, (prefix pref) c)
+| QUADRUPLE(a,b,c,d) -> QUADRUPLE((prefix pref) a, (prefix pref) b, (prefix pref) c, (prefix pref) d)
+| QUINTUPLE(a,b,c,d,e) -> QUINTUPLE((prefix pref) a, (prefix pref) b, (prefix pref) c, (prefix pref) d, (prefix pref) e)
+| SEXTUPLE(a,b,c,d,e,f) -> SEXTUPLE((prefix pref) a, (prefix pref) b, (prefix pref) c, (prefix pref) d, (prefix pref) e, (prefix pref) f)
+| SEPTUPLE(a,b,c,d,e,f,g) -> SEPTUPLE((prefix pref) a, (prefix pref) b, (prefix pref) c, (prefix pref) d, (prefix pref) e, (prefix pref) f, (prefix pref) g)
+| oth -> oth
+
+let nthexp porth pin ix = let lst = Hashtbl.find porth pin in othlst := (pin,lst); if ix >= List.length lst then List.hd lst else List.nth lst ix
 
 let connlst' porth hi lo i p = let pin = fst p in PORT ("", pin, conndir (snd p), nthexp porth pin (i-lo) :: [])
 
@@ -227,15 +259,18 @@ let annot itms porth inports outports op = function
  Hashtbl.replace porth (fst (List.hd outports)) (explode itms op)
  | oth,_ -> othff := oth; failwith "maplib'_othff"
 
+let mapcnt = ref 0
+
 let maplib' itms lst = function
 | (VRF (nam, _, _) as op), (cellnam::_,(portlst,(funy,eqn,(liberty:liberty))::_)::_) ->
 let porth = Hashtbl.create 127 in
 List.iter (fun (nam, _) -> Hashtbl.add porth nam []) portlst;
 let inports, outports = List.partition (function (nam, "input") -> true | _ -> false) portlst in
 annot itms porth inports outports op (liberty,lst);
+incr mapcnt;
 chk_reg itms nam (fun hi lo i ->
 if false then print_endline ("Iteration: "^string_of_int i);
-let cellinst = cellnam^"_"^nam^(if hi > lo then "_"^string_of_int i else "") in
+let cellinst = cellnam^"_"^string_of_int !mapcnt^(if hi > lo then "_"^string_of_int i else "") in
 itms.inst :=
      (cellinst,
       ("", cellnam, List.map (connlst' porth hi lo i) inports @ List.map (connlst' porth hi lo i) outports)) :: !(itms.inst)
@@ -278,7 +313,7 @@ let rec body itms = function
 
 let _chk_assign itms (lhs, rhs) = maplib' itms [lhs] (rhs, filtcells BUF)
 
-let rec map itms = function
+let rec _map itms = function
 | TLIST lst -> List.iter (map itms) lst
 | DOUBLE(POSEDGE,arg) as pat -> othmapfail := pat; failwith "DOUBLE(POSEDGE,arg)"
 | DOUBLE(ALWAYS, TLIST [DOUBLE (DOUBLE (AT, TLIST [DOUBLE (POSEDGE, clk)]), TLIST
@@ -292,12 +327,21 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
 | TRIPLE(PLUS, arg1, arg2) as pat -> othmapfail := pat; failwith "TRIPLE(PLUS,"
 | TRIPLE(LESS, arg1, arg2) as pat -> othmapfail := pat; failwith "TRIPLE(LESS,"
 | TRIPLE(ASSIGNMENT, arg1, arg2) as pat -> othmapfail := pat; failwith "TRIPLE(ASSIGNMENT,"
-| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE((AND|OR|XOR), lft, rght) as func))]) ->
+| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE((AND|OR|XOR as func), lft, rght)))]) ->
   maplib' itms ([expr itms lft;expr itms rght]) (expr itms lhs, filtcells func)
-| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (DOUBLE((NOT), rght) as func))]) ->
+| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (DOUBLE((NOT as func), rght)))]) ->
   maplib' itms ([expr itms rght]) (expr itms lhs, filtcells func)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, QUADRUPLE (QUERY, cond, lft, rght))]) ->
   maplib' itms [expr itms cond; expr itms lft; expr itms rght] (expr itms lhs, filtcells QUERY)
+| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE(PLUS, lft, rght)))]) ->
+  let body = match _chk_add itms (expr itms lft, expr itms rght, expr itms lhs) with
+    | QUINTUPLE (MODULE, IDSTR "add", TLIST [], TLIST [IDSTR _; IDSTR _; IDSTR _], TLIST
+   (QUINTUPLE (INPUT, EMPTY, EMPTY, RANGE _, TLIST [TRIPLE (IDSTR a, EMPTY, EMPTY)]) ::
+    QUINTUPLE (INPUT, EMPTY, EMPTY, RANGE _, TLIST [TRIPLE (IDSTR b, EMPTY, EMPTY)]) ::
+    QUINTUPLE (OUTPUT, EMPTY, EMPTY, RANGE _, TLIST [TRIPLE (IDSTR c, EMPTY, EMPTY)]) :: body')) ->
+      List.map (prefix [a;b;c]) body'
+    | oth -> othchkadd := oth; failwith "_chk_add" in
+    othbody := body; List.iter (map itms) body
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, rhs)]) -> _chk_assign itms (expr itms rhs, expr itms lhs)
 | TRIPLE(tok, arg1, arg2) as pat ->  othmapfail := pat; failwith "TRIPLE(tok,"
 | QUADRUPLE(QUERY, arg1, arg2, arg3) as pat ->  othmapfail := pat; failwith "QUADRUPLE(QUERY,"
@@ -357,17 +401,48 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
 | INT n as pat -> othmapfail := pat; failwith "INT"
 | oth -> othmapfail := oth; failwith "dump"
 
+and map itms pat = lastpat := pat; _map itms pat
+
+and _chk_add itms = function
+| VRF (a, _, _), VRF (b, _, _), VRF (y, _, _) -> let typrng = width_reg itms y in map' (Input_hardcaml.cnv ("add",
+     {io =
+       {contents =
+         [(a, ("", (BASDTYP, "logic", typrng, []), Dinput, "logic", []));
+          (b, ("", (BASDTYP, "logic", typrng, []), Dinput, "logic", []));
+          (y, ("", (BASDTYP, "logic", typrng, []), Doutput, "logic", []))]};
+      v = {contents = []}; iv = {contents = []}; ir = {contents = []};
+      ca = {contents = []};
+      alwys =
+       {contents =
+         [("", COMB,
+           [SNTRE [];
+            ASGN (false, "",
+             [ARITH (Aadd "fastest",
+               [VRF (a, (BASDTYP, "logic", TYPNONE, []), []);
+                VRF (b, (BASDTYP, "logic", TYPNONE, []), [])]);
+              VRF (y, (BASDTYP, "logic", typrng, []), [])])])]};
+      init = {contents = []}; func = {contents = []}; task = {contents = []};
+      gen = {contents = []}; imp = {contents = []}; inst = {contents = []};
+      cnst = {contents = []}; needed = {contents = []};
+      remove_interfaces = false; mode = ""; names'' = []} ))
+| oth -> othargs := oth; failwith "_chk_add othargs"
+
+and map' rtl =
+let lexbuf = Lexing.from_string rtl in
+let rslt = Rtl_parser.start Rtl_lexer.token lexbuf in
+rslt
+
 let map modnam rtl =
 let chk = modnam^"_hardcaml.v" in
 print_endline chk;
 let fd = open_out chk in
-output_string fd (Buffer.contents rtl);
+output_string fd rtl;
 close_out fd;
-let lexbuf = Lexing.from_string (Buffer.contents rtl) in
-let rslt = Rtl_parser.start Rtl_lexer.token lexbuf in
+let rslt = map' rtl in
 othrtl := rslt;
 let u = empty_itms [] in
 uitms := u :: [];
 let _ = map u rslt in
-dump' "_map" (modnam, ((), (List.hd !uitms)));
+let u = List.hd !uitms in
+dump' "_map" (modnam, ((), u));
 ()

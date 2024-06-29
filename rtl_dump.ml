@@ -146,9 +146,9 @@ let dump modnam rtl =
 let chk = modnam^"_hardcaml.v" in
 print_endline chk;
 let fd = open_out chk in
-output_string fd (Buffer.contents rtl);
+output_string fd rtl;
 close_out fd;
-let lexbuf = Lexing.from_string (Buffer.contents rtl) in
+let lexbuf = Lexing.from_string rtl in
 let rslt = Rtl_parser.start Rtl_lexer.token lexbuf in
 othrtl := rslt;
 let u = empty_itms [] in

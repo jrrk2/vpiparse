@@ -61,7 +61,7 @@ let tran f =
   List.iter (dump' "_top") !topmods;
   let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
   if Array.length Sys.argv > 4 then (print_endline ("Dumping cells: "^string_of_int (List.length !(Rtl_map.cells'))); Rtl_map.dumpv Sys.argv.(4));
-  List.iter cnv !topmods;
+  List.iter (fun (modnam, (_, modul)) -> let rtl = cnv (modnam, modul) in Rtl_dump.dump modnam rtl; Rtl_map.map modnam rtl) !topmods;
   if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) (modnam^"_map.v") modnam liberty | _ -> failwith "multiple top modules"
 
 let _ = if Array.length Sys.argv > 3 then eqv Sys.argv.(3) Sys.argv.(2) Sys.argv.(1) (Rtl_map.dflt_liberty None)
