@@ -1,0 +1,5 @@
+read_lib liberty/NangateOpenCellLibrary_typical.lib
+read_verilog multiplier_test_map.v
+current_design multiplier_test
+link
+report_checks -unconstrained

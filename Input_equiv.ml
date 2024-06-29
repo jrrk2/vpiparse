@@ -57,11 +57,11 @@ let tran f =
   close_in ch;
   p' := p;
   let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
-  if true then List.iter (dump' "_all") !allmods;
-  List.iter (dump' "_top") !topmods;
+  if false then List.iter (dump' "_all") !allmods;
+  if false then List.iter (dump' "_top") !topmods;
   let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
   if Array.length Sys.argv > 4 then (print_endline ("Dumping cells: "^string_of_int (List.length !(Rtl_map.cells'))); Rtl_map.dumpv Sys.argv.(4));
-  List.iter (fun (modnam, (_, modul)) -> let rtl = cnv (modnam, modul) in Rtl_dump.dump modnam rtl; Rtl_map.map modnam rtl) !topmods;
+  List.iter (fun (modnam, (_, modul)) -> let rtl = cnv (modnam, modul) in if false then Rtl_dump.dump modnam rtl; Rtl_map.map modnam rtl) !topmods;
   if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) (modnam^"_map.v") modnam liberty | _ -> failwith "multiple top modules"
 
 let _ = if Array.length Sys.argv > 3 then eqv Sys.argv.(3) Sys.argv.(2) Sys.argv.(1) (Rtl_map.dflt_liberty None)

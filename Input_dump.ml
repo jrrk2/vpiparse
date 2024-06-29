@@ -56,10 +56,10 @@ let rec cnstexpr modul = function
 | oth -> othcnst := oth; failwith "cnstexpr"
 
 let iofunc modul callback_input callback_wire = function
-   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Dinput, "logic", [])) -> callback_input io (Width(0,0,false))
-   | (io, ("", (BASDTYP, "logic", TYPRNG (hi, lo), []), Dinput, "logic", [])) -> callback_input io (Width(cnstexpr modul hi,cnstexpr modul lo,false))
-   | (io, ("", (BASDTYP, "logic", TYPRNG (hi, lo), []), Doutput, "logic", [])) -> callback_wire io (Width(cnstexpr modul hi,cnstexpr modul lo,false))
-   | (io, ("", (BASDTYP, "logic", TYPNONE, []), Doutput, "logic", [])) -> callback_wire io (Width(0,0,false))
+   | (io, ("", (BASDTYP, _, TYPNONE, []), Dinput, _, [])) -> callback_input io (Width(0,0,false))
+   | (io, ("", (BASDTYP, _, TYPRNG (hi, lo), []), Dinput, _, [])) -> callback_input io (Width(cnstexpr modul hi,cnstexpr modul lo,false))
+   | (io, ("", (BASDTYP, _, TYPRNG (hi, lo), []), Doutput, _, [])) -> callback_wire io (Width(cnstexpr modul hi,cnstexpr modul lo,false))
+   | (io, ("", (BASDTYP, _, TYPNONE, []), Doutput, _, [])) -> callback_wire io (Width(0,0,false))
    | oth -> othiofunc := Some oth; failwith "othiofunc"
 
 let vfunc modul callback_input callback_wire = function
@@ -1344,12 +1344,12 @@ let varlst modul delim typ' id =
     let (widlst,cnst,rng) as found = findmembers' typ' in
     let kind = match found with
         | (STRING :: [],_,_) -> VSTRING
-        | (UNPACKED _ :: ARNG _ :: [],_,_) -> REG
-        | (BIT :: [], false, _) -> LOGIC
-        | (ARNG _ :: [], false, _) -> LOGIC
+        | (UNPACKED _ :: ARNG _ :: [],_,_) -> WIRE
+        | (BIT :: [], false, _) -> WIRE
+        | (ARNG _ :: [], false, _) -> WIRE
         | (WIRE :: [], false, _) -> WIRE
-        | (REG :: [], false, _) -> REG
-        | (VECTOR _ :: [], false, _) -> LOGIC
+        | (REG :: [], false, _) -> WIRE
+        | (VECTOR _ :: [], false, _) -> WIRE
         | oth -> othvar := Some oth; failwith "othvar" in
     let decl = !delim :: kind :: SP :: widshow id rng widlst in decl @
     comment widlst @ (if List.mem_assoc id !(modul.cnst) then
@@ -1541,7 +1541,7 @@ let iolst modul delim dir io = function
 | (IFCRFDTYP dir, kind, TYPNONE, []) as typ' -> !delim :: IDENT kind :: DOT :: IDENT dir :: SP :: IDENT io :: SP :: LCOMMENT :: IDENT (dumptab typ') :: RCOMMENT :: []
 | (STRDTYP, _, TYPNONE, typlst) as typ' ->
     let (widlst,cnst,rng) = findmembers' typ' in
-    !delim :: DIR dir :: SP :: LOGIC :: SP :: widshow io rng widlst @ comment widlst
+    !delim :: DIR dir :: SP :: WIRE :: SP :: widshow io rng widlst @ comment widlst
 | (typenc, kind, typmap, rng) as typ' ->
     let (widlst,cnst,rng) = findmembers' typ' in
     !delim :: DIR dir :: SP :: chktyp kind :: SP :: widshow io rng widlst @ comment widlst

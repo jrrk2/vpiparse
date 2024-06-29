@@ -107,7 +107,9 @@ let filtmux = function
     | _ -> false
 
 let filtedge = function
-    | (_, (ports, (_, IDSTR _, FlipFlop (_,Related ("clocked_on", clk) :: Related ("next_state", d) :: [])) :: _)) -> clk.[0]<>'!' | _ -> false
+    | (_, (ports, (_, IDSTR _, FlipFlop (_,Related ("clocked_on", clk) :: Related ("next_state", d) :: [])) :: _)) -> clk.[0]<>'!'
+    | (_, (ports, (_, IDSTR _, FlipFlop (_,Related ("next_state", d) :: Related ("clocked_on", clk) :: [])) :: _)) -> clk.[0]<>'!'
+    | _ -> false
 
 let filtmap = function
 | AND -> filt' P_AMPERSAND
@@ -230,9 +232,10 @@ let rec prefix pref = function
 | SEPTUPLE(a,b,c,d,e,f,g) -> SEPTUPLE((prefix pref) a, (prefix pref) b, (prefix pref) c, (prefix pref) d, (prefix pref) e, (prefix pref) f, (prefix pref) g)
 | oth -> oth
 
-let nthexp porth pin ix = let lst = Hashtbl.find porth pin in othlst := (pin,lst); if ix >= List.length lst then List.hd lst else List.nth lst ix
+let nthexp porth pin ix = let lst = Hashtbl.find porth pin in othlst := (pin,lst);
+if lst <> [] then (if ix >= List.length lst then (List.hd lst :: []) else List.nth lst ix :: []) else []
 
-let connlst' porth hi lo i p = let pin = fst p in PORT ("", pin, conndir (snd p), nthexp porth pin (i-lo) :: [])
+let connlst' porth hi lo i p = let pin = fst p in PORT ("", pin, conndir (snd p), nthexp porth pin (i-lo))
 
 let rec explode' itms lst = function
 | VRF(nam, _, []) as p -> chk_reg itms nam (fun hi lo i ->
@@ -281,7 +284,7 @@ itms.inst :=
 let maplib itms lst cell =
 decr sigcnt;
 let nam = "_"^string_of_int !sigcnt in
-let outp = VRF (nam, (BASDTYP, "logic", TYPNONE, []), []) in
+let outp = VRF (nam, (BASDTYP, "wire", TYPNONE, []), []) in
 _Identyp itms nam Vpinet;
 maplib' itms lst (outp,cell);
 outp
@@ -407,9 +410,9 @@ and _chk_add itms = function
 | VRF (a, _, _), VRF (b, _, _), VRF (y, _, _) -> let typrng = width_reg itms y in map' (Input_hardcaml.cnv ("add",
      {io =
        {contents =
-         [(a, ("", (BASDTYP, "logic", typrng, []), Dinput, "logic", []));
-          (b, ("", (BASDTYP, "logic", typrng, []), Dinput, "logic", []));
-          (y, ("", (BASDTYP, "logic", typrng, []), Doutput, "logic", []))]};
+         [(a, ("", (BASDTYP, "wire", typrng, []), Dinput, "wire", []));
+          (b, ("", (BASDTYP, "wire", typrng, []), Dinput, "wire", []));
+          (y, ("", (BASDTYP, "wire", typrng, []), Doutput, "wire", []))]};
       v = {contents = []}; iv = {contents = []}; ir = {contents = []};
       ca = {contents = []};
       alwys =
@@ -418,9 +421,9 @@ and _chk_add itms = function
            [SNTRE [];
             ASGN (false, "",
              [ARITH (Aadd "fastest",
-               [VRF (a, (BASDTYP, "logic", TYPNONE, []), []);
-                VRF (b, (BASDTYP, "logic", TYPNONE, []), [])]);
-              VRF (y, (BASDTYP, "logic", typrng, []), [])])])]};
+               [VRF (a, (BASDTYP, "wire", TYPNONE, []), []);
+                VRF (b, (BASDTYP, "wire", TYPNONE, []), [])]);
+              VRF (y, (BASDTYP, "wire", typrng, []), [])])])]};
       init = {contents = []}; func = {contents = []}; task = {contents = []};
       gen = {contents = []}; imp = {contents = []}; inst = {contents = []};
       cnst = {contents = []}; needed = {contents = []};
@@ -444,5 +447,6 @@ let u = empty_itms [] in
 uitms := u :: [];
 let _ = map u rslt in
 let u = List.hd !uitms in
+uitms := u :: [];
 dump' "_map" (modnam, ((), u));
 ()

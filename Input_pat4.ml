@@ -151,9 +151,9 @@ let _Regpp itms _ = failwith "Regpp"
 let _Itmpp itms _ = failwith "Itmpp"
 let _Wirepp itms _ = failwith "Wirepp"
 let _Othpp itms _ = failwith "Othpp"
-let _Type_spec_rng itms typrng = VRF ("", (BASDTYP, "logic", typrng, []), [])
-let _Identrng typ itms nam typrng = VRF (nam, (BASDTYP, "logic", typrng, []), [])
-let _Ident itms s = VRF (s, (BASDTYP, "logic", TYPNONE, []), [])
+let _Type_spec_rng itms typrng = VRF ("", (BASDTYP, "wire", typrng, []), [])
+let _Identrng typ itms nam typrng = VRF (nam, (BASDTYP, "wire", typrng, []), [])
+let _Ident itms s = VRF (s, (BASDTYP, "wire", TYPNONE, []), [])
 
 let identyp = ref Work
 
@@ -175,9 +175,9 @@ let _Identyprng itms nam rng = function
 vadd itms (nam, ("", (BASDTYP, (identypmap typ), rng, []), (identypmap typ), (UNKDTYP, "", TYPNONE, []))) 
 | oth -> identyp := oth; failwith "identyp"
 
-let _Port itms dir nam = itms.io := (nam, ("", (BASDTYP, "logic", TYPNONE, []), dir, "logic", [])) :: !(itms.io)
-let _Portrng itms dir nam typrng = itms.io := (nam, ("", (BASDTYP, "logic", typrng, []), dir, "logic", [])) :: !(itms.io)
-let _Porthigh itms dir nam = vadd itms (nam, ("", (BASDTYP, "logic", TYPNONE, []), "logic", (UNKDTYP, "", TYPNONE, []))) 
+let _Port itms dir nam = itms.io := (nam, ("", (BASDTYP, "wire", TYPNONE, []), dir, "wire", [])) :: !(itms.io)
+let _Portrng itms dir nam typrng = itms.io := (nam, ("", (BASDTYP, "wire", typrng, []), dir, "wire", [])) :: !(itms.io)
+let _Porthigh itms dir nam = vadd itms (nam, ("", (BASDTYP, "wire", TYPNONE, []), "wire", (UNKDTYP, "", TYPNONE, []))) 
 
 let othenum' = ref UNKNOWN
 let othcase = ref Work
@@ -190,7 +190,7 @@ let _Enumvar itms nam = function
 
 let _Porthighrng itms dir nam typrng =
     if not (List.mem_assoc nam !(itms.io)) then
- vadd itms (nam, ("", (BASDTYP, "logic", typrng, []), "logic", (UNKDTYP, "", TYPNONE, []))) 
+ vadd itms (nam, ("", (BASDTYP, "wire", typrng, []), "wire", (UNKDTYP, "", TYPNONE, []))) 
 let _Enum itms enum_t lst =
   if not (List.mem_assoc enum_t !(itms.cnst)) then itms.cnst := (enum_t,(false,(0,CNSTEXP(Aunknown, List.map (function
   | TUPLE5 (Enum_const, STRING enam, TUPLE2 (INT, Int n), Vpidecompile _, TUPLE2 (Vpisize, Int _)) -> ENUMVAL (n, enam)
@@ -228,12 +228,12 @@ let _AshiftR itms (a, b) = LOGIC(Lshiftrs, [a;b])
 let _Ternary itms (cond, a, b) = CND ("", [cond;a;b])
 let _Gen_case itms cond lst = itms.gen := ("", lst) :: !(itms.gen); UNKNOWN
 let _Posedge itms = function
-| VRF (id, (BASDTYP, "logic", TYPNONE, []), []) -> POSEDGE id
+| VRF (id, (BASDTYP, "wire", TYPNONE, []), []) -> POSEDGE id
 | oth -> oth' := oth; failwith "_Posedge oth'"
 let rec _cnstexpr = function
 | CNST (w, lft) -> lft
 | ARITH(arithop, args) -> CNSTEXP(arithop, List.map _cnstexpr args)
-| VRF (param, (BASDTYP, "logic", TYPNONE, []), []) -> STRING param
+| VRF (param, (BASDTYP, "wire", TYPNONE, []), []) -> STRING param
 | SYS ("", syscall, args) -> CNSTEXP(Aunknown, STRING syscall :: List.map _cnstexpr args)
 | oth -> oth' := oth; failwith "_cnstexpr oth'"
 let _Range itms (lft, rght) = TYPRNG(_cnstexpr lft, _cnstexpr rght)
@@ -241,11 +241,11 @@ let _Place itms (n, _, _) = SCOPE ("Place"^string_of_int n)
 let _Array_var itms _ = failwith "Array_var"
 let otharray = ref None
 let _Array_net itms = function
-| VRF (nam, (BASDTYP, "logic", TYPNONE, []), []),
-  VRF ("", (BASDTYP, "logic", typrng, []), []),
+| VRF (nam, (BASDTYP, "wire", TYPNONE, []), []),
+  VRF ("", (BASDTYP, "wire", typrng, []), []),
   siz, typrng' ->
  vadd itms (nam, ("", (UNPACKADTYP, "",
-         RECTYP (BASDTYP, "logic", typrng, []),
+         RECTYP (BASDTYP, "wire", typrng, []),
          [TYPRNG (SHEX 0, SHEX (siz-1))]),
 		      "", (UNKDTYP, "", TYPNONE, []))) 
 | a -> otharray := Some a; failwith "actual"
@@ -255,10 +255,10 @@ let _Edge itms = function
 | [] -> SNTRE []
 | oth -> othlst' := oth; failwith "_Edge oth'"
 let _ArrayRange itms = function
-| TYPRNG(lo,hi) as rng, (TYPRNG(lft,rght) as elm) -> VRF ("", (UNPACKADTYP, "logic", rng, [elm]), [])
+| TYPRNG(lo,hi) as rng, (TYPRNG(lft,rght) as elm) -> VRF ("", (UNPACKADTYP, "wire", rng, [elm]), [])
 | oth -> othrng2' := oth; failwith "_ArrayRange othrng2'"
 let _TypespecRange itms = function
-| TYPRNG(lft,rght) as rng -> VRF ("", (BASDTYP, "logic", rng, []), [])
+| TYPRNG(lft,rght) as rng -> VRF ("", (BASDTYP, "wire", rng, []), [])
 | oth -> othrng' := oth; failwith "_TypespecRange othrng'"
 
 let _Asgn itms = function

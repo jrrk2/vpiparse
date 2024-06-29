@@ -87,7 +87,7 @@ let adder_config a b = let wa, wb = width a, width b in function
 
 let add_fast model a_sig b_sig =
           (Hardcaml_circuits.Prefix_sum.create
-           ~config:(adder_config a_sig b_sig model)
+           ~config:(print_endline ("add_fast model: "^model); adder_config a_sig b_sig model)
              (module Signal)
              ~input1:(a_sig)
              ~input2:(b_sig)
