@@ -140,6 +140,7 @@ type typmap =
 | TYPENUM of string * int * (int*cexp)
 | TYPDEF
 | RECTYP of typetable_t
+| TYPSIGNED
 
 and typetable_t = typenc*string*typmap*typmap list
 and typ_t = typenc*string*typmap*rw list

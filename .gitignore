@@ -20,6 +20,7 @@ slpp_all/
 hardcaml_circuits-0.17.0/
 *.v
 *.eqy
+*.tcl
 venv
 Input_remapp
 *.tok
@@ -88,3 +89,4 @@ DFF/
 DFF_nibble/
 fadd/
 attributes_operator/
+less_test/

@@ -57,20 +57,30 @@ let rec cnstexpr modul = function
 
 let iofunc modul callback_input callback_wire = function
    | (io, ("", (BASDTYP, _, TYPNONE, []), Dinput, _, [])) -> callback_input io (Width(0,0,false))
+   | (io, ("", (BASDTYP, _, TYPNONE, [TYPSIGNED]), Dinput, _, [])) -> callback_input io (Width(0,0,true))
    | (io, ("", (BASDTYP, _, TYPRNG (hi, lo), []), Dinput, _, [])) -> callback_input io (Width(cnstexpr modul hi,cnstexpr modul lo,false))
+   | (io, ("", (BASDTYP, _, TYPRNG (hi, lo), [TYPSIGNED]), Dinput, _, [])) -> callback_input io (Width(cnstexpr modul hi,cnstexpr modul lo,true))
    | (io, ("", (BASDTYP, _, TYPRNG (hi, lo), []), Doutput, _, [])) -> callback_wire io (Width(cnstexpr modul hi,cnstexpr modul lo,false))
+   | (io, ("", (BASDTYP, _, TYPRNG (hi, lo), [TYPSIGNED]), Doutput, _, [])) -> callback_wire io (Width(cnstexpr modul hi,cnstexpr modul lo,true))
    | (io, ("", (BASDTYP, _, TYPNONE, []), Doutput, _, [])) -> callback_wire io (Width(0,0,false))
+   | (io, ("", (BASDTYP, _, TYPNONE, [TYPSIGNED]), Doutput, _, [])) -> callback_wire io (Width(0,0,true))
    | oth -> othiofunc := Some oth; failwith "othiofunc"
 
 let vfunc modul callback_input callback_wire = function
    | (v, ("", (BASDTYP, _, TYPNONE, []), _, (UNKDTYP, "", TYPNONE, []))) -> callback_wire v (Width(0,0,false))
+   | (v, ("", (BASDTYP, _, TYPNONE, [TYPSIGNED]), _, (UNKDTYP, "", TYPNONE, []))) -> callback_wire v (Width(0,0,true))
    | (v, ("", (BASDTYP, _, TYPRNG (HEX hi, HEX lo), []), _, (UNKDTYP, "", TYPNONE, []))) -> callback_wire v (Width(hi,lo,false))
+   | (v, ("", (BASDTYP, _, TYPRNG (HEX hi, HEX lo), [TYPSIGNED]), _, (UNKDTYP, "", TYPNONE, []))) -> callback_wire v (Width(hi,lo,true))
    | oth -> othvfunc := Some oth; failwith "othvfunc"
 
 let tran_search modul callback_input callback_wire id =
   if List.mem_assoc id !(modul.io) then iofunc modul callback_input callback_wire (id, List.assoc id !(modul.io))
   else if List.mem_assoc id !(modul.v) then vfunc modul callback_input callback_wire (id, List.assoc id !(modul.v))
   else print_endline (id^": not found")
+
+let slst = ref []
+
+let tran_search modul callback_input callback_wire id = slst := id :: !slst; tran_search modul callback_input callback_wire id
 
 let files = Hashtbl.create 255
 let functable = Hashtbl.create 255

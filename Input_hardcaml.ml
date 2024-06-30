@@ -101,6 +101,12 @@ let sub_fast a_sig b_sig =
              ~input2:(~: b_sig)
              ~carry_in:(Signal.vdd))
 
+let less_fast a b =
+    let diff = sub_fast a b in
+    bit diff (width diff - 1)
+
+let less_signed lhs rhs = Signed.of_signal (less_fast (Signed.to_signal rhs) (Signed.to_signal lhs))
+
 let mult_wallace a_sig b_sig =
           (Hardcaml_circuits.Mul.create
              ~config:Wallace
@@ -145,8 +151,8 @@ else failwith "mux2'"
 
 let mult_wallace_signed a_sig b_sig =
           let open Signed in
-          let nega = to_signal (a_sig <: signed_zero (signedwidth a_sig)) in
-          let negb = to_signal (b_sig <: signed_zero (signedwidth b_sig)) in
+          let nega = to_signal (less_signed a_sig (signed_zero (signedwidth a_sig))) in
+          let negb = to_signal (less_signed b_sig (signed_zero (signedwidth b_sig))) in
           let mult' = Hardcaml_circuits.Mul.create
              ~config:Wallace
              (module Signal)
@@ -360,9 +366,17 @@ let compare lft rght = function
 | Clts -> Dyadic(Lts, lft, rght)
 | Cunknown as oth -> othcmp := oth; failwith "compare" in
 
+let signed_id id =
+  let wid' sgn _ = function
+    | Width(hi, lo, false) -> print_endline ("VRF unsigned "^id); sgn := Ident id
+    | Width(hi, lo, true) -> print_endline ("VRF signed "^id); sgn := Unary (Signed, Ident id)
+    | _ -> failwith "signed_id" in
+  let sgn = ref (Void 0) in Input_dump.tran_search modul (wid' sgn) (wid' sgn) id; !sgn in
+
 let rec tranitm attr = function
 | UNKNOWN -> Void 0
-| VRF (id, _, []) -> if attr.dest then declare_reg attr id; Ident id
+| VRF (id, (_, _, _, [TYPSIGNED]), []) -> if attr.dest then declare_reg attr id; Unary (Signed, Ident id)
+| VRF (id, _, []) -> if attr.dest then declare_reg attr id; signed_id id
 | ASGN (bool, str2, src::dst::[]) -> Asgn((tranitm {attr with dest=true}) dst, (tranitm attr) src)
 | ASGN (bool, str2, rw_lst) -> failwith "ASGN"
 | ARITH (arithop, lft::rght::[]) as a -> otharith := a; Dyadic(arithopvpi arithop, (tranitm attr) lft, (tranitm attr) rght)
@@ -510,7 +524,7 @@ let lognegate fn = fun lhs rhs -> fn lhs (~: rhs) in
 let signed_relational x = let open Signed in match x with
 |Eq -> (==:) 
 |Ne -> (<>:) 
-|Lt -> (<:) 
+|Lt -> less_signed
 |Le -> (<=:) 
 |Ge -> (>=:) 
 |Gt -> (>:) 
@@ -519,7 +533,7 @@ let signed_relational x = let open Signed in match x with
 |AshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sra (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Add model -> (fun lhs rhs -> Signed.of_signal (add_fast model (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Sub -> (fun lhs rhs -> Signed.of_signal (sub_fast (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Mult -> mult_wallace_signed
+|Mults -> mult_wallace_signed
 |Div -> (fun lhs rhs -> Signed.of_signal (div_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Mod -> (fun lhs rhs -> Signed.of_signal (mod_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Pow -> unimps "power"
@@ -534,7 +548,7 @@ let signed_relational x = let open Signed in match x with
 let unsigned_relational = function
 |Eq -> (==:) 
 |Ne -> (<>:) 
-|Lt -> (<:) 
+|Lt -> less_fast 
 |Le -> (<=:) 
 |Ge -> (>=:) 
 |Gt -> (>:)
@@ -618,8 +632,7 @@ let radix = function
 | oth -> othradix := oth; failwith "radix" in
 
 let rec (remap:remapp->remap) = function
-| Ident wire ->
-if exists wire then find_decl wire else Invalid
+| Ident wire -> if exists wire then find_decl wire else Invalid
 | Unary (Signed, x) -> (match remap x with Sig x -> Sigs (Signed.of_signal x) | Sigs _ as x -> x | _ -> failwith "Signed")
 | Unary (Unsigned, x) -> (match remap x with Sigs x -> Sig (Signed.to_signal x) | Sig _ as x -> x | _ -> failwith "Unsigned")
 | Unary (op, rhs) -> Sig (remapunary' op (sig' (remap rhs)))

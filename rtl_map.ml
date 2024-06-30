@@ -39,7 +39,7 @@ let othport = ref None
 let othfilt = ref ENDOFFILE
 let othchk = ref (XML [], XML [])
 let othargs = ref (XML [], XML [], XML [])
-let othchkadd = ref ENDOFFILE
+let othchkaddsub = ref ENDOFFILE
 let othsel = ref (XML [])
 let othalw = ref ENDOFFILE
 let othmapfail = ref UNKNOWN
@@ -104,6 +104,8 @@ let filtxor = function
 let filtmux = function
     | (_, (_, [(_, TRIPLE (TRIPLE (IDSTR s, P_AMPERSAND, IDSTR b), P_VBAR,
 	      TRIPLE (IDSTR a, P_AMPERSAND, DOUBLE (NOT, IDSTR s'))), String _)])) when s=s' -> true
+    | (_, (_, [(_, TRIPLE (TRIPLE (IDSTR a0, P_AMPERSAND, DOUBLE (NOT, IDSTR s)), P_VBAR,
+	      TRIPLE (IDSTR a1, P_AMPERSAND, IDSTR s')), String _)])) when s=s' -> true
     | _ -> false
 
 let filtedge = function
@@ -165,7 +167,7 @@ let enabled = function
 let concat' = function
 | q, IDSTR iq, FlipFlop (oplst, relst) as oth -> othdump' := Some oth; String.concat "" (List.map (clocked q iq) relst)
 | _, _, Latch (oplst, relst) -> String.concat "" (List.map (enabled) relst)
-| (lhs, exp', (String _|Related _)) -> "assign "^lhs^" = "^expr exp'^";"
+| (lhs, exp', (String _|Related _|IsolationCell)) -> "assign "^lhs^" = "^expr exp'^";"
 | oth -> othdump' := Some oth; failwith "dumpv''"
 
 let dumpv stem = let fd = open_out (stem^".v") in
@@ -187,7 +189,7 @@ let dir = function
 
 let arithop = function
 | TIMES -> Amul
-| PLUS -> Aadd ""
+| PLUS -> Aadd "fastest"
 | MINUS -> Asub
 | oth -> othmapfail := oth; failwith "arithop"
 
@@ -222,7 +224,7 @@ let conndir = function
 | oth -> failwith ("conndir: "^oth)
 
 let rec prefix pref = function
-| IDSTR s -> IDSTR (if s.[0] = '_' && not (List.mem s pref) then (String.concat "_" pref)^s else s)
+| IDSTR s -> IDSTR (if (* s.[0] = '_' && *) not (List.mem s pref) then (String.concat "_" pref)^s else s)
 | TLIST slst -> TLIST (List.map (prefix pref) slst)
 | DOUBLE(a,b) -> DOUBLE((prefix pref) a, (prefix pref) b)
 | TRIPLE(a,b,c) -> TRIPLE((prefix pref) a, (prefix pref) b, (prefix pref) c)
@@ -336,14 +338,18 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
   maplib' itms ([expr itms rght]) (expr itms lhs, filtcells func)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, QUADRUPLE (QUERY, cond, lft, rght))]) ->
   maplib' itms [expr itms cond; expr itms lft; expr itms rght] (expr itms lhs, filtcells QUERY)
-| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE(PLUS, lft, rght)))]) ->
-  let body = match _chk_add itms (expr itms lft, expr itms rght, expr itms lhs) with
-    | QUINTUPLE (MODULE, IDSTR "add", TLIST [], TLIST [IDSTR _; IDSTR _; IDSTR _], TLIST
-   (QUINTUPLE (INPUT, EMPTY, EMPTY, RANGE _, TLIST [TRIPLE (IDSTR a, EMPTY, EMPTY)]) ::
-    QUINTUPLE (INPUT, EMPTY, EMPTY, RANGE _, TLIST [TRIPLE (IDSTR b, EMPTY, EMPTY)]) ::
-    QUINTUPLE (OUTPUT, EMPTY, EMPTY, RANGE _, TLIST [TRIPLE (IDSTR c, EMPTY, EMPTY)]) :: body')) ->
-      List.map (prefix [a;b;c]) body'
-    | oth -> othchkadd := oth; failwith "_chk_add" in
+| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE((PLUS|MINUS|LESS as op), lft, rght)))]) ->
+  let arithop lhs rhs = function
+   | LESS -> CMP(Clt, lhs :: rhs :: [])
+   | PLUS -> ARITH(Aadd "fastest", lhs :: rhs :: [])
+   | MINUS -> ARITH(Asub, lhs :: rhs :: [])
+   | oth -> othmapfail := oth; failwith "arithop'" in
+  let body = match _chk_addsub itms arithop op (expr itms lft, expr itms rght, expr itms lhs) with
+    | QUINTUPLE (MODULE, IDSTR _, TLIST [], TLIST io, TLIST lst) ->
+      let body' = List.filter (function QUINTUPLE ((INPUT|OUTPUT), _, _, _, _) -> false | _ -> true) lst in
+      let map' = function IDSTR id -> id | _ -> failwith "prefix" in
+      List.map (prefix (List.map map' io)) body'
+    | oth -> othchkaddsub := oth; failwith "_chk_addsub" in
     othbody := body; List.iter (map itms) body
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, rhs)]) -> _chk_assign itms (expr itms rhs, expr itms lhs)
 | TRIPLE(tok, arg1, arg2) as pat ->  othmapfail := pat; failwith "TRIPLE(tok,"
@@ -406,8 +412,15 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
 
 and map itms pat = lastpat := pat; _map itms pat
 
-and _chk_add itms = function
-| VRF (a, _, _), VRF (b, _, _), VRF (y, _, _) -> let typrng = width_reg itms y in map' (Input_hardcaml.cnv ("add",
+and _chk_addsub itms arithop op = function
+| VRF (a, _, _), VRF (b, _, _), VRF (y, _, _) ->
+  let op' = ARITH (Aadd "fastest",
+               (VRF (a, (BASDTYP, "wire", TYPNONE, []), []) ::
+                VRF (b, (BASDTYP, "wire", TYPNONE, []), []) :: [])) in
+  let op' = arithop
+               (VRF (a, (BASDTYP, "wire", TYPNONE, []), [])) 
+               (VRF (b, (BASDTYP, "wire", TYPNONE, []), [])) op in
+  let typrng = width_reg itms y in map' (Input_hardcaml.cnv ("addsub",
      {io =
        {contents =
          [(a, ("", (BASDTYP, "wire", typrng, []), Dinput, "wire", []));
@@ -419,16 +432,12 @@ and _chk_add itms = function
        {contents =
          [("", COMB,
            [SNTRE [];
-            ASGN (false, "",
-             [ARITH (Aadd "fastest",
-               [VRF (a, (BASDTYP, "wire", TYPNONE, []), []);
-                VRF (b, (BASDTYP, "wire", TYPNONE, []), [])]);
-              VRF (y, (BASDTYP, "wire", typrng, []), [])])])]};
+            ASGN (false, "", op' :: VRF (y, (BASDTYP, "wire", typrng, []), []) :: [])])]};
       init = {contents = []}; func = {contents = []}; task = {contents = []};
       gen = {contents = []}; imp = {contents = []}; inst = {contents = []};
       cnst = {contents = []}; needed = {contents = []};
       remove_interfaces = false; mode = ""; names'' = []} ))
-| oth -> othargs := oth; failwith "_chk_add othargs"
+| oth -> othargs := oth; failwith "_chk_addsub othargs"
 
 and map' rtl =
 let lexbuf = Lexing.from_string rtl in

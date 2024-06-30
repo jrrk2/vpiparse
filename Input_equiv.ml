@@ -43,6 +43,19 @@ let eqv gold gate stem liberty =
   close_out fd;
   print_endline ("Status = "^string_of_int (Sys.command ("eqy -f "^script)))
 
+let sta gate stem liberty =
+  let env = "STA_"^stem in
+  print_endline env;
+  let script = stem^".tcl" in
+  let fd = open_out script in
+  output_string fd ("read_lib "^liberty^".lib\n");
+  output_string fd ("read_verilog "^gate^"\n");
+  output_string fd ("current_design "^stem^"\n");
+  output_string fd ("link\n");
+  output_string fd (try let cmds = String.concat "\n" (String.split_on_char ';' (Sys.getenv env))^"\n" in print_endline cmds; cmds with _ -> "report_checks -unconstrained\nexit\n");
+  close_out fd;
+  print_endline ("Status = "^string_of_int (Sys.command ("../OpenSTA/app/sta -no_splash -threads max -no_init "^script)))
+
 open Input
 open Input_types
 open Input_pat4
@@ -62,9 +75,12 @@ let tran f =
   let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
   if Array.length Sys.argv > 4 then (print_endline ("Dumping cells: "^string_of_int (List.length !(Rtl_map.cells'))); Rtl_map.dumpv Sys.argv.(4));
   List.iter (fun (modnam, (_, modul)) -> let rtl = cnv (modnam, modul) in if false then Rtl_dump.dump modnam rtl; Rtl_map.map modnam rtl) !topmods;
-  if Array.length Sys.argv > 2 then match !topmods with (modnam,_)::[] -> eqv Sys.argv.(2) (modnam^"_map.v") modnam liberty | _ -> failwith "multiple top modules"
+  if Array.length Sys.argv > 2 then match !topmods with
+    | (modnam,_)::[] -> eqv Sys.argv.(2) (modnam^"_map.v") modnam liberty; sta (modnam^"_map.v") modnam liberty
+    | _ -> failwith "multiple top modules"
 
 let _ = if Array.length Sys.argv > 3 then eqv Sys.argv.(3) Sys.argv.(2) Sys.argv.(1) (Rtl_map.dflt_liberty None)
         else if Array.length Sys.argv > 1 then tran Sys.argv.(1)
-        else (let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
+        else if (try int_of_string (Sys.getenv ("LIBERTY_DUMP")) > 0 with _ -> false) then
+                (let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
 		  print_endline ("Dumping cells: "^string_of_int (List.length !(Rtl_map.cells'))); Rtl_map.dumpv liberty);

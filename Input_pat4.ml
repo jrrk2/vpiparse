@@ -151,8 +151,15 @@ let _Regpp itms _ = failwith "Regpp"
 let _Itmpp itms _ = failwith "Itmpp"
 let _Wirepp itms _ = failwith "Wirepp"
 let _Othpp itms _ = failwith "Othpp"
+
+let othtypmap = ref Work
+let _typmap = function
+| Vpireg -> []
+| Vpisigned -> [TYPSIGNED]
+| oth -> othtypmap := oth; failwith "_typmap"
+
 let _Type_spec_rng itms typrng = VRF ("", (BASDTYP, "wire", typrng, []), [])
-let _Identrng typ itms nam typrng = VRF (nam, (BASDTYP, "wire", typrng, []), [])
+let _Identrng typ itms nam typrng = VRF (nam, (BASDTYP, "wire", typrng, _typmap typ), [])
 let _Ident itms s = VRF (s, (BASDTYP, "wire", TYPNONE, []), [])
 
 let identyp = ref Work
@@ -206,6 +213,7 @@ let _Mux itms (_, _) = failwith "Mux"
 let _Add itms (a, b) = ARITH(Aadd(itms.mode), [a;b])
 let _Sub itms (a, b) = ARITH(Asub, [a;b])
 let _Mult itms (a, b) = ARITH(Amul, [a;b])
+let _Mults itms (a, b) = ARITH(Amuls, [a;b])
 let _Div itms (a, b) = ARITH(Adiv, [a;b])
 let _Mod itms (a, b) = ARITH(Amod, [a;b])
 let _Pow itms (a, b) = ARITH(Apow, [a;b])
@@ -686,13 +694,17 @@ _Case itms (expr itms cond, List.map (function
 |   TUPLE5 (Assignment, Vpirhs, TUPLE2 (Vpiblocking, Int 1), TUPLE2 (Vpirhs, rhs), TUPLE2 (Vpilhs, lhs)) ->
     _Block itms ((expr itms) lhs, (expr itms rhs))
 |   TUPLE5 (Assignment, op, TUPLE2 (Vpiblocking, Int 1), TUPLE2(Vpirhs, rhs), TUPLE2(Vpilhs, lhs)) ->
-    _Block itms ((expr itms) lhs, asgntyp itms ((expr itms) lhs) ((expr itms) rhs) op)
+    _Block itms (expr itms lhs, asgntyp' itms (expr itms lhs, expr itms rhs, op))
 |   TUPLE2 (Int_typespec, _) -> _Place itms (789, Void 0, Void 0)
 |   oth -> othpat := oth; failwith "pat"
 
 and pat itms x = oldpat' := !oldpat; oldpat := x; patlst := x :: !patlst; let p = pat' itms x in patlst := List.tl !patlst; p
 
 and top_pat itms x = oldpat' := !oldpat; oldpat := x; patlst := x :: !patlst; let p = top_pat' itms x in patlst := List.tl !patlst; p
+
+and asgntyp' itms = function
+| (VRF (_, (_, _, _, [TYPSIGNED]), _) as lhs), (VRF (_, (_, _, _, [TYPSIGNED]), _) as rhs), Vpimultop -> _Mults itms (lhs, rhs)
+| lhs, rhs, op -> asgntyp itms lhs rhs op
 
 and asgntyp itms lhs rhs = function
 | Vpiaddop -> _Add itms (lhs, rhs)
@@ -816,7 +828,7 @@ and expr itms = function
 |   TUPLE4 (Bit_select, STRING s, TLIST _, TUPLE2 (Vpiindex,
      TUPLE5 (Constant, Vpidecompile _, TUPLE2 (Vpisize, Int _), TUPLE2 (UINT, Int n), Vpiuintconst))) -> _Bitsel itms (_Ident itms s, _Integer itms n)
 |   TUPLE4 (Bit_select, STRING s, TLIST _, TUPLE2 (Vpiindex, ix)) -> _Bitsel itms (_Ident itms s, (expr itms) ix)
-|   TUPLE4 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), STRING_CONST mode, lft, rght) -> asgntyp {itms with mode} (expr itms lft) (expr itms rght) op
+|   TUPLE4 ((Vpiaddop|Vpisubop|Vpimultop|Vpidivop|Vpimodop|Vpipowerop|Vpilshiftop|Vpiarithlshiftop|Vpirshiftop|Vpiarithrshiftop|Vpilogandop|Vpilogorop|Vpibitandop|Vpibitorop|Vpibitxorop|Vpibitxnorop|Vpieqop|Vpineqop|Vpiltop|Vpileop|Vpigeop|Vpigtop as op), STRING_CONST mode, lft, rght) -> asgntyp' {itms with mode} (expr itms lft, expr itms rght, op)
 |   TUPLE2 (Vpieventorop, TLIST lst) -> _Edge itms (List.map (expr itms) lst)
 |   TUPLE3 (Vpieventorop, a, b) -> _Edge itms ((expr itms) a :: (expr itms) b :: [])
 |   TUPLE2 (Vpibitnegop, a) -> _Lneg itms ((expr itms) a)
