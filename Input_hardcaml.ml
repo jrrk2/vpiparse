@@ -102,8 +102,8 @@ let sub_fast a_sig b_sig =
              ~carry_in:(Signal.vdd))
 
 let less_fast a b =
-    let diff = sub_fast a b in
-    bit diff (width diff - 1)
+    let diff = sub_fast (uresize a (width a + 1)) (uresize b (width b + 1)) in
+    ~: (bit diff (width diff - 1))
 
 let less_signed lhs rhs = Signed.of_signal (less_fast (Signed.to_signal rhs) (Signed.to_signal lhs))
 
