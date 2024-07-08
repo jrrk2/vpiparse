@@ -43,3 +43,21 @@ Formula_lex.ml: Formula_lex.mll
 
 Formula.ml Formula.mli: Formula.mly
 	menhir $(MENHIRFLAGS) $<
+
+
+############################################################################
+
+VOBJ=Source_text_verible_types.cmo Source_text_verible.mli outputparser/verible_pat.ml outputparser/Source_text_verible_rewrite_types.mli Source_text_verible.ml Source_text_verible_tokens.ml Source_text_verible_lex.ml outputparser/Source_text_verible_rewrite.ml dump_types.mli Input.mli Input_types.mli Input_dump.ml rtl_parser.mli Input_hardcaml.ml
+
+Source_verible_top: $(VOBJ)
+	ocamlfind ocamlmktop -package msat,hardcaml,hardcaml_circuits,unix -linkpkg -g -o $@ -I +unix -I outputparser $(VOBJ)
+
+Source_text_verible.mly Source_text_verible_tokens.ml: outputparser/verible.output outputparser/output_parser Makefile
+	env OCAMLRUNPARAM=b STRING_LITERAL=string TK_StringLiteral=string SymbolIdentifier=string SystemTFIdentifier=string TK_DecNumber=string TK_BinBase=string TK_BinDigits=string TK_DecBase=string TK_DecDigits=string TK_OctBase=string TK_OctDigits=string TK_HexBase=string TK_HexDigits=string TK_UnBasedNumber=string TK_RealTime=string STRING=string outputparser/output_parser $<
+
+Source_text_verible_types.cmo Source_text_verible.ml outputparser/Source_text_verible_types.ml: Source_text_verible.mly
+	ocamlc -c outputparser/Source_text_verible_types.ml -o Source_text_verible_types.cmo
+	menhir $(MENHIRFLAGS) $<
+
+Source_text_verible_lex.ml: outputparser/Source_text_verible_lex.mll
+	ocamllex $< -o $@

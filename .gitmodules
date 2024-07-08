@@ -1,0 +1,3 @@
+[submodule "outputparser"]
+	path = outputparser
+	url = git@github.com:jrrk2/outputparser.git

@@ -90,3 +90,12 @@ DFF_nibble/
 fadd/
 attributes_operator/
 less_test/
+count/
+Source_text_verible.ml
+Source_text_verible.mli
+Source_text_verible.mly
+Source_text_verible_lex.ml
+Source_text_verible_tokens.ml
+Source_verible_top
+Terminal\ Saved\ Output.txt
+parser_stderr.log

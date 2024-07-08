@@ -552,6 +552,7 @@ let rec dumpmap = function
 | TYPENUM(str1, int1, (exp2,exp3)) -> "TYPENUM("^dumps str1^", "^string_of_int int1^", ("^string_of_int exp2^", "^dumpr exp3^"))"
 | TYPDEF -> "TYPDEF"
 | RECTYP tab -> "RECTYP"^dumptab tab
+| TYPSIGNED -> "TYPSIGNED"
 
 and dumptab (typenc, str1, map, typmaplst) = "("^dumptyp typenc^", "^dumps str1^", "^dumpmap map^", "^dumpmlst typmaplst^")"
 and dumpmlst lst = "["^String.concat ";\n\t" (List.map dumpmap lst)^"]"

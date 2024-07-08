@@ -1,24 +1,121 @@
 #directory "/Users/jonathan/.opam/default/lib/hardcaml";;
 #directory "/Users/jonathan/.opam/default/lib/base";;
+#directory "outputparser";;
 
 open Input
 open Input_types
-open Input_pat4
 open Input_dump
 open Input_hardcaml
 open Rtl_parser
-open Input_equiv
 open Dump_types
 open Hardcaml
 open Signal
-open Rtl_dump
-open Rtl_map
-open File_rewrite
-open Formula
-open File
 
 #print_length 1000000;;
 #print_depth 1000000;;
 
+(*
+open File_rewrite
+open Formula
+open File
+open Rtl_dump
+open Rtl_map
+open Input_pat4
+open Input_equiv
 let _ = tran "uhdm.txt"
 let cell_param = ("\""^String.concat "\"|\"" (List.sort compare !truelst)^"\"");;
+*)
+
+open Base__String
+open Source_text_verible_rewrite_types
+open Source_text_verible_lex
+open Source_text_verible
+open Source_text_verible_rewrite
+open Verible_pat
+open Input_dump
+
+let v = "examples/ariane_preproc.sv";;
+let v = "examples/picorv32_ref.v";;
+let v = "outputparser/examples/count0.v";;
+let v = "test/hardcaml/operators.sv";;
+let v = "test/hardcaml/casetest.sv";;
+let v = "test/hardcaml/casetest4.sv";;
+let p = parse_output_ast_from_file v;;
+let p' = Source_text_verible_rewrite.rw p;;
+
+let p'' = pat p';;
+
+let othtran = ref `empty
+let uitms = empty_itms []
+
+let rec bin_to_native x = match String.length x with
+| 0 -> 0
+| 1 -> Char.code (x.[0]) - Char.code '0'
+| n -> bin_to_native (String.sub x 0 (n-1)) * 2 + bin_to_native (String.sub x (n-1) 1)
+
+let rec tran (itms:Input_types.itms) modnam = function
+| `ml_start1 (`tlist modlst) -> List.iter (tran itms modnam) modlst 
+| `module_or_interface_declaration1 (modnam', `tlist declst, `tlist bodylst) ->
+    modnam := modnam';
+    List.iter (tran itms modnam) declst;
+    List.iter (tran itms modnam) bodylst
+| `port_declaration_noattr1 (`data_type_or_implicit_basic_followed_by_id_and_dimensions_opt1
+       (`data_type_primitive1 (`data_type_primitive_scalar1_reg, `decl_variable_dimension1 (hi, lo)),
+        `unqualified_id1 (id, `empty))) ->
+    itms.io := (id, ("", (BASDTYP, "reg", TYPRNG (tran' hi, tran' lo), []), Doutput, "wire", [])) :: !(itms.io)
+| `port_declaration_noattr1 (`type_identifier_or_implicit_basic_followed_by_id_and_dimensions_opt4
+       (`unqualified_id1 (id, `empty))) ->
+    itms.io := (id, ("", (BASDTYP, "wire", TYPNONE, []), Dinput, "wire", [])) :: !(itms.io)
+| `always_construct1 (`procedural_timing_control_statement2 (`event_control2 (`tlist
+             [`event_expression_posedge (`unqualified_id1 (clk, `empty))]), body)) -> 
+      itms.alwys := ("", Input_types.POSEDGE clk, tranlst'' body) :: !(itms.alwys)
+| `comma -> ()
+| `port1 (`unqualified_id1 (id, `empty)) ->
+    if false then itms.io := (id, ("", (BASDTYP, "wire", TYPNONE, []), Dinput, "wire", [])) :: !(itms.io)
+| `module_port_declaration7_reg (`decl_variable_dimension1 (hi, lo), id) ->
+    itms.io := (id, ("", (BASDTYP, "reg", TYPRNG (tran' hi, tran' lo), []), Doutput, "wire", [])) :: !(itms.io)
+| `module_port_declaration3 (dir, `empty, `decl_variable_dimension1 (hi, lo), `tlist iolst) -> List.iter (function
+    | `identifier_optional_unpacked_dimensions1 id -> 
+        itms.io := (id, ("", (BASDTYP, "reg", TYPRNG (tran' hi, tran' lo), []), trandir dir, "wire", [])) :: !(itms.io)
+    | oth -> othtran := oth; failwith "tran iolst") iolst
+| `module_port_declaration5 (`input, `empty, `tlist [`empty; `unqualified_id1 (id, `empty)]) ->
+    itms.io := (id, ("", (BASDTYP, "logic", TYPNONE, []), Dinput, "logic", [])) :: !(itms.io)
+| oth -> othtran := oth; failwith "tran"
+
+and trandir = function
+| `input -> Dinput
+| `output -> Doutput
+| oth -> othtran := oth; failwith "trandir"
+
+and tran' = function
+| `dec_num s -> HEX (int_of_string s)
+| oth -> othtran := oth; failwith "tran'"
+
+and tran'' = function
+| `bin_based_number1 (radix, bin) -> Scanf.sscanf radix "%d'b" (fun rad -> Input_types.CNST(rad, HEX (bin_to_native bin)))
+| `add_expr (lhs, rhs) -> ARITH (Aadd "", tran'' lhs :: tran'' rhs :: [])
+| `sub_expr (lhs, rhs) -> ARITH (Asub, tran'' lhs :: tran'' rhs :: [])
+| `unqualified_id1 (id, `empty) -> VRF (id, (BASDTYP, "wire", TYPNONE, []), [])
+| `conditional_statement2 (`expression_in_parens1 cond, then_, else_) ->
+  Input_types.IF ("", tran'' cond :: tran'' then_ :: tran'' else_ :: [])
+| `statement_item6 (`assignment_statement_no_expr1 (rhs, lhs)) -> ASGN( false, "", tran'' lhs :: tran'' rhs :: [])
+| `case_statement1 (`empty, sel, `tlist itmlst) -> CS ("", tran'' sel :: List.map tran'' itmlst)
+| `case_item1 (sel, stmt) -> CSITM ("", CNST(32, tran' sel) :: tran'' stmt :: [])
+| `nonblocking_assignment1 (lhs, rhs) -> ASGN (true, "", tran'' rhs :: tran'' lhs :: [])
+
+| oth -> othtran := oth; failwith "tran''"
+
+and tranlst'' = function
+| `seq_block1 (`tlist lst) -> List.map tran'' lst
+| oth -> othtran := oth; failwith "tranlst''"
+
+let modnam = ref "";;
+let _ = tran uitms modnam p'';;
+let _ = Input_dump.dump' "junk1" ("junk1", ((), uitms));;
+let rtl = Input_hardcaml.cnv (!modnam, uitms);;
+let fd = open_out "rtl.v" in output_string fd rtl; close_out fd;
+(*
+let tree = Source_text_rewrite.parse_output_ast_from_string rtl in
+othrtl := Some tree;
+Input_dump.dump' "_tmp" cnvrted;
+*)
