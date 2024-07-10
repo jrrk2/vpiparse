@@ -56,33 +56,41 @@ let sta gate stem liberty =
   close_out fd;
   print_endline ("Status = "^string_of_int (Sys.command ("../OpenSTA/app/sta -no_splash -threads max -no_init "^script)))
 
-open Input
-open Input_types
-open Input_cnv
+  (*
+   open Base__String
+   *)
+open Source_text_verible_rewrite_types
+open Source_text_verible_lex
+open Source_text_verible
+open Source_text_verible_rewrite
+open Verible_pat
 open Input_dump
-open Input_hardcaml
 
-let p' = ref []
+let othp = ref End_of_file
+let othp' = ref End_of_file
+let othp'' = ref Vempty
+let othitms = ref (Input_dump.empty_itms [])
 
-let tran allmods topmods top_pat f =
-  let ch = if f = "-" then stdin else open_in f in
-  let cache, p = Input_lex.parse_output_ast_from_chan ch in
-  close_in ch;
-  p' := p;
-  let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
-  if false then List.iter (dump' "_all") !allmods;
-  if false then List.iter (dump' "_top") !topmods;
+let tran v =
   let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
-  if Array.length Sys.argv > 4 then (print_endline ("Dumping cells: "^string_of_int (List.length !(Rtl_map.cells'))); Rtl_map.dumpv Sys.argv.(4));
-  List.iter (fun (modnam, (_, modul)) -> let rtl = cnv (modnam, modul) in if false then Rtl_dump.dump modnam rtl; Rtl_map.map modnam rtl) !topmods;
-  if Array.length Sys.argv > 2 then match !topmods with
-    | (modnam,_)::[] -> eqv Sys.argv.(2) (modnam^"_map.v") modnam liberty; sta (modnam^"_map.v") modnam liberty
-    | _ -> failwith "multiple top modules"
+  let rawp = parse_output_ast_from_file v in
+  let p = Source_text_verible_rewrite.rw rawp in
+  let p' = Source_text_verible_rewrite.rw' p in
+  othp := p;
+  othp' := p';
+  let p'' = pat p' in
+  othp'' := p'';
+  print_endline "verible_pat_cnv";
+  let (modnam, uitms) = Verible_pat.cnv' othitms p'' in
+  print_endline "hardcaml_cnv";
+  let rtl = Input_hardcaml.cnv (modnam, uitms) in
+  Rtl_map.map modnam rtl;
+  eqv v (modnam^"_map.v") modnam liberty;
+  sta (modnam^"_map.v") modnam liberty;
+  p'', uitms, rtl
 
-(*
 let _ = if Array.length Sys.argv > 3 then eqv Sys.argv.(3) Sys.argv.(2) Sys.argv.(1) (Rtl_map.dflt_liberty None)
-        else if Array.length Sys.argv > 1 then tran Sys.argv.(1)
+        else if Array.length Sys.argv > 1 then ignore (tran Sys.argv.(1))
         else if (try int_of_string (Sys.getenv ("LIBERTY_DUMP")) > 0 with _ -> false) then
                 (let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
 		  print_endline ("Dumping cells: "^string_of_int (List.length !(Rtl_map.cells'))); Rtl_map.dumpv liberty);
-*)

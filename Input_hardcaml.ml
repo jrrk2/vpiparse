@@ -39,6 +39,7 @@ let othirng = ref UNKNOWN
 let othtokens = ref Rtl_parser.ENDOFFILE
 let othcnst = ref (ERR "othcnst")
 let othalwystran = ref None
+let othcatran = ref None
 let othasgn = ref Work
 let othr = ref Invalid
 let othdecl' = ref ("", Work)
@@ -100,6 +101,11 @@ let sub_fast a_sig b_sig =
              ~input1:(a_sig)
              ~input2:(~: b_sig)
              ~carry_in:(Signal.vdd))
+
+let fold' fn rhs = let expl = List.init (width rhs) (bit rhs) in List.fold_left fn (List.hd expl) (List.tl expl)
+
+let equal a b =
+    (~:) (fold' (|:) (a ^: b))
 
 let less_fast a b =
     let diff = sub_fast (uresize a (width a + 1)) (uresize b (width b + 1)) in
@@ -262,7 +268,6 @@ let logopvpi = function
 | Lshiftr -> LshiftR
 | Lshiftrs -> AshiftR
 
-
 let unaryvpi = function
 | Unknown -> failwith "Unknown"
 | Unot -> Not
@@ -274,7 +279,7 @@ let unaryvpi = function
 | Uextends(string, int1, int2) -> failwith "Uextends"
 
 let cnv_op oplst k = function
-        | Var v -> oplst := output k v.value :: !oplst
+        | Var v -> oplst := output k v.value :: !oplst; print_endline ("cnv_op: "^k)
         | Itm v -> ()
         | Con v -> ()
         | Alw v -> ()
@@ -297,13 +302,14 @@ let add_decl k x = function
 
 let declare_input port = function
 | Width(hi,lo,signed) as w ->
-  print_endline ("Input: "^port);
+  print_endline ("Input: "^port^"["^string_of_int hi^":"^string_of_int lo^"]");
   let s = Signal.input port (hi-lo+1) in
   add_decl port (if signed then Sigs (Signed.of_signal s) else Sig s) w
 | oth -> otht := Some oth; failwith "declare_input" in
 
 let declare_wire wire = function
 | Width(hi,lo,signed) as wid -> let wid' = hi-lo+1 in
+  print_endline ("Wire: "^wire^"["^string_of_int hi^":"^string_of_int lo^"]");
   add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid'))) wid
 | oth -> otht := Some oth; failwith "declare_wire" in
 
@@ -484,11 +490,15 @@ let alwystran = List.flatten (List.map (function
   
   | oth -> othalwystran := Some oth; failwith "alwystran") !(modul.alwys)) in
 
+let catran = List.map (function
+  | ("", dst, rhs) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in Asgn((tranitm {attr with dest=true}) dst, tranitm attr rhs)
+  | oth -> othcatran := Some oth; failwith "catran") !(modul.ca) in
+
 let _ = List.iter (fun (io,_ as args) -> if not (exists io) then Input_dump.iofunc modul (fun _ _ -> ()) declare_wire args) !(modul.io) in
 
 let _ = List.iter (fun (v,_ as args) -> if not (exists v) then Input_dump.vfunc modul declare_input declare_wire args) !(modul.v) in
 
-let remapp' = List.filter (function Void _ -> false |_ -> true) alwystran in
+let remapp' = List.filter (function Void _ -> false |_ -> true) (alwystran@catran) in
 
 let rec strength_reduce = function
 | Asgn (Ident c, 
@@ -522,7 +532,7 @@ if not (List.mem lbl !seen) then print_endline ("unimps: "^lbl); seen := lbl :: 
 let lognegate fn = fun lhs rhs -> fn lhs (~: rhs) in
 
 let signed_relational x = let open Signed in match x with
-|Eq -> (==:) 
+|Eq -> (fun lhs rhs -> Signed.of_signal (equal (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Ne -> (<>:) 
 |Lt -> less_signed
 |Le -> (<=:) 
@@ -546,7 +556,7 @@ let signed_relational x = let open Signed in match x with
 |oth -> othp := oth; failwith "signed_relational" in
 
 let unsigned_relational = function
-|Eq -> (==:) 
+|Eq -> equal 
 |Ne -> (<>:) 
 |Lt -> less_fast 
 |Le -> (<=:) 
@@ -607,8 +617,6 @@ let detect_dyadic (op, lhs,rhs) = othop := (op, summary lhs, summary rhs); _dete
 let unimplu = let seen = ref [] in fun lbl rhs ->
 if not (List.mem lbl !seen) then print_endline ("unimplu: "^lbl); seen := lbl :: !seen; ~: rhs in
 *)
-
-let fold' fn rhs = let expl = List.init (width rhs) (bit rhs) in List.fold_left fn (List.hd expl) (List.tl expl) in
 
 let remapunary' = function
 |Add _ -> (fun rhs -> rhs)
@@ -682,6 +690,7 @@ let rec (remap:remapp->remap) = function
 | Case (mode, lst) -> Alw (Always.switch (sig' (remap mode)) (List.map (fun itm -> match remap itm with Itm c -> c | _ -> failwith "itm") lst))
 | oth -> othp := oth; failwith "remap" in
 
+print_endline ("remapp' size = "^string_of_int (List.length remapp'));
 othremapp' := remapp';
 othremapp'' := remapp'';
 othremapp''' := remapp''';

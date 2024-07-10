@@ -19,7 +19,7 @@
 open Printf
 open Rtl_parser
 open Input_dump
-open Input_pat4
+open Input_cnv
 open Dump_types
 
 let othrtl = ref ENDOFFILE

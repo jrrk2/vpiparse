@@ -20,7 +20,7 @@ open Printf
 open Input
 open Input_types
 open Input_dump
-open Input_pat4
+open Input_cnv
 open Dump_types
 open Rtl_parser
 open File
@@ -338,9 +338,10 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
   maplib' itms ([expr itms rght]) (expr itms lhs, filtcells func)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, QUADRUPLE (QUERY, cond, lft, rght))]) ->
   maplib' itms [expr itms cond; expr itms lft; expr itms rght] (expr itms lhs, filtcells QUERY)
-| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE((PLUS|MINUS|LESS as op), lft, rght)))]) ->
+| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE((PLUS|MINUS|P_EQUAL|LESS as op), lft, rght)))]) ->
   let arithop lhs rhs = function
    | LESS -> CMP(Clt, lhs :: rhs :: [])
+   | P_EQUAL -> CMP(Ceq, lhs :: rhs :: [])
    | PLUS -> ARITH(Aadd "fastest", lhs :: rhs :: [])
    | MINUS -> ARITH(Asub, lhs :: rhs :: [])
    | oth -> othmapfail := oth; failwith "arithop'" in
@@ -414,9 +415,6 @@ and map itms pat = lastpat := pat; _map itms pat
 
 and _chk_addsub itms arithop op = function
 | VRF (a, _, _), VRF (b, _, _), VRF (y, _, _) ->
-  let op' = ARITH (Aadd "fastest",
-               (VRF (a, (BASDTYP, "wire", TYPNONE, []), []) ::
-                VRF (b, (BASDTYP, "wire", TYPNONE, []), []) :: [])) in
   let op' = arithop
                (VRF (a, (BASDTYP, "wire", TYPNONE, []), [])) 
                (VRF (b, (BASDTYP, "wire", TYPNONE, []), [])) op in

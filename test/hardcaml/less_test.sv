@@ -1,6 +1,6 @@
 module less_test (
-    input [7:0] a,
-    input [7:0] b,
+    input [3:0] a,
+    input [3:0] b,
     output reg c);
 
     always_comb
