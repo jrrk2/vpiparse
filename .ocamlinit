@@ -34,8 +34,8 @@ let v = "examples/picorv32_ref.v";;
 let v = "outputparser/examples/count0.v";;
 let v = "test/hardcaml/operators.sv";;
 let v = "test/hardcaml/casetest4.sv";;
-let v = "test/hardcaml/casetest.sv";;
 let v = "test/hardcaml/equal.sv";;
 let v = "test/hardcaml/less_test.sv";;
+let v = "test/hardcaml/casetest.sv";;
 
 let p'', uitms, rtl = Input_equiv_verible.tran v;;
