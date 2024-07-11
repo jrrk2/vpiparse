@@ -92,6 +92,12 @@ attributes_operator/
 less_test/
 count/
 equal/
+greater/
+greater_equal/
+less_equal/
+mux/
+op_priority/
+relational/
 Source_text_verible.ml
 Source_text_verible.mli
 Source_text_verible.mly

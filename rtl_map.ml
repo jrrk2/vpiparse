@@ -39,7 +39,7 @@ let othport = ref None
 let othfilt = ref ENDOFFILE
 let othchk = ref (XML [], XML [])
 let othargs = ref (XML [], XML [], XML [])
-let othchkaddsub = ref ENDOFFILE
+let othchkarith = ref ENDOFFILE
 let othsel = ref (XML [])
 let othalw = ref ENDOFFILE
 let othmapfail = ref UNKNOWN
@@ -339,18 +339,12 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, QUADRUPLE (QUERY, cond, lft, rght))]) ->
   maplib' itms [expr itms cond; expr itms lft; expr itms rght] (expr itms lhs, filtcells QUERY)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE((PLUS|MINUS|P_EQUAL|LESS as op), lft, rght)))]) ->
-  let arithop lhs rhs = function
-   | LESS -> CMP(Clt, lhs :: rhs :: [])
-   | P_EQUAL -> CMP(Ceq, lhs :: rhs :: [])
-   | PLUS -> ARITH(Aadd "fastest", lhs :: rhs :: [])
-   | MINUS -> ARITH(Asub, lhs :: rhs :: [])
-   | oth -> othmapfail := oth; failwith "arithop'" in
-  let body = match _chk_addsub itms arithop op (expr itms lft, expr itms rght, expr itms lhs) with
+  let body = match _chk_arith itms op (expr itms lft, expr itms rght, expr itms lhs) with
     | QUINTUPLE (MODULE, IDSTR _, TLIST [], TLIST io, TLIST lst) ->
       let body' = List.filter (function QUINTUPLE ((INPUT|OUTPUT), _, _, _, _) -> false | _ -> true) lst in
       let map' = function IDSTR id -> id | _ -> failwith "prefix" in
       List.map (prefix (List.map map' io)) body'
-    | oth -> othchkaddsub := oth; failwith "_chk_addsub" in
+    | oth -> othchkarith := oth; failwith "_chk_arith" in
     othbody := body; List.iter (map itms) body
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, rhs)]) -> _chk_assign itms (expr itms rhs, expr itms lhs)
 | TRIPLE(tok, arg1, arg2) as pat ->  othmapfail := pat; failwith "TRIPLE(tok,"
@@ -413,31 +407,42 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells POSEDGE)
 
 and map itms pat = lastpat := pat; _map itms pat
 
-and _chk_addsub itms arithop op = function
+and _chk_arith itms op = function
 | VRF (a, _, _), VRF (b, _, _), VRF (y, _, _) ->
+  let typrnga = width_reg itms a in
+  let typrngb = width_reg itms b in
+  let typrngy = width_reg itms y in
+  let arithop lhs rhs = function
+   | LESS -> CMP(Clt, lhs :: rhs :: [])
+   | P_EQUAL -> CMP(Ceq, lhs :: rhs :: [])
+   | PLUS -> ARITH(Aadd "fastest", lhs :: rhs :: [])
+   | MINUS -> ARITH(Asub, lhs :: rhs :: [])
+   | oth -> othmapfail := oth; failwith "arithop'" in
   let op' = arithop
-               (VRF (a, (BASDTYP, "wire", TYPNONE, []), [])) 
-               (VRF (b, (BASDTYP, "wire", TYPNONE, []), [])) op in
-  let typrng = width_reg itms y in map' (Input_hardcaml.cnv ("addsub",
+               (VRF (a, (BASDTYP, "wire", typrnga, []), [])) 
+               (VRF (b, (BASDTYP, "wire", typrngb, []), [])) op in
+  map' (Input_hardcaml.cnv ("arithop",
      {io =
        {contents =
-         [(a, ("", (BASDTYP, "wire", typrng, []), Dinput, "wire", []));
-          (b, ("", (BASDTYP, "wire", typrng, []), Dinput, "wire", []));
-          (y, ("", (BASDTYP, "wire", typrng, []), Doutput, "wire", []))]};
+         [(a, ("", (BASDTYP, "wire", typrnga, []), Dinput, "wire", []));
+          (b, ("", (BASDTYP, "wire", typrngb, []), Dinput, "wire", []));
+          (y, ("", (BASDTYP, "wire", typrngy, []), Doutput, "wire", []))]};
       v = {contents = []}; iv = {contents = []}; ir = {contents = []};
       ca = {contents = []};
       alwys =
        {contents =
          [("", COMB,
            [SNTRE [];
-            ASGN (false, "", op' :: VRF (y, (BASDTYP, "wire", typrng, []), []) :: [])])]};
+            ASGN (false, "", op' :: VRF (y, (BASDTYP, "wire", typrngy, []), []) :: [])])]};
       init = {contents = []}; func = {contents = []}; task = {contents = []};
       gen = {contents = []}; imp = {contents = []}; inst = {contents = []};
       cnst = {contents = []}; needed = {contents = []};
       remove_interfaces = false; mode = ""; names'' = []} ))
-| oth -> othargs := oth; failwith "_chk_addsub othargs"
+| oth -> othargs := oth; failwith "_chk_arith othargs"
 
 and map' rtl =
+let nam = Filename.temp_file ~temp_dir:"." "arith_" ".v" in
+let fd = open_out nam in output_string fd rtl; close_out fd;
 let lexbuf = Lexing.from_string rtl in
 let rslt = Rtl_parser.start Rtl_lexer.token lexbuf in
 rslt

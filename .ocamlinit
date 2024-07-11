@@ -37,5 +37,8 @@ let v = "test/hardcaml/casetest4.sv";;
 let v = "test/hardcaml/equal.sv";;
 let v = "test/hardcaml/less_test.sv";;
 let v = "test/hardcaml/casetest.sv";;
+let v = "test/hardcaml/greater.sv";;
+let v = "test/hardcaml/relational.sv";;
+let v = "test/hardcaml/mux.sv";;
 
 let p'', uitms, rtl = Input_equiv_verible.tran v;;

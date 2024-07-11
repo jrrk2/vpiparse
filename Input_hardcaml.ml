@@ -94,24 +94,43 @@ let add_fast model a_sig b_sig =
              ~input2:(b_sig)
              ~carry_in:(Signal.zero 1))
 
-let sub_fast a_sig b_sig =
+let sub_fast carry_in a_sig b_sig =
           (Hardcaml_circuits.Prefix_sum.create
              ~config:(if exact_log2 (width a_sig) && exact_log2 (width b_sig) then Kogge_stone else Sklansky)
              (module Signal)
              ~input1:(a_sig)
              ~input2:(~: b_sig)
-             ~carry_in:(Signal.vdd))
+             ~carry_in)
 
 let fold' fn rhs = let expl = List.init (width rhs) (bit rhs) in List.fold_left fn (List.hd expl) (List.tl expl)
 
-let equal a b =
-    (~:) (fold' (|:) (a ^: b))
+let notequal a b = fold' (|:) (a ^: b)
+
+let equal a b = (~:) (notequal a b)
 
 let less_fast a b =
-    let diff = sub_fast (uresize a (width a + 1)) (uresize b (width b + 1)) in
+    let diff = sub_fast Signal.vdd (uresize a (width a + 1)) (uresize b (width b + 1)) in
     ~: (bit diff (width diff - 1))
 
-let less_signed lhs rhs = Signed.of_signal (less_fast (Signed.to_signal rhs) (Signed.to_signal lhs))
+let greater_fast a b =
+    let diff = sub_fast Signal.vdd (uresize b (width b + 1)) (uresize a (width a + 1)) in
+    ~: (bit diff (width diff - 1))
+
+let greater_equal_fast a b =
+    let diff = sub_fast Signal.gnd (uresize b (width b + 1)) (uresize a (width a + 1)) in
+    ~: (bit diff (width diff - 1))
+
+let less_equal_fast a b =
+    let diff = sub_fast Signal.gnd (uresize a (width a + 1)) (uresize b (width b + 1)) in
+    ~: (bit diff (width diff - 1))
+
+let less_signed lhs rhs = Signed.of_signal (less_fast (Signed.to_signal lhs) (Signed.to_signal rhs))
+
+let greater_signed lhs rhs = Signed.of_signal (greater_fast (Signed.to_signal lhs) (Signed.to_signal rhs))
+
+let greater_equal_signed lhs rhs = Signed.of_signal (greater_equal_fast (Signed.to_signal lhs) (Signed.to_signal rhs))
+
+let less_equal_signed lhs rhs = Signed.of_signal (less_equal_fast (Signed.to_signal lhs) (Signed.to_signal rhs))
 
 let mult_wallace a_sig b_sig =
           (Hardcaml_circuits.Mul.create
@@ -144,7 +163,7 @@ let div_signed numerator denominator = let (quo,rem) = divmod_instance Signed nu
 let mod_signed numerator denominator = let (quo,rem) = divmod_instance Signed numerator denominator in rem
 
 let mux2' cond' lhs rhs =
-let cond = cond' >=: Signal.zero (width cond') in
+let cond = fold' (|:) cond' in
 let wlhs = width lhs in
 let wrhs = width rhs in
 if wlhs = wrhs then
@@ -533,16 +552,16 @@ let lognegate fn = fun lhs rhs -> fn lhs (~: rhs) in
 
 let signed_relational x = let open Signed in match x with
 |Eq -> (fun lhs rhs -> Signed.of_signal (equal (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Ne -> (<>:) 
+|Ne -> (fun lhs rhs -> Signed.of_signal (notequal (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Lt -> less_signed
-|Le -> (<=:) 
-|Ge -> (>=:) 
-|Gt -> (>:) 
+|Le -> less_equal_signed
+|Ge -> greater_equal_signed
+|Gt -> greater_signed
 |LshiftL -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sll (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |LshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift srl (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |AshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sra (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Add model -> (fun lhs rhs -> Signed.of_signal (add_fast model (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Sub -> (fun lhs rhs -> Signed.of_signal (sub_fast (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Sub -> (fun lhs rhs -> Signed.of_signal (sub_fast Signal.vdd (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Mults -> mult_wallace_signed
 |Div -> (fun lhs rhs -> Signed.of_signal (div_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Mod -> (fun lhs rhs -> Signed.of_signal (mod_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
@@ -557,16 +576,16 @@ let signed_relational x = let open Signed in match x with
 
 let unsigned_relational = function
 |Eq -> equal 
-|Ne -> (<>:) 
+|Ne -> notequal
 |Lt -> less_fast 
-|Le -> (<=:) 
-|Ge -> (>=:) 
-|Gt -> (>:)
+|Le -> less_equal_fast
+|Ge -> greater_equal_fast
+|Gt -> greater_fast
 |LshiftL -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
 |LshiftR -> (fun lhs rhs -> Signal.log_shift srl rhs lhs)
 |AshiftR -> (fun lhs rhs -> Signal.log_shift sra rhs lhs)
 |Add model  -> add_fast model
-|Sub -> sub_fast
+|Sub -> sub_fast Signal.vdd
 |Mult -> mult_wallace
 |Div -> div_unsigned
 |Mod -> unimp "mod"
