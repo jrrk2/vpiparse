@@ -1240,19 +1240,19 @@ let reviter modul lst =
     List.rev (List.flatten (List.map (fun itm -> let lst' = !delim :: expr modul itm in delim := COMMA; lst') lst))
 
 let rec cntbasic = function
-| (BASDTYP, typ, TYPRNG(HEX hi, HEX lo), []) when (function "logic"|"integer"|"int"|"bit"|"wire"|"byte"|"longint" -> true | _ -> false) typ -> ARNG (hi, lo) :: []
+| (BASDTYP, typ, TYPRNG(HEX hi, HEX lo), _) when (function "logic"|"integer"|"int"|"bit"|"wire"|"byte"|"longint" -> true | _ -> false) typ -> ARNG (hi, lo) :: []
 | (STRDTYP,_,typmap,rw_lst) -> ADD (List.map cntmembers rw_lst) :: []
 | (UNIDTYP,_,typmap,rw_lst) -> MAX (List.map cntmembers rw_lst) :: []
-| (BASDTYP, "reg", TYPNONE, []) -> REG :: []
-| (BASDTYP, "wire", TYPNONE, []) -> WIRE :: []
-| (BASDTYP, ("logic"|"bit"), TYPNONE, []) -> BIT :: []
-| (BASDTYP, "real", TYPNONE, []) -> REAL :: []
-| (BASDTYP, "string", TYPNONE, []) -> STRING :: []
-| (IFCRFDTYP _, _, TYPNONE, []) -> UNKARR :: []
+| (BASDTYP, "reg", TYPNONE, _) -> REG :: []
+| (BASDTYP, "wire", TYPNONE, _) -> WIRE :: []
+| (BASDTYP, ("logic"|"bit"), TYPNONE, _) -> BIT :: []
+| (BASDTYP, "real", TYPNONE, _) -> REAL :: []
+| (BASDTYP, "string", TYPNONE, _) -> STRING :: []
+| (IFCRFDTYP _, _, TYPNONE, _) -> UNKARR :: []
 | (PACKADTYP, _, RECTYP subtyp, TYPRNG((HEX n|SHEX n), (HEX n'|SHEX n'))::_) -> PACKED(n, n') :: findmembers subtyp
 | (UNPACKADTYP, _, RECTYP subtyp, TYPRNG ((HEX n|SHEX n), (HEX n'|SHEX n'))::_) -> UNPACKED(n, n') :: findmembers subtyp
-| (MEMBDTYP, id, SUBTYP subtyp, []) -> failwith ("SUBTYP")
-| (BASDTYP, ("logic"|"bit"|"wire"|"reg"), TYPRNG(lft,rght), []) -> VECTOR (lft, rght) :: []
+| (MEMBDTYP, id, SUBTYP subtyp, _) -> failwith ("SUBTYP")
+| (BASDTYP, ("logic"|"bit"|"wire"|"reg"), TYPRNG(lft,rght), _) -> VECTOR (lft, rght) :: []
 | oth -> typopt := Some oth; failwith ("typopt;;1425:"^dumptab oth)
 
 and cntmembers = function

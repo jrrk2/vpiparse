@@ -562,6 +562,7 @@ let signed_relational x = let open Signed in match x with
 |AshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sra (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Add model -> (fun lhs rhs -> Signed.of_signal (add_fast model (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Sub -> (fun lhs rhs -> Signed.of_signal (sub_fast Signal.vdd (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Mult -> mult_wallace_signed
 |Mults -> mult_wallace_signed
 |Div -> (fun lhs rhs -> Signed.of_signal (div_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Mod -> (fun lhs rhs -> Signed.of_signal (mod_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
@@ -649,7 +650,12 @@ let remapunary' = function
 |Lneg -> (~:)
 |Not -> (~:)
 |LogAnd -> fold' (&:)
+|LogNand -> fold' (lognegate (&:))
 |LogOr -> fold' (|:)
+|LogNor -> fold' (lognegate (|:))
+|LogXor -> fold' (^:)
+|LogXnor -> fold' (lognegate (^:))
+|LogNot -> (~:)
 |Negate -> fold' (-:)
 |oth -> othp := oth; failwith "remapop'" in
 
