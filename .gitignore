@@ -98,6 +98,8 @@ less_equal/
 mux/
 op_priority/
 relational/
+test_ashr/
+ternary/
 Source_text_verible.ml
 Source_text_verible.mli
 Source_text_verible.mly

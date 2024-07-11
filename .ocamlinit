@@ -42,5 +42,7 @@ let v = "test/hardcaml/relational.sv";;
 let v = "test/hardcaml/mux.sv";;
 let v = "test/hardcaml/casetest8.sv";;
 let v = "test/hardcaml/optest.sv";;
+let v = "test/hardcaml/test_shl.sv";;
+let v = "test/hardcaml/test_shl_const.sv";;
 
 let p'', uitms, rtl = Input_equiv_verible.tran v;;

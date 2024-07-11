@@ -557,9 +557,9 @@ let signed_relational x = let open Signed in match x with
 |Le -> less_equal_signed
 |Ge -> greater_equal_signed
 |Gt -> greater_signed
-|LshiftL -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sll (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|LshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift srl (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|AshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sra (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|LshiftL -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sll (Signed.to_signal lhs) (Signed.to_signal rhs)))
+|LshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift srl (Signed.to_signal lhs) (Signed.to_signal rhs)))
+|AshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sra (Signed.to_signal lhs) (Signed.to_signal rhs)))
 |Add model -> (fun lhs rhs -> Signed.of_signal (add_fast model (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Sub -> (fun lhs rhs -> Signed.of_signal (sub_fast Signal.vdd (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Mult -> mult_wallace_signed
@@ -582,9 +582,9 @@ let unsigned_relational = function
 |Le -> less_equal_fast
 |Ge -> greater_equal_fast
 |Gt -> greater_fast
-|LshiftL -> (fun lhs rhs -> Signal.log_shift sll rhs lhs)
-|LshiftR -> (fun lhs rhs -> Signal.log_shift srl rhs lhs)
-|AshiftR -> (fun lhs rhs -> Signal.log_shift sra rhs lhs)
+|LshiftL -> Signal.log_shift sll
+|LshiftR -> Signal.log_shift srl
+|AshiftR -> Signal.log_shift sra
 |Add model  -> add_fast model
 |Sub -> sub_fast Signal.vdd
 |Mult -> mult_wallace
