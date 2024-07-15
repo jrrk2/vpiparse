@@ -44,5 +44,6 @@ let v = "test/hardcaml/casetest8.sv";;
 let v = "test/hardcaml/optest.sv";;
 let v = "test/hardcaml/test_shl.sv";;
 let v = "test/hardcaml/test_shl_const.sv";;
+let v = "test/hardcaml/blocking_add.sv";;
 
 let p'', uitms, rtl = Input_equiv_verible.tran v;;
