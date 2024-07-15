@@ -416,7 +416,8 @@ let rec tranitm attr = function
 | CND (str1, cond::lft::rght::[]) -> Mux2 (tranitm attr cond, tranitm attr lft, tranitm attr rght)
 | CND (str1, rw_lst) -> failwith "CND"
 | CAT (str1, rw_lst) -> Concat (List.map (tranitm attr) rw_lst)
-| SEL (str1, nam::CNST (_, HEX lft)::CNST (_, HEX rght)::[]) -> Selection (tranitm attr nam, rght, lft, 0, 0)
+| SEL (str1, nam::CNST (_, HEX lo)::CNST (w', HEX wid)::[]) -> if wid == 1 then Bitsel(tranitm attr nam, Hex(string_of_int lo,w')) else
+    Selection (tranitm attr nam, lo+wid-1, lo, 0, 0)
 | SEL (str1, rw_lst) -> failwith "SEL"
 | CMP (cmpop, lft::rght::[]) -> compare (tranitm attr lft) (tranitm attr rght) cmpop
 | CMP (cmpop, rw_lst) -> failwith "CMP"
