@@ -66,6 +66,7 @@ open Source_text_verible_rewrite
 open Verible_pat
 open Input_dump
 
+let othrawp = ref End_of_file
 let othp = ref End_of_file
 let othp' = ref End_of_file
 let othp'' = ref Vempty
@@ -74,20 +75,21 @@ let othitms = ref (Input_dump.empty_itms [])
 let tran v =
   let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
   let rawp = parse_output_ast_from_file v in
+  othrawp := rawp;
   let p = Source_text_verible_rewrite.rw rawp in
-  let p' = Source_text_verible_rewrite.rw' p in
   othp := p;
+  let p' = Source_text_verible_rewrite.rw' p in
   othp' := p';
   let p'' = pat p' in
   othp'' := p'';
   print_endline "verible_pat_cnv";
-  let (modnam, uitms) = Verible_pat.cnv' othitms p'' in
+  List.iter (fun (modnam, uitms) ->
   print_endline "hardcaml_cnv";
   let rtl = Input_hardcaml.cnv (modnam, uitms) in
   Rtl_map.map modnam rtl;
   eqv v (modnam^"_map.v") modnam liberty;
   sta (modnam^"_map.v") modnam liberty;
-  p'', uitms, rtl
+  ) (Verible_pat.cnv' othitms p'')
 
 let _ = if Array.length Sys.argv > 3 then eqv Sys.argv.(3) Sys.argv.(2) Sys.argv.(1) (Rtl_map.dflt_liberty None)
         else if Array.length Sys.argv > 1 then ignore (tran Sys.argv.(1))

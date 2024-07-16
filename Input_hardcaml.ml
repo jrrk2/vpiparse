@@ -29,8 +29,10 @@ open Hardcaml
 open Always
 open Signal
 
+let othcse = ref []
+let othdflt = ref []
 let othfunc = ref ""
-let othradix = ref (Void 0)
+let othradix = ref (Void 33)
 let otharith = ref UNKNOWN
 let othlogop = ref Lunknown
 let othcs = ref None
@@ -44,17 +46,18 @@ let othasgn = ref Work
 let othr = ref Invalid
 let othdecl' = ref ("", Work)
 let othrw = ref Work
-let othlhs = ref (Void 0)
-let othrhs = ref (Void 0)
+let othlhs = ref (Void 47)
+let othrhs = ref (Void 48)
 let othrmlhs = ref Invalid
 let othrmrhs = ref Invalid
-let othcond' = ref (Void 0)
-let othlhs' = ref (Void 0)
-let othrhs' = ref (Void 0)
+let othcond' = ref (Void 51)
+let othlhs' = ref (Void 52)
+let othrhs' = ref (Void 53)
 let othrmcond' = ref Invalid
 let othrmlhs' = ref Invalid
 let othrmrhs' = ref Invalid
-let othp = ref (Void 0)
+let othc' = ref (Void 57)
+let othr' = ref (Void 58)
 let otht = ref None
 let othremapp' = ref []
 let othremapp'' = ref []
@@ -62,7 +65,7 @@ let othremapp''' = ref []
 let othdecl = ref []
 let othckedg = ref Work
 let othrstedg = ref Work
-let othop = ref (Void 0, Invalid, Invalid)
+let othop = ref (Void 65, Invalid, Invalid)
 
 let rec log2 n = if n <= 1 then 0 else 1 + log2 (n/2)
 
@@ -396,10 +399,11 @@ let signed_id id =
     | Width(hi, lo, false) -> print_endline ("VRF unsigned "^id); sgn := Ident id
     | Width(hi, lo, true) -> print_endline ("VRF signed "^id); sgn := Unary (Signed, Ident id)
     | _ -> failwith "signed_id" in
-  let sgn = ref (Void 0) in Input_dump.tran_search modul (wid' sgn) (wid' sgn) id; !sgn in
+  let sgn = ref (Void 399) in Input_dump.tran_search modul (wid' sgn) (wid' sgn) id;
+  (match !sgn with Void _ -> failwith id | oth -> oth) in
 
 let rec tranitm attr = function
-| UNKNOWN -> Void 0
+| UNKNOWN -> Void 402
 | VRF (id, (_, _, _, [TYPSIGNED]), []) -> if attr.dest then declare_reg attr id; Unary (Signed, Ident id)
 | VRF (id, _, []) -> if attr.dest then declare_reg attr id; signed_id id
 | ASGN (bool, str2, src::dst::[]) -> Asgn((tranitm {attr with dest=true}) dst, (tranitm attr) src)
@@ -425,7 +429,8 @@ let rec tranitm attr = function
 | CNST (w, HEX n) -> Hex (string_of_int n, w)
 | CS (str1, expr :: cslst) as cs -> othcs := Some cs; let expr' = tranitm attr expr in
 Case (expr', List.map (function
-  | CSITM ("", (CNST _ as cexp) :: stmt :: []) -> Item (expr', tranitm attr cexp, tranitm attr stmt)
+  | CSITM ("", (CNST _ as cexp) :: stmt :: []) -> Item (tranitm attr cexp, tranitm attr stmt)
+  | CSITM ("", stmt :: []) -> Default (tranitm attr stmt)
   | oth -> othcs := Some oth; failwith "Case") cslst)
 | CS (str1, _) as cs -> othcs := Some cs; failwith "CS"
 (*
@@ -537,7 +542,7 @@ let rec combiner = function
 | Asgn (Update (Ident dest, lfthi, lftlo, hi, lo), a) :: Asgn (Update (Ident dest', rghthi, rghtlo, hi', lo'), b) :: tl
 when dest=dest' && lfthi=hi && lftlo=rghthi+1 && rghtlo=lo && hi=hi' && lo=lo' -> Asgn(Ident dest, Concat ( [a; b] )) :: combiner tl
 | Block(id, expr) :: tl -> Asgn(id, expr) :: combiner tl
-| Asgn (_, Void 585) :: tl -> combiner tl
+| Asgn (_, Void 540) :: tl -> combiner tl
 | hd :: tl -> hd :: combiner tl in
 
 let remapp'' = List.map strength_reduce remapp' in
@@ -574,7 +579,7 @@ let signed_relational x = let open Signed in match x with
 |Or -> (fun lhs rhs -> of_signal (to_signal lhs |: to_signal rhs))
 |Xor -> (fun lhs rhs -> of_signal (to_signal lhs ^: to_signal rhs))
 |Xnor -> (fun lhs rhs -> of_signal ( ~: (to_signal lhs ^: to_signal rhs)))
-|oth -> othp := oth; failwith "signed_relational" in
+|oth -> othr' := oth; failwith "signed_relational" in
 
 let unsigned_relational = function
 |Eq -> equal 
@@ -598,19 +603,19 @@ let unsigned_relational = function
 |Or -> (|:) 
 |Xor -> (^:) 
 |Xnor -> lognegate (^:)
-|oth -> othp := oth; failwith "unsigned_relational" in
+|oth -> othr' := oth; failwith "unsigned_relational" in
 
 let unsigned_relationalc = function
 |LshiftL -> Signal.sll
 |LshiftR -> Signal.srl
 |AshiftR -> Signal.sra
-|oth -> othp := oth; failwith "unsigned_relationalc" in
+|oth -> othr' := oth; failwith "unsigned_relationalc" in
 
 let signed_relationalc x = let open Signed in match x with
 |LshiftL -> (fun lhs rhs -> Signed.of_signal (Signal.sll (Signed.to_signal lhs) rhs))
 |LshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.srl (Signed.to_signal lhs) rhs))
 |AshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.sra (Signed.to_signal lhs) rhs))
-|oth -> othp := oth; failwith "unsigned_relationalc" in
+|oth -> othr' := oth; failwith "unsigned_relationalc" in
 
 let _detect_dyadic = function
 (*
@@ -658,7 +663,7 @@ let remapunary' = function
 |LogXnor -> fold' (lognegate (^:))
 |LogNot -> (~:)
 |Negate -> fold' (-:)
-|oth -> othp := oth; failwith "remapop'" in
+|oth -> othr' := oth; failwith "remapop'" in
 
 let radix = function
 | Dec (n, w) -> int_of_string n
@@ -672,17 +677,18 @@ let rec (remap:remapp->remap) = function
 | Unary (op, rhs) -> Sig (remapunary' op (sig' (remap rhs)))
 | Dyadic (op, lhs, rhs) -> let lhs = remap lhs and rhs = remap rhs in detect_dyadic (op,lhs, rhs)
 | Mux2 (cond, lhs, rhs) ->
-   othcond' := cond;
-   othlhs' := lhs;
-   othrhs' := rhs;
-   othrmcond' := remap cond;
-   othrmlhs' := remap lhs;
-   othrmrhs' := remap rhs;
+  othcond' := cond;
+  othlhs' := lhs;
+  othrhs' := rhs;
+  othrmcond' := remap cond;
+  othrmlhs' := remap lhs;
+  othrmrhs' := remap rhs;
   let cond_ = sig' (remap cond) in
   let then_ = sig' (remap lhs) in
   let else_ = sig' (remap rhs) in
   Sig (mux2' cond_ then_ else_)
 | If_ (cond, lhs, rhs) ->
+  othcond' := cond;
   let cond_ = sig' (remap cond) in
   let then_ = List.map (fun itm -> alw' (remap itm)) lhs in
   let else_ = List.map (fun itm -> alw' (remap itm)) rhs in
@@ -711,10 +717,25 @@ let rec (remap:remapp->remap) = function
 | Concat lst -> Sig (Signal.concat_msb (List.map (fun itm -> sig' (remap itm)) lst))
 | Selection(nam, lft, rght, hi, lo) -> Sig (select (sig' (remap nam)) (lft) (rght))
 | Bitsel(nam, Dec (n, _)) -> Sig (bit (sig' (remap nam)) (int_of_string n))
-| Bitsel(nam, sel) as b -> othp := b; Sig (mux' (sig' (remap sel)) (sig' (remap nam)))
-| Item (cond, r, stmt) as itm -> othp := itm; let wid = width (sig' (remap cond)) in Itm (of_int ~width:wid (radix r), [ alw' (remap stmt) ])
-| Case (mode, lst) -> Alw (Always.switch (sig' (remap mode)) (List.map (fun itm -> match remap itm with Itm c -> c | _ -> failwith "itm") lst))
-| oth -> othp := oth; failwith "remap" in
+| Bitsel(nam, sel) as b -> othr' := b; Sig (mux' (sig' (remap sel)) (sig' (remap nam)))
+| Item (r, stmt) as itm -> othr' := itm; failwith "remap Item othr'"
+| Default (stmt) as itm -> othr' := itm; failwith "remap Default othr'"
+| Case (cond, lst) as itm -> othc' := itm; let cond' = sig' (remap cond) in let wid = width cond' in
+  let cases, dflt = List.partition (function Default _ -> false | _ -> true) lst in
+  let dflt' = List.map (function Default (stmt) -> [ alw' (remap stmt) ] | _ -> failwith "dflt") dflt in
+  othcse := cases;
+  othdflt := dflt;
+  Alw (Always.switch cond' (match dflt' with
+    | default::_ ->
+        let bitmap = Array.init (1 lsl wid) (fun _ -> default) in
+        List.iter (function
+		   | Item (Hex (s,wid), stmt) -> bitmap.(int_of_string s) <- [ alw' (remap stmt) ]
+                   | oth -> othr' := oth; failwith "itm") cases;
+        List.mapi (fun ix itm -> of_int ~width:wid ix, itm) (Array.to_list bitmap);
+    | [] -> List.map (function
+		      | Item (r, stmt) -> of_int ~width:wid (radix r), [ alw' (remap stmt) ]
+                      | oth -> othr' := oth; failwith "itm") cases))
+| oth -> othr' := oth; failwith "remap othr'" in
 
 print_endline ("remapp' size = "^string_of_int (List.length remapp'));
 othremapp' := remapp';

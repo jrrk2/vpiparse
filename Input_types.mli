@@ -46,7 +46,8 @@ and remapp =
   | Unary of remapp * remapp
   | Dyadic of remapp * remapp * remapp
   | Case of remapp * remapp list
-  | Item of remapp * remapp * remapp
+  | Item of remapp * remapp
+  | Default of remapp
   | Signed
   | Unsigned
   | Conpp of token

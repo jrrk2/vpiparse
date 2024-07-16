@@ -12,6 +12,7 @@ open Hardcaml
 open Signal
 open Verible_pat
 open Input_equiv_verible
+open Source_text_verible_rewrite
 open Source_text_verible
 
 #print_length 1000000;;
@@ -46,5 +47,7 @@ let v = "test/hardcaml/test_shl.sv";;
 let v = "test/hardcaml/test_shl_const.sv";;
 let v = "test/hardcaml/blocking_add.sv";;
 let v = "test/hardcaml/blocking.sv";;
+let v = "test/hardcaml/receiver.sv";;
+let v = "test/hardcaml/types.sv";;
 
-let p'', uitms, rtl = Input_equiv_verible.tran v;;
+let _ = Input_equiv_verible.tran v;;
