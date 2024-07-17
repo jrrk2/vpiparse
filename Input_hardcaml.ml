@@ -29,6 +29,7 @@ open Hardcaml
 open Always
 open Signal
 
+let othsel' = ref (SEL ("", []))
 let othcse = ref []
 let othdflt = ref []
 let othfunc = ref ""
@@ -422,11 +423,14 @@ let rec tranitm attr = function
 | CAT (str1, rw_lst) -> Concat (List.map (tranitm attr) rw_lst)
 | SEL (str1, nam::CNST (_, HEX lo)::CNST (w', HEX wid)::[]) -> if wid == 1 then Bitsel(tranitm attr nam, Hex(string_of_int lo,w')) else
     Selection (tranitm attr nam, lo+wid-1, lo, 0, 0)
-| SEL (str1, rw_lst) -> failwith "SEL"
+| SEL (str1, rw_lst) as sel -> othsel' := sel; failwith "SEL"
 | CMP (cmpop, lft::rght::[]) -> compare (tranitm attr lft) (tranitm attr rght) cmpop
 | CMP (cmpop, rw_lst) -> failwith "CMP"
 | IRNG (str1, rw_lst) as irng -> othirng := irng; failwith "IRNG"
 | CNST (w, HEX n) -> Hex (string_of_int n, w)
+| BGN (None, rw::[]) -> tranitm attr rw
+| BGN (None, rw_lst) -> Seq (List.map (tranitm attr) rw_lst)
+| BGN (Some str1, rw_lst) -> failwith "BGN"
 | CS (str1, expr :: cslst) as cs -> othcs := Some cs; let expr' = tranitm attr expr in
 Case (expr', List.map (function
   | CSITM ("", (CNST _ as cexp) :: stmt :: []) -> Item (tranitm attr cexp, tranitm attr stmt)
@@ -468,8 +472,6 @@ Case (expr', List.map (function
 | CPS (str1, rw_lst) -> failwith "CPS"
 | REPL (str1, int2, rw_lst) -> failwith "REPL"
 | MODUL (str1, str2, rw_lst, tmp) -> failwith "MODUL"
-| BGN (None, rw_lst) -> failwith "BGN"
-| BGN (Some str1, rw_lst) -> failwith "BGN"
 | RNG (rw_lst) -> failwith "RNG"
 | ALWYS (str1, rw_lst) -> failwith "ALWYS"
 | SNTRE (rw_lst) -> failwith "SNTRE"
@@ -635,6 +637,7 @@ let _detect_dyadic = function
 | op, Var lhs, Con rhs -> relational (unsigned_relational op) lhs.value (Signal.of_constant rhs)
 | (LshiftL|LshiftR|AshiftR as op), Con lhs, Con rhs -> relationalc (unsigned_relationalc op) (Signal.of_constant lhs) (Constant.to_int rhs)
 | op, Var lhs, Sig rhs -> relational (unsigned_relational op) lhs.value rhs
+| op, Var lhs, Var rhs -> relational (unsigned_relational op) lhs.value rhs.value
 | op,lhs,rhs -> othop := (op, summary lhs, summary rhs); failwith "detect_dyadic" in
 
 let detect_dyadic (op, lhs,rhs) = othop := (op, summary lhs, summary rhs); _detect_dyadic (op, lhs, rhs) in
