@@ -150,7 +150,10 @@ let _Othpp itms _ = failwith "Othpp"
 
 let othtypmap = ref Work
 let _typmap = function
+| Vpialways -> []
+| Vpinet -> []
 | Vpireg -> []
+| Vpiwire -> []
 | Vpisigned -> [TYPSIGNED]
 | oth -> othtypmap := oth; failwith "_typmap"
 
@@ -162,8 +165,8 @@ let identyp = ref Work
 
 let identypmap = function
 | Vpialways -> "wire"
-| Vpinet -> "wire"
 | Vpireg -> "reg"
+| Vpinet -> "wire"
 | oth -> identyp := oth; failwith "identypmap"
 
 let vadd itms (nam, arg) = if not (List.mem_assoc nam !(itms.v)) then itms.v := (nam, arg) :: !(itms.v) else failwith ("vadd: duplicate "^nam)
@@ -243,7 +246,7 @@ let rec _cnstexpr = function
 let _Range itms (lft, rght) = TYPRNG(_cnstexpr lft, _cnstexpr rght)
 let _Place itms (n, _, _) = SCOPE ("Place"^string_of_int n)
 let _Array_var itms _ = failwith "Array_var"
-let otharray = ref (UNKNOWN, UNKNOWN, 0, 0)
+let otharray = ref (UNKNOWN, UNKNOWN, 0, TYPNONE)
 let _Array_net itms = function
 | VRF (nam, (BASDTYP, "wire", TYPNONE, []), []),
   VRF ("", (BASDTYP, "wire", typrng, []), []),

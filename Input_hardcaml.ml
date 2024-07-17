@@ -66,7 +66,7 @@ let othremapp''' = ref []
 let othdecl = ref []
 let othckedg = ref Work
 let othrstedg = ref Work
-let othop = ref (Void 65, Invalid, Invalid)
+let othop = ref (Void 65, Invalid_, Invalid_)
 
 let rec log2 n = if n <= 1 then 0 else 1 + log2 (n/2)
 
@@ -92,7 +92,7 @@ let adder_config a b = let wa, wb = width a, width b in function
 
 let add_fast model a_sig b_sig =
           (Hardcaml_circuits.Prefix_sum.create
-           ~config:(print_endline ("add_fast model: "^model); adder_config a_sig b_sig model)
+           ~config:(if model <> "" then print_endline ("add_fast model: "^model); adder_config a_sig b_sig model)
              (module Signal)
              ~input1:(a_sig)
              ~input2:(b_sig)
@@ -237,7 +237,7 @@ let othsel = ref None
 let mux' sel inputs =
 let wid = width inputs in
 othsel := Some sel;
-print_endline ("mux width: "^string_of_int wid);
+if false then print_endline ("mux width: "^string_of_int wid);
 mux sel (List.init wid (bit inputs))
 
 let assign' (lhs:Hardcaml.Always.Variable.t) rhs =
@@ -252,13 +252,13 @@ lhs <-- (uresize rhs wlhs)
 else failwith "assign'"
 
 let summary = function
-      | Con x -> Con x
-      | Var _ -> Var (Always.Variable.wire ~default:(Signal.zero 1))
-      | Sig _ -> Sig (Signal.zero 1)
-      | Sigs _ -> Sigs (signed_zero 1)
-      | Itm _ -> Itm (Signal.zero 1, [])
-      | Alw _ -> Alw (Always.switch (Signal.zero 1) [])
-      | Invalid -> Invalid
+      | Con x -> Con_
+      | Var _ -> Var_
+      | Sig _ -> Sig_
+      | Sigs _ -> Sigs_
+      | Itm _ -> Itm_
+      | Alw _ -> Alw_
+      | Invalid -> Invalid_
 
 let othtok = ref INVALID
 
@@ -301,14 +301,16 @@ let unaryvpi = function
 | Uextend(int1, int2) -> failwith "Uextend"
 | Uextends(string, int1, int2) -> failwith "Uextends"
 
-let cnv_op oplst k = function
-        | Var v -> oplst := output k v.value :: !oplst; print_endline ("cnv_op: "^k)
+let cnv_op' oplst k = function
+        | Var v -> oplst := output k v.value :: !oplst; print_string "*"
         | Itm v -> ()
         | Con v -> ()
         | Alw v -> ()
         | Sig v -> ()
         | Sigs v -> ()
         | Invalid -> ()
+
+let cnv_op oplst k x = let rslt = cnv_op' oplst k x in print_endline ("\tcnv_op: "^k); rslt
 
 let cnv (modnam, modul) =
 begin
@@ -397,8 +399,8 @@ let compare lft rght = function
 
 let signed_id id =
   let wid' sgn _ = function
-    | Width(hi, lo, false) -> print_endline ("VRF unsigned "^id); sgn := Ident id
-    | Width(hi, lo, true) -> print_endline ("VRF signed "^id); sgn := Unary (Signed, Ident id)
+    | Width(hi, lo, false) -> if false then print_endline ("VRF unsigned "^id); sgn := Ident id
+    | Width(hi, lo, true) -> if false then print_endline ("VRF signed "^id); sgn := Unary (Signed, Ident id)
     | _ -> failwith "signed_id" in
   let sgn = ref (Void 399) in Input_dump.tran_search modul (wid' sgn) (wid' sgn) id;
   (match !sgn with Void _ -> failwith id | oth -> oth) in
@@ -538,12 +540,6 @@ let rec combiner = function
 | If_ (Dyadic (Eq, a, b), c, d) ::
   If_ (Dyadic (Eq, a', b'), c', d') :: [] when a=a' && b=b' -> If_ (Dyadic (Eq, a, b), c@c', d@d') :: []
 | If_ (Dyadic _ as a, b, c) :: tl -> If_ ( a, combiner b, combiner c) :: combiner tl
-| Seq (Block (Ident blk, exp1) :: Block (Ident blk', Dyadic (op, Ident blk'', exp2)) :: tl) :: tl' when blk=blk' && blk'=blk'' ->
-  combiner (Asgn(Ident blk', Dyadic(op, exp1, exp2)) :: tl @ tl')
-| Seq lst :: tl -> combiner (lst @ tl)
-| Asgn (Update (Ident dest, lfthi, lftlo, hi, lo), a) :: Asgn (Update (Ident dest', rghthi, rghtlo, hi', lo'), b) :: tl
-when dest=dest' && lfthi=hi && lftlo=rghthi+1 && rghtlo=lo && hi=hi' && lo=lo' -> Asgn(Ident dest, Concat ( [a; b] )) :: combiner tl
-| Block(id, expr) :: tl -> Asgn(id, expr) :: combiner tl
 | Asgn (_, Void 540) :: tl -> combiner tl
 | hd :: tl -> hd :: combiner tl in
 
@@ -738,6 +734,7 @@ let rec (remap:remapp->remap) = function
     | [] -> List.map (function
 		      | Item (r, stmt) -> of_int ~width:wid (radix r), [ alw' (remap stmt) ]
                       | oth -> othr' := oth; failwith "itm") cases))
+| Seq lst -> Alw (Always.proc (List.map (fun itm -> alw' (remap itm)) lst))
 | oth -> othr' := oth; failwith "remap othr'" in
 
 print_endline ("remapp' size = "^string_of_int (List.length remapp'));

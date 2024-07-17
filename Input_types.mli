@@ -258,3 +258,12 @@ type remap =
   | Alw of Hardcaml.Always.t
   | Var of Hardcaml.Always.Variable.t
   | Itm of (Hardcaml.Signal.t * Hardcaml.Always.t list)
+
+type summary =
+  | Invalid_
+  | Con_
+  | Sig_
+  | Sigs_
+  | Alw_
+  | Var_
+  | Itm_

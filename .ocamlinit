@@ -11,9 +11,11 @@ open Dump_types
 open Hardcaml
 open Signal
 open Verible_pat
-open Input_equiv_verible
+open Input_cnv
+(*
 open Source_text_verible_rewrite
 open Source_text_verible
+*)
 
 #print_length 1000000;;
 #print_depth 1000000;;
@@ -30,6 +32,7 @@ let _ = tran "uhdm.txt"
 let cell_param = ("\""^String.concat "\"|\"" (List.sort compare !truelst)^"\"");;
 *)
 
+(*
 let v = "examples/ariane_preproc.sv";;
 let v = "examples/picorv32_ref.v";;
 let v = "outputparser/examples/count0.v";;
@@ -48,7 +51,9 @@ let v = "test/hardcaml/test_shl_const.sv";;
 let v = "test/hardcaml/blocking_add.sv";;
 let v = "test/hardcaml/blocking.sv";;
 let v = "test/hardcaml/receiver.sv";;
-let v = "test/hardcaml/slib_fifo.sv";;
 let v = "test/hardcaml/types.sv";;
+let v = "test/hardcaml/attributes-operator.sv";;
+let v = "test/hardcaml/slib_fifo.sv";;
 
 let _ = Input_equiv_verible.tran v;;
+*)
