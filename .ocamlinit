@@ -1,6 +1,8 @@
 #directory "/Users/jonathan/.opam/default/lib/hardcaml";;
 #directory "/Users/jonathan/.opam/default/lib/base";;
+#directory "/Users/jonathan/.opam/default/lib/hardcaml";;
 #directory "outputparser";;
+#directory "hardcaml_of_verilog/_build/install/default/lib/hardcaml_of_verilog";;
 
 open Input
 open Input_types
@@ -32,7 +34,7 @@ let _ = tran "uhdm.txt"
 let cell_param = ("\""^String.concat "\"|\"" (List.sort compare !truelst)^"\"");;
 *)
 
-(*
+(* *)
 let v = "examples/ariane_preproc.sv";;
 let v = "examples/picorv32_ref.v";;
 let v = "outputparser/examples/count0.v";;
@@ -54,6 +56,36 @@ let v = "test/hardcaml/receiver.sv";;
 let v = "test/hardcaml/types.sv";;
 let v = "test/hardcaml/attributes-operator.sv";;
 let v = "test/hardcaml/slib_fifo.sv";;
+let v = "test/hardcaml/multiplier_test.sv";;
 
 let _ = Input_equiv_verible.tran v;;
+(* *)
+
+(*
+open Input_yosys
+
+let liberty = Rtl_map.read_lib "../outputparser/simcells";;
+let form = snd !(Rtl_map.othf);;
+Formula_rewrite.rewrite form;;
+
+*)
+
+(*
+open Rtlil_input_rewrite
+open Rtlil_input_rewrite_types
+open Rtlil_input
+
+let _,rtlil = parse (parse_output_ast_from_file "gnd.ilang")
+let _ = Rtlil_dump.dumprtl "_junk" rtlil;;
+
+let ilang = List.map (Cnv_ilang.cnv_ilang) !(Rtl_map.uitms);;
+let _ = Rtlil_dump.dumprtl "_rev" ilang
+
+let _ = dumprtl ilang;;
+let str_rtl r = String.concat "\n" (List.map (fun (nam, lst) -> Rtlil_dump.dump_ilst "\n" lst) r)
+let par = snd (Rtlil_input_rewrite.parse (Rtlil_input_rewrite.parse_output_ast_from_string (str_rtl ilang)))
+
+let gold = snd (Rtlil_input_rewrite.parse (Rtlil_input_rewrite.parse_output_ast_from_pipe v))
+let _ = Rtlil_dump.dumprtl "_gold" gold
+let _ = Source_generic_main.rewrite_rtlil gold ilang
 *)

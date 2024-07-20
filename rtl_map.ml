@@ -461,4 +461,4 @@ let _ = map u rslt in
 let u = List.hd !uitms in
 uitms := u :: [];
 dump' "_map" (modnam, ((), u));
-()
+u

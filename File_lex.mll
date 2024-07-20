@@ -38,7 +38,7 @@
 let tok arg = arg
 }
 
-let ident = ['a'-'z' 'A'-'Z' ] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
+let ident = ['a'-'z' 'A'-'Z' '_' ] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
 let number = ['-']* ['0'-'9'] ['0'-'9' '.' 'e' '-']*
 let space = [' ' '\t' '\r']+
 let newline = ['\n']

@@ -47,9 +47,14 @@ Formula.ml Formula.mli: Formula.mly
 
 ############################################################################
 
-VSRC=Source_text_verible.mli outputparser/Source_text_verible_rewrite_types.mli Source_text_verible.ml Source_text_verible_tokens.ml Source_text_verible_lex.ml outputparser/Source_text_verible_rewrite.ml dump_types.mli Input.mli Input_types.mli Input_dump.ml Input_cnv.ml rtl_parser.mli rtl_parser.ml rtl_lexer.ml File.mli File.ml File_lex.ml File_rewrite.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml Input.ml ord_input.ml Input_lex.ml outputparser/verible_pat.ml Input_equiv_verible.ml
-VOBJB=Source_text_verible_types.cmo $(VSRC)
-VOBJN=Source_text_verible_types.cmx $(VSRC)
+GEN = outputparser/String_lit.mli outputparser/String_lit.ml outputparser/Msat_sat_slit.mli outputparser/Msat_sat_slit.ml outputparser/Msat_tseitin.mli outputparser/Msat_tseitin.ml Rtlil_input.mli outputparser/Rtlil_input_rewrite_types.mli dump_types.mli Input.mli outputparser/generic_rewrite.ml outputparser/convert_edited.ml outputparser/Source_generic_main.ml
+GEN2 =  Rtlil_input.ml  Rtlil_input_tokens.ml  ord_input.ml Rtlil_input_lex.ml outputparser/Rtlil_dump.ml outputparser/Rtlil_input_rewrite.ml
+Source_generic_top: Rtlil_input_types.cmo $(GEN) $(GEN2)
+	ocamlfind ocamlmktop -package msat,hardcaml,hardcaml_circuits -linkpkg -g -o $@ -I +unix unix.cma -I outputparser Rtlil_input_types.cmo  $(GEN2) $(GEN)
+
+VSRC=Source_text_verible.mli outputparser/Source_text_verible_rewrite_types.mli Source_text_verible.ml Source_text_verible_tokens.ml Source_text_verible_lex.ml outputparser/Source_text_verible_rewrite.ml dump_types.mli Input.mli Input_types.mli Input_dump.ml Input_cnv.ml rtl_parser.mli rtl_parser.ml rtl_lexer.ml File.mli File.ml File_lex.ml File_rewrite.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml Input.ml ord_input.ml Input_lex.ml outputparser/verible_pat.ml outputparser/Rtlil_input_rewrite_types.mli outputparser/Rtlil_dump.ml Rtlil_input.mli Rtlil_input.ml Rtlil_input_tokens.ml Rtlil_input_lex.ml outputparser/Rtlil_input_rewrite.ml outputparser/dump_rtlil.ml cnv_ilang.ml
+VOBJB=Source_text_verible_types.cmo Rtlil_input_types.cmo $(VSRC) $(GEN) Input_equiv_verible.ml
+VOBJN=Source_text_verible_types.cmx Rtlil_input_types.cmx $(VSRC) $(GEN) Input_equiv_verible.ml
 
 Source_verible_top: $(VOBJB)
 	ocamlfind ocamlmktop -package msat,hardcaml,hardcaml_circuits,unix -linkpkg -g -o $@ -I +unix -I outputparser $(VOBJB)
@@ -71,3 +76,28 @@ Source_text_verible_types.cmx: outputparser/Source_text_verible_types.ml
 
 Source_text_verible_lex.ml: outputparser/Source_text_verible_lex.mll
 	ocamllex $< -o $@
+
+Rtlil_input_lex.ml: outputparser/Rtlil_input_lex.mll
+	ocamllex $< -o $@
+
+Rtlil_input.ml Rtlil_input.mli: Rtlil_input.mly Rtlil_input_types.cmo
+	menhir $(MENHIRFLAGS) $<
+
+Rtlil_input_types.cmo: outputparser/Rtlil_input_types.ml
+	ocamlc -c $< -o $@
+
+Rtlil_input_types.cmx: outputparser/Rtlil_input_types.ml
+	ocamlopt -c $< -o $@
+
+Rtlil_input.mly Rtlil_input_tokens.ml: outputparser/rtlil_parser.output
+        env OCAMLRUNPARAM=b TOK_STRING=string TOK_ID=string TOK_INT=int TOK_VALUE=string outputparser/output_parser $<
+
+###########################################################################
+
+YSRC=Input_yosys.ml
+
+Source_yosys_top: $(YSRC)
+	ocamlfind ocamlmktop -package msat,hardcaml,hardcaml_circuits,unix,ppx_let,core_unix.filename_unix,jsonaf,ppx_jsonaf_conv -thread -linkpkg -g -o $@ -I +unix -I hardcaml_of_verilog/_build/install/default/lib/hardcaml_of_verilog hardcaml_of_verilog.cma $(YSRC)
+
+Source_yosys: $(YSRC)
+	ocamlfind ocamlopt -package msat,hardcaml,hardcaml_circuits,unix,ppx_let -linkpkg -g -o $@ -I +unix -I hardcaml_of_verilog/_build/install/default/lib/hardcaml_of_verilog hardcaml_of_verilog.cma $(YSRC)
