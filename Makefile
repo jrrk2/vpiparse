@@ -90,7 +90,7 @@ Rtlil_input_types.cmx: outputparser/Rtlil_input_types.ml
 	ocamlopt -c $< -o $@
 
 Rtlil_input.mly Rtlil_input_tokens.ml: outputparser/rtlil_parser.output
-        env OCAMLRUNPARAM=b TOK_STRING=string TOK_ID=string TOK_INT=int TOK_VALUE=string outputparser/output_parser $<
+	env OCAMLRUNPARAM=b TOK_STRING=string TOK_ID=string TOK_INT=int TOK_VALUE=string outputparser/output_parser $<
 
 ###########################################################################
 
