@@ -72,7 +72,6 @@ let othp'' = ref Vempty
 let othitms = ref (Input_dump.empty_itms [])
 
 let tran v =
-  let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
   let rawp = parse_output_ast_from_file v in
   othrawp := rawp;
   let p = Source_text_verible_rewrite.rw rawp in
@@ -87,16 +86,18 @@ let tran v =
   List.iter (fun (modnam, uitms) ->
   print_endline "hardcaml_cnv";
   let rtl = Input_hardcaml.cnv (modnam, uitms) in
-  let uitms = Rtl_map.map modnam rtl in
-  let ilang = Cnv_ilang.cnv_ilang uitms in
+  let yliberty, ycells = Rtl_map.read_lib "liberty/simcells" in
+  let ilang = Cnv_ilang.cnv_ilang (Rtl_map.map ycells modnam rtl) in
   let _ = Rtlil_dump.dumprtl "_rev" ilang in
   let _ = Source_generic_main.rewrite_rtlil gold [ilang] in
  
   eqv modnam;
+  let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
+  dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)));
   sta (modnam^"_map.v") modnam liberty;
   ) (Verible_pat.cnv' othitms p'')
 
 let _ = if Array.length Sys.argv > 1 then ignore (tran Sys.argv.(1))
         else if (try int_of_string (Sys.getenv ("LIBERTY_DUMP")) > 0 with _ -> false) then
-                (let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
-		  print_endline ("Dumping cells: "^string_of_int (List.length !(Rtl_map.cells'))); Rtl_map.dumpv liberty);
+                (let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
+		  print_endline ("Dumping cells: "^string_of_int (List.length cells)); Rtl_map.dumpv cells liberty);

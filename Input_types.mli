@@ -248,6 +248,9 @@ and itms = {
   remove_interfaces: bool;
   mode: string;
   names'': (string * typetable_t ref) list;
+  cells: (string *
+          ((string * string) list *
+           (string * Rtl_parser.token * File_rewrite.liberty) list)) list;
 }
 
 type remap =
