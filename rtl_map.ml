@@ -66,6 +66,7 @@ let dflt_liberty = function
 | None ->
   (* https://raw.githubusercontent.com/ieee-ceda-datc/RDF-2019/master/techlibs/nangate45/NangateOpenCellLibrary_typical.lib *)   
   let stem = "liberty/NangateOpenCellLibrary_typical" in
+  let stem = "liberty/simcells" in
   (* from environment *)
   let stem = try Sys.getenv ("LIBERTY_LIB") with _ -> stem in
   stem
