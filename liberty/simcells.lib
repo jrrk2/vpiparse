@@ -56,6 +56,16 @@ library(yosys_cells) {
 	  pin(Y) { direction: output;
 		   function: "A"; }
 	}
+	cell(_DFF_N_) {
+		ff(IQ, IQN) {
+			clocked_on: "C";
+			next_state: "D";
+		}
+	  area: 6;
+	  pin(D) { direction: input; }
+		pin(C) { direction: input; clock: true; }
+		pin(Q) { direction: output; function: "IQ"; }
+	}
 	cell(_DFF_PP0_) {
 		ff(IQ, IQN) {
 			clocked_on: "C";

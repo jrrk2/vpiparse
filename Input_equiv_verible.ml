@@ -87,7 +87,7 @@ let tran v =
   print_endline "hardcaml_cnv";
   let rtl = Input_hardcaml.cnv (modnam, uitms) in
   let yliberty, ycells = Rtl_map.read_lib "liberty/simcells" in
-  let ilang = Cnv_ilang.cnv_ilang (Rtl_map.map ycells modnam rtl) in
+  let ilang = Cnv_ilang.cnv_ilang modnam (Rtl_map.map ycells modnam rtl) in
   let _ = Rtlil_dump.dumprtl "_rev" ilang in
   let _ = Source_generic_main.rewrite_rtlil gold [ilang] in
  

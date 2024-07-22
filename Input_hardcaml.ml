@@ -92,7 +92,7 @@ let adder_config a b = let wa, wb = width a, width b in function
 
 let add_fast model a_sig b_sig =
           (Hardcaml_circuits.Prefix_sum.create
-           ~config:(if model <> "" then print_endline ("add_fast model: "^model); adder_config a_sig b_sig model)
+           ~config:(if model <> "" then if false then print_endline ("add_fast model: "^model); adder_config a_sig b_sig model)
              (module Signal)
              ~input1:(a_sig)
              ~input2:(b_sig)
@@ -302,7 +302,7 @@ let unaryvpi = function
 | Uextends(string, int1, int2) -> failwith "Uextends"
 
 let cnv_op' oplst k = function
-        | Var v -> oplst := output k v.value :: !oplst; print_string "*"
+        | Var v -> oplst := output k v.value :: !oplst; if false then print_string "*"
         | Itm v -> ()
         | Con v -> ()
         | Alw v -> ()
@@ -310,7 +310,7 @@ let cnv_op' oplst k = function
         | Sigs v -> ()
         | Invalid -> ()
 
-let cnv_op oplst k x = let rslt = cnv_op' oplst k x in print_endline ("\tcnv_op: "^k); rslt
+let cnv_op oplst k x = let rslt = cnv_op' oplst k x in if false then print_endline ("\tcnv_op: "^k); rslt
 
 let cnv (modnam, modul) =
 begin
@@ -327,14 +327,14 @@ let add_decl k x = function
 
 let declare_input port = function
 | Width(hi,lo,signed) as w ->
-  print_endline ("Input: "^port^"["^string_of_int hi^":"^string_of_int lo^"]");
+  if false then print_endline ("Input: "^port^"["^string_of_int hi^":"^string_of_int lo^"]");
   let s = Signal.input port (hi-lo+1) in
   add_decl port (if signed then Sigs (Signed.of_signal s) else Sig s) w
 | oth -> otht := Some oth; failwith "declare_input" in
 
 let declare_wire wire = function
 | Width(hi,lo,signed) as wid -> let wid' = hi-lo+1 in
-  print_endline ("Wire: "^wire^"["^string_of_int hi^":"^string_of_int lo^"]");
+  if false then print_endline ("Wire: "^wire^"["^string_of_int hi^":"^string_of_int lo^"]");
   add_decl wire (Var (Always.Variable.wire ~default:(Signal.zero wid'))) wid
 | oth -> otht := Some oth; failwith "declare_wire" in
 
@@ -737,7 +737,7 @@ let rec (remap:remapp->remap) = function
 | Seq lst -> Alw (Always.proc (List.map (fun itm -> alw' (remap itm)) lst))
 | oth -> othr' := oth; failwith "remap othr'" in
 
-print_endline ("remapp' size = "^string_of_int (List.length remapp'));
+if false then print_endline ("remapp' size = "^string_of_int (List.length remapp'));
 othremapp' := remapp';
 othremapp'' := remapp'';
 othremapp''' := remapp''';

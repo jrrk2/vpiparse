@@ -14,6 +14,7 @@ open Hardcaml
 open Signal
 open Verible_pat
 open Input_cnv
+open Source_generic_main
 (*
 open Source_text_verible_rewrite
 open Source_text_verible
@@ -57,6 +58,8 @@ let v = "test/hardcaml/types.sv";;
 let v = "test/hardcaml/attributes-operator.sv";;
 let v = "test/hardcaml/slib_fifo.sv";;
 let v = "test/hardcaml/multiplier_test.sv";;
+let v = "test/hardcaml/counter_test.sv";;
+let v = "test/hardcaml/optest.sv";;
 
 let _ = Input_equiv_verible.tran v;;
 (* *)
@@ -64,7 +67,7 @@ let _ = Input_equiv_verible.tran v;;
 (*
 open Input_yosys
 
-let liberty = Rtl_map.read_lib "../outputparser/simcells";;
+let liberty, cells = Rtl_map.read_lib "../outputparser/simcells";;
 let form = snd !(Rtl_map.othf);;
 Formula_rewrite.rewrite form;;
 

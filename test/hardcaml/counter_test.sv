@@ -1,7 +1,7 @@
 module counter_test (
     input rst,
     input clk,
-    output reg [8:0] cnt);
+    output reg [7:0] cnt);
 
     always @(posedge clk)
         if (rst)

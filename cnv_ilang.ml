@@ -34,6 +34,8 @@ let dirmap ix = function
 let idxmap ix = function
 | (pin, ("", (BASDTYP, "wire", TYPRNG (HEX hi, HEX lo), []), dir, "wire", [])) ->
      Wire_stmt ([Wire_optionswidth (hi-lo+1); dirmap ix dir], ("\\"^pin))
+| (pin, ("", (BASDTYP, "wire", TYPNONE, []), dir, "wire", [])) ->
+     Wire_stmt ([dirmap ix dir], ("\\"^pin))
 | oth -> othidxmap := Some oth; failwith "cnv_ilang10"
 
 let typmap = function
@@ -46,8 +48,8 @@ let vmap = function
      Wire_stmt (typmap rng, nam)
     | oth -> othvmap := Some oth; failwith "cnv_ilang7"
 
-let cnv_ilang uitms =
-("\\multiplier_test",
-  Module12 ("\\multiplier_test", List.map (vmap) !(uitms.v) @
+let cnv_ilang modnam uitms =
+(("\\"^modnam),
+  Module12 (("\\"^modnam), List.map (vmap) !(uitms.v) @
     List.mapi (idxmap) !(uitms.io) @
     List.map (instmap) !(uitms.inst)) :: [])
