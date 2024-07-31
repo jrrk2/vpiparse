@@ -3,6 +3,16 @@ TRACET = --explain --trace
 
 ############################################################################
 
+XOBJ= dump_types.mli Input.mli Input_types.mli rtl_parser.mli rtl_parser.ml rtl_lexer.ml Input_dump.ml Input_cnv.ml Input_verilator.ml File.mli File.ml File_lex.ml File_rewrite.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml ord_input.ml Input_equiv_verilator.ml
+
+Input_verilator_top: $(XOBJ)
+	ocamlfind ocamlmktop -g -o $@ -package xml-light,base,hardcaml,hardcaml_waveterm,hardcaml_circuits -linkpkg $(XOBJ)
+
+Input_verilator: $(XOBJ)
+	ocamlfind ocamlopt -g -o $@ -package xml-light,base,hardcaml,hardcaml_waveterm,hardcaml_circuits -linkpkg $(XOBJ)
+
+############################################################################
+
 LOBJ= dump_types.mli Input.mli Input_types.mli rtl_parser.mli rtl_parser.ml rtl_lexer.ml Input_dump.ml Input_cnv.ml Input_pat4.ml File.mli File.ml File_lex.ml File_rewrite.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml Input.ml ord_input.ml Input_lex.ml Input_equiv.ml
 
 Input_equiv_top: $(LOBJ)

@@ -58,30 +58,21 @@ let sta gate stem liberty =
 
 open Input
 open Input_types
-open Input_pat4
 open Input_cnv
 open Input_dump
 open Input_hardcaml
 
-let p' = ref []
-
 let tran argv =
   let f = argv.(1) in
   print_endline ("tran "^f);
-  let ch = if f = "-" then stdin else open_in f in
-  let cache, p = Input_lex.parse_output_ast_from_chan ch in
-  close_in ch;
-  p' := p;
-  let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
-  if true then List.iter (dump' "_all") !allmods;
-  if true then List.iter (dump' "_top") !topmods;
+  let (line,range,rwxml,xml,mods,toplst,topattr,modules,packages,interfaces) = Input_verilator.translate () f in
+  if true then Hashtbl.iter (fun k x -> dump' "_all" (k,x)) modules;
   let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
   if Array.length argv > 4 then (print_endline ("Dumping cells: "^string_of_int (List.length cells)); Rtl_map.dumpv cells argv.(4));
-  List.iter (fun (modnam, (_, modul)) -> let rtl = cnv (modnam, modul) in Rtl_dump.dump modnam rtl;
-  dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)))) !topmods;
-  if Array.length argv > 2 then match !topmods with
-    | (modnam,_)::[] -> eqv argv.(2) (modnam^"_map.v") modnam liberty; sta (modnam^"_map.v") modnam liberty
-    | _ -> failwith "multiple top modules"
+  Hashtbl.iter (fun modnam (_, modul) -> let rtl = cnv (modnam, modul) in Rtl_dump.dump modnam rtl;
+  dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)))) modules;
+  if Array.length argv > 2 && Hashtbl.length modules = 1 then Hashtbl.iter (fun modnam (_, modul) -> 
+    eqv argv.(2) (modnam^"_map.v") modnam liberty; sta (modnam^"_map.v") modnam liberty) modules
 
 let tran' argv = if Array.length argv > 3 then eqv argv.(3) argv.(2) argv.(1) (Rtl_map.dflt_liberty None)
         else if Array.length argv > 1 then tran argv
