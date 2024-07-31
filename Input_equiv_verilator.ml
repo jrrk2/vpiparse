@@ -66,7 +66,7 @@ let tran argv =
   let f = argv.(1) in
   print_endline ("tran "^f);
   let (line,range,rwxml,xml,mods,toplst,topattr,modules,packages,interfaces) = Input_verilator.translate () f in
-  if true then Hashtbl.iter (fun k x -> dump' "_all" (k,x)) modules;
+  if true then Hashtbl.iter (fun k x -> dump' "_check" (k,x)) modules;
   let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
   if Array.length argv > 4 then (print_endline ("Dumping cells: "^string_of_int (List.length cells)); Rtl_map.dumpv cells argv.(4));
   Hashtbl.iter (fun modnam (_, modul) -> let rtl = cnv (modnam, modul) in Rtl_dump.dump modnam rtl;

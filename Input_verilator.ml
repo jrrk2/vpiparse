@@ -32,7 +32,6 @@ open Input_types
 open Dump_types
 
 let files = Hashtbl.create 255
-let functable = Hashtbl.create 255
 let tasktable = Hashtbl.create 255
 
 let itmothlst = ref []
@@ -193,7 +192,7 @@ let rec rw' attr = function
     let smpl = match simplify_asgn (dlyenc dly) attr dst src with hd :: [] -> hd | lst -> XML lst in
     smpl
 | Xml.Element ("if", [("loc", _)], xlst) -> IF ("", List.map (rw' attr) xlst)
-| Xml.Element ("add"|"sub"|"mul"|"muls" as op, [("loc", _); ("dtype_id", tid)], xlst) -> ARITH (arithop op, List.map (rw' attr) xlst)
+| Xml.Element ("add"|"sub"|"mul"|"muls"|"div"|"divs"|"moddiv"|"moddivs" as op, [("loc", _); ("dtype_id", tid)], xlst) -> ARITH (arithop op, List.map (rw' attr) xlst)
 | Xml.Element ("and"|"redand"|"or"|"redor"|"xor"|"redxor"|"xnor"|"redxnor"|"shiftl"|"shiftr"|"shiftrs" as log,
                [("loc", _); ("dtype_id", tid)], xlst) -> LOGIC (logop log, List.map (rw' attr) xlst)
 | Xml.Element ("eq"|"neq"|"gt"|"gts"|"gte"|"gtes"|"eqwild"|"neqwild"|"ltes"|"lte"|"lt"|"lts" as cmp, [("loc", _); ("dtype_id", tid)], xlst) ->
@@ -245,7 +244,7 @@ let rec rw' attr = function
 | Xml.Element (("fclose"|"finish"|"stop" as sys), [("loc", _)], xlst) -> SYS ("", "$"^sys, List.map (rw' attr) xlst)
 | Xml.Element ("initarray"|"sformat"|"initialstatic"|"stmtexpr" as op, _, xlst) -> SYS ("", "$"^op, List.map (rw' attr) xlst)
 | Xml.Element ("inititem", [("index", ix)], xlst) -> ITM ("", ix, List.map (rw' attr) xlst)
-| Xml.Element ("streaml"|"powsu"|"powss"|"realtobits"|"itord"|"rand"|"clog2"|"div"|"fopen" as op, [("loc", _); ("dtype_id", tid)], xlst) ->
+| Xml.Element ("streaml"|"powsu"|"powss"|"realtobits"|"itord"|"rand"|"clog2"|"fopen" as op, [("loc", _); ("dtype_id", tid)], xlst) ->
     SYS ("", "$"^op, List.map (rw' attr) xlst)
 | Xml.Element ("replicate", [("loc", _); ("dtype_id", tid)], xlst) -> REPL ("", int_of_string tid, List.map (rw' attr) xlst)
 | Xml.Element ("iface", [("loc", _); ("name", bus); ("origName", _)], xlst) ->
@@ -322,7 +321,7 @@ let rec catitm modules packages interfaces (pth:string option) itms names' = fun
         begin
         print_endline ("Generated function: "^fref);
         itms.needed := (FUNCTION,fref) :: !(itms.needed);
-        Hashtbl.add functable fref (mkextendfunc op);
+        itms.func := (fref, mkextendfunc op) :: !(itms.func)
         end
 | NTL(rw_lst)
 | RNG(rw_lst)
@@ -422,7 +421,6 @@ let rec catitm modules packages interfaces (pth:string option) itms names' = fun
     List.iter (catitm modules packages interfaces pth itms' names') rw_lst;
     let fn = ("", typ', rw_lst, itms') in
     itms.func := (nam, fn) :: !(itms.func);
-    Hashtbl.add functable nam fn;
 | IF("", rw_lst) ->
     List.iter (catitm modules packages interfaces pth itms names') rw_lst;
     itms.gen := ("",rw_lst) :: !(itms.gen)
@@ -508,8 +506,8 @@ let translate errlst xmlf =
 	NTL modlst;
 	CELLS (cell_lst,topattr)] -> (cell_lst,topattr) | _ -> ([],empty_attr()) in
     let toplst = List.flatten(List.map cell_hier cell_lst) in
-    let empty = empty_itms [] in
-    catitm modules packages interfaces None empty !(topattr.modulexml) rwxml;
+    let itms = empty_itms [] in
+    catitm modules packages interfaces None itms !(topattr.modulexml) rwxml;
     let top = snd(List.hd toplst) in
     print_endline ("toplevel is "^top);
     let mods = ref [] in

@@ -36,6 +36,7 @@ let othfunc = ref ""
 let othradix = ref (Void 33)
 let otharith = ref UNKNOWN
 let othlogop = ref Lunknown
+let othc = ref UNKNOWN
 let othcs = ref None
 let othcmp = ref Cunknown
 let othirng = ref UNKNOWN
@@ -298,8 +299,8 @@ let unaryvpi = function
 | Usigned -> Signed
 | Unegate -> Negate
 | Uunsigned -> Unsigned
-| Uextend(int1, int2) -> failwith "Uextend"
-| Uextends(string, int1, int2) -> failwith "Uextends"
+| Uextend(int1, int2) -> Unsigned
+| Uextends(string, int1, int2) -> Signed
 
 let cnv_op' oplst k = function
         | Var v -> oplst := output k v.value :: !oplst; if false then print_string "*"
@@ -430,6 +431,7 @@ let rec tranitm attr = function
 | CMP (cmpop, rw_lst) -> failwith "CMP"
 | IRNG (str1, rw_lst) as irng -> othirng := irng; failwith "IRNG"
 | CNST (w, HEX n) -> Hex (string_of_int n, w)
+| CNST (w, SHEX n) -> Unary(Signed, Hex (string_of_int n, w)) (* TBC *)
 | BGN (None, rw::[]) -> tranitm attr rw
 | BGN (None, rw_lst) -> Seq (List.map (tranitm attr) rw_lst)
 | BGN (Some str1, rw_lst) -> failwith "BGN"
@@ -447,7 +449,7 @@ Case (expr', List.map (function
 | CNST (_, FLT f) -> (string_of_float f)
 | CNST (_, ERR err) -> failwith "ERR"
 *)
-| CNST (_, err) -> failwith "CNST"
+| CNST (_, err) as c -> othc := c; failwith "CNST"
 | XML (rw_lst) -> failwith "XML"
 | EITM (str1, str2, str3, int2, rw_lst) -> failwith "EITM"
 | IO (str1, str2lst, typ2, dirop, str3, rw_lst) -> failwith "IO"
@@ -664,9 +666,10 @@ let remapunary' = function
 |Negate -> fold' (-:)
 |oth -> othr' := oth; failwith "remapop'" in
 
-let radix = function
+let rec radix = function
 | Dec (n, w) -> int_of_string n
 | Hex (s, w) -> Scanf.sscanf s "%x" (fun h -> h)
+| Unary (Signed, r) -> radix r
 | oth -> othradix := oth; failwith "radix" in
 
 let rec (remap:remapp->remap) = function

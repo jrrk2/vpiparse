@@ -8,14 +8,14 @@ open Input
 open Input_types
 open Input_dump
 open Input_hardcaml
+(*
 open Rtl_parser
 open Dump_types
 open Hardcaml
 open Signal
-open Verible_pat
 open Input_cnv
 open Source_generic_main
-(*
+open Verible_pat
 open Source_text_verible_rewrite
 open Source_text_verible
 *)
@@ -35,7 +35,7 @@ let _ = tran "uhdm.txt"
 let cell_param = ("\""^String.concat "\"|\"" (List.sort compare !truelst)^"\"");;
 *)
 
-(* *)
+(*
 let v = "examples/ariane_preproc.sv";;
 let v = "examples/picorv32_ref.v";;
 let v = "outputparser/examples/count0.v";;
@@ -62,7 +62,7 @@ let v = "test/hardcaml/counter_test.sv";;
 let v = "test/hardcaml/optest.sv";;
 
 let _ = Input_equiv_verible.tran v;;
-(* *)
+*)
 
 (*
 open Input_yosys

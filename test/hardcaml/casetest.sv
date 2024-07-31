@@ -1,7 +1,7 @@
 module casetest(clk, mode, u1, u2, y);
 
 input clk;
-input [0:0] mode;
+input mode;
 
 input [3:0] u1, u2;
 
