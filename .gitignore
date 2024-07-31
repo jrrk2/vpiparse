@@ -118,3 +118,4 @@ Rtlil_input_tokens.ml
 Source_generic_top
 hardcaml_of_verilog/
 *.ilang
+Input_verilator
