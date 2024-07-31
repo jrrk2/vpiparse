@@ -100,6 +100,7 @@ op_priority/
 relational/
 test_ashr/
 ternary/
+blocking_add/
 Source_text_verible.ml
 Source_text_verible.mli
 Source_text_verible.mly
@@ -109,3 +110,11 @@ Source_verible
 Source_verible_top
 Terminal\ Saved\ Output.txt
 parser_stderr.log
+Rtlil_input.ml
+Rtlil_input.mli
+Rtlil_input.mly
+Rtlil_input_lex.ml
+Rtlil_input_tokens.ml
+Source_generic_top
+hardcaml_of_verilog/
+*.ilang

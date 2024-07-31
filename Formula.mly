@@ -76,22 +76,21 @@
 ml_start: expr EOF_TOKEN { $1 }
 
 expr:     orfact { $1 }
-        | plusfact { $1 }
 
 orfact:   andfact VBAR orfact { TUPLE3($1, VBAR, $3) }
+        | andfact PLUS orfact { TUPLE3($1, VBAR, $3) }
         | andfact { $1 }
 
 andfact:  caretfact AMPERSAND andfact { TUPLE3($1, AMPERSAND, $3) }
+        | caretfact MULT andfact { TUPLE3($1, AMPERSAND, $3) }
         | caretfact { $1 }
 
 caretfact: fact CARET caretfact { TUPLE3($1, CARET, $3) }
-        | fact { $1 }
-
-plusfact: fact PLUS plusfact { TUPLE3($1, PLUS, $3) }
         | fact { $1 }
 
 fact:     IDENT { IDENT $1 }
         | NUM { NUM $1 }
         | LPAR expr RPAR { TUPLE3 (LPAR, $2, RPAR) }
 	| PLING fact { TUPLE2(PLING, $2) }
+	| fact QUOTE { TUPLE2(PLING, $1) }
 	

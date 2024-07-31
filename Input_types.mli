@@ -46,7 +46,8 @@ and remapp =
   | Unary of remapp * remapp
   | Dyadic of remapp * remapp * remapp
   | Case of remapp * remapp list
-  | Item of remapp * remapp * remapp
+  | Item of remapp * remapp
+  | Default of remapp
   | Signed
   | Unsigned
   | Conpp of token
@@ -247,6 +248,9 @@ and itms = {
   remove_interfaces: bool;
   mode: string;
   names'': (string * typetable_t ref) list;
+  cells: (string *
+          ((string * string) list *
+           (string * Rtl_parser.token * File_rewrite.liberty) list)) list;
 }
 
 type remap =
@@ -257,3 +261,12 @@ type remap =
   | Alw of Hardcaml.Always.t
   | Var of Hardcaml.Always.Variable.t
   | Itm of (Hardcaml.Signal.t * Hardcaml.Always.t list)
+
+type summary =
+  | Invalid_
+  | Con_
+  | Sig_
+  | Sigs_
+  | Alw_
+  | Var_
+  | Itm_

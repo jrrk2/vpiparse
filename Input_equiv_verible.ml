@@ -22,18 +22,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *)
 
-let eqv gold gate stem liberty =
+let eqv stem =
   let script = stem^".eqy" in
   let fd = open_out script in
   output_string fd ("[options]\n");
   output_string fd ("\n");
   output_string fd ("[gold]\n");
-  output_string fd ("read -sv "^gold^"\n");
+  output_string fd ("read_ilang "^stem^"_gold.ilang\n");
   output_string fd ("prep -top "^stem^"\n");
   output_string fd ("\n");
   output_string fd ("[gate]\n");
-  output_string fd ("read_liberty -ignore_miss_func "^liberty^".lib\n");
-  output_string fd ("read -sv "^gate^"\n");
+  output_string fd ("read_ilang "^stem^"_rev.ilang\n");
   output_string fd ("prep -top "^stem^"\n");
   output_string fd ("\n");
   output_string fd ("[strategy simple]\n");
@@ -66,31 +65,39 @@ open Source_text_verible_rewrite
 open Verible_pat
 open Input_dump
 
+let othrawp = ref End_of_file
 let othp = ref End_of_file
 let othp' = ref End_of_file
 let othp'' = ref Vempty
 let othitms = ref (Input_dump.empty_itms [])
 
 let tran v =
-  let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
   let rawp = parse_output_ast_from_file v in
+  othrawp := rawp;
   let p = Source_text_verible_rewrite.rw rawp in
-  let p' = Source_text_verible_rewrite.rw' p in
   othp := p;
+  let p' = Source_text_verible_rewrite.rw' p in
   othp' := p';
   let p'' = pat p' in
   othp'' := p'';
   print_endline "verible_pat_cnv";
-  let (modnam, uitms) = Verible_pat.cnv' othitms p'' in
+  let gold = snd (Rtlil_input_rewrite.parse (Rtlil_input_rewrite.parse_output_ast_from_pipe v)) in
+  List.iter (Rtlil_dump.dumprtl "_gold") gold;
+  List.iter (fun (modnam, uitms) ->
   print_endline "hardcaml_cnv";
   let rtl = Input_hardcaml.cnv (modnam, uitms) in
-  Rtl_map.map modnam rtl;
-  eqv v (modnam^"_map.v") modnam liberty;
+  let yliberty, ycells = Rtl_map.read_lib "liberty/simcells" in
+  let ilang = Cnv_ilang.cnv_ilang modnam (Rtl_map.map ycells modnam rtl) in
+  let _ = Rtlil_dump.dumprtl "_rev" ilang in
+  let _ = Source_generic_main.rewrite_rtlil gold [ilang] in
+ 
+  eqv modnam;
+  let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
+  dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)));
   sta (modnam^"_map.v") modnam liberty;
-  p'', uitms, rtl
+  ) (Verible_pat.cnv' othitms p'')
 
-let _ = if Array.length Sys.argv > 3 then eqv Sys.argv.(3) Sys.argv.(2) Sys.argv.(1) (Rtl_map.dflt_liberty None)
-        else if Array.length Sys.argv > 1 then ignore (tran Sys.argv.(1))
+let _ = if Array.length Sys.argv > 1 then ignore (tran Sys.argv.(1))
         else if (try int_of_string (Sys.getenv ("LIBERTY_DUMP")) > 0 with _ -> false) then
-                (let liberty = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
-		  print_endline ("Dumping cells: "^string_of_int (List.length !(Rtl_map.cells'))); Rtl_map.dumpv liberty);
+                (let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
+		  print_endline ("Dumping cells: "^string_of_int (List.length cells)); Rtl_map.dumpv cells liberty);

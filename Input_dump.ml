@@ -1015,7 +1015,7 @@ let rec uniqnam cnt stem instances =
     else
         uniq'
 
-let empty_itms names'' = {
+let empty_itms cells = {
 io=ref [];
 v=ref [];
 iv=ref [];
@@ -1032,7 +1032,8 @@ cnst=ref [];
 needed=ref [];
 remove_interfaces = false;
 mode="";
-names''=names'' }
+names''=[];
+cells=cells; }
 
 let rev_itms prev = {
 io=ref (List.rev !(prev.io));
@@ -1051,7 +1052,8 @@ cnst=ref (List.rev !(prev.cnst));
 needed=ref (List.rev !(prev.needed));
 remove_interfaces = prev.remove_interfaces;
 mode=prev.mode;
-names''=prev.names'' }
+names''=prev.names'';
+cells=prev.cells}
 
 let copy_itms prev = {
 io=ref !(prev.io);
@@ -1070,7 +1072,8 @@ cnst=ref !(prev.cnst);
 needed=ref !(prev.needed);
 remove_interfaces = prev.remove_interfaces;
 mode=prev.mode;
-names''=prev.names'' }
+names''=prev.names'';
+cells=prev.cells }
 
 let num x = NUM (HEX x)
 

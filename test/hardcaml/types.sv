@@ -32,14 +32,21 @@
 // Boston, MA  02111-1307  USA
 //
 
-module types(input wire CLK, RST, output wire sum);
+module types(input wire CLK, RST, output [2:0] sum);
 
-typedef enum logic [2:0] {IDLE, START} state_mach_t; // 674
-state_mach_t state; // 908
+   typedef enum logic [2:0] {IDLE, START, RUNNING, STOP} state_mach_t;
+   state_mach_t state, next;
 
-   wire	     bool;
+   always @(posedge CLK) state = next;
+
+   always_comb if (RST) next = IDLE; else case(state)
+    IDLE: next = START;
+    START: next = RUNNING;
+    RUNNING: next = STOP;
+    STOP: next = STOP;
+    default: next = IDLE;					    
+    endcase // case (state)
    
-  assign	     bool = CLK | RST;
-  assign	     sum = CLK + RST;
-   
+   assign sum = state;
+
 endmodule
