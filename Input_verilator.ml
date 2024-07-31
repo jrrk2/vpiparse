@@ -35,65 +35,16 @@ let files = Hashtbl.create 255
 let functable = Hashtbl.create 255
 let tasktable = Hashtbl.create 255
 
-(*
-let exprothlst = ref []
-let stmtothlst = ref []
-let portothlst = ref []
-let iothlst = ref []
-let csothlst = ref []
-let bgnothlst = ref []
-*)
 let itmothlst = ref []
-(*
- let catothlst = ref []
-let cellothlst = ref []
-*)
  let posneglst = ref []
-(*
-let typothlst = ref []
-let memothlst = ref []
-let mapothlst = ref []
-*)
 let subothlst = ref []
-(*
-let tskothlst = ref []
-let smpothlst = ref []
-let optothlst = ref []
-let xrflst = ref []
-*)
 let ntlopt = ref None
-(*
-let smplopt = ref None
-let selopt = ref None
-let optopt = ref None
-*)
 let rngopt = ref None
-(*
- let typopt = ref None
-let decopt = ref None
-*)
 let portopt = ref None
-(*
- let cellopt = ref None
-*)
 let instopt = ref None
-(*
- let arropt = ref []
-let asciiopt = ref None
-*)
 let itmopt = ref None
-(*
- let optitmopt = ref None
-let forlst = ref []
-let ternlst = ref []
-let optitmlst = ref []
-let widthlst = ref []
-*)
 
 let matchcnt = ref 0
-(*
- let empty_attr errlst = {anchor="a1";errlst=errlst;names=ref [];intf=ref [];instances=ref [];typetable=[||];modulexml=ref [];tmpvar=ref [];tmpasgn=ref []}
- *)
 
 let constnet = function
 | "1'h1" -> "supply1"
@@ -798,8 +749,7 @@ let rec dumpitm = function
 | NEGEDGE (str1) -> "NEGEDGE"^dumps str1^")"
 | COMB -> "COMB"
 | MODPORTFTR (str1, str2) -> "MODPORTFTR("^dumps str1^", "^dumps str2^")"
-| TYPETABLE arr -> "" (* "[|"^String.concat ";\n\t" (Array.to_list (Array.mapi (fun idx (typenc, str1, typmap, typ_lst) -> string_of_int idx^": TYP("^dumptyp typenc^", "^dumps str1^", "^dumpmap typmap^", "^dumpmlst typ_lst^")") arr))^"|]" *)
-| TIM _ -> "TIM"
+| TYPETABLE arr -> "" | TIM _ -> "TIM"
 | SCOPE tid -> "SCOPE "^tid
 | ITM _ -> "ITM"
 
@@ -912,7 +862,6 @@ let cell_traverse fd attr indent (nam, subnam) =
 				let actualtyp = List.assoc actual names' in
 				let (typenc2,str2,typmap2,typmaplst2) = !actualtyp in
                                 let str3 = if str2 = "" then !bus else str2 in
-(*			        if !str1 <> !str2 then *)
 				    begin
 				    output_string fd (indent^"formal: "^formal^", actual: "^actual^"\n");
 				    output_string fd (indent^"formaltype: "^dumptab !formtyp^", actualtype: "^dumptab !actualtyp^"\n");
