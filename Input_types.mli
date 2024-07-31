@@ -79,6 +79,8 @@ and remapp =
   | Divs
   | Mod
   | Mods
+  | Moddiv
+  | Moddivs
   | Pow
   | Pows
   | And

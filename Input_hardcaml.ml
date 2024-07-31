@@ -29,6 +29,7 @@ open Hardcaml
 open Always
 open Signal
 
+let othrepl = ref (REPL("",0,[]))
 let othsel' = ref (SEL ("", []))
 let othcse = ref []
 let othdflt = ref []
@@ -274,7 +275,9 @@ let arithopvpi = function
 | Amods -> Mods
 | Apow -> Pow
 | Apows -> Pows
-| Aunknown -> failwith "Aunknown"
+| Astring -> failwith "Astring"
+| Aenum -> failwith "Aenum"
+| Asyscall -> failwith "Asyscall"
 
 let logopvpi = function
 | Lunknown -> failwith "Lunknown"
@@ -474,7 +477,7 @@ Case (expr', List.map (function
 | XRF (str1, str2, str3, str4, dirop) -> failwith "XRF"
 | PKG (str1, str2, rw_lst) -> failwith "PKG"
 | CPS (str1, rw_lst) -> failwith "CPS"
-| REPL (str1, int2, rw_lst) -> failwith "REPL"
+| REPL (str1, int2, rw_lst) as r -> othrepl := r; failwith "REPL"
 | MODUL (str1, str2, rw_lst, tmp) -> failwith "MODUL"
 | RNG (rw_lst) -> failwith "RNG"
 | ALWYS (str1, rw_lst) -> failwith "ALWYS"

@@ -38,13 +38,15 @@ let arithopint = function
 | Adiv|Adivs -> ( / )
 | Amod|Amods -> ( mod )
 | Apow|Apows -> ( fun lft rght -> let rec pow = function n when n > 0 -> lft * pow (n-1) | _ -> 1 in pow rght )
-| Aunknown -> (fun _ _ -> failwith "Aunknown")
+| Astring -> failwith "arithopint"
+| Aenum -> failwith "arithopint"
+| Asyscall -> failwith "arithopint"
 
 let rec cnstexpr modul = function
 | HEX int -> int
 | SHEX int -> int
 | ENUMVAL (int, string) -> int
-| CNSTEXP (Aunknown, STRING fn::rght::[]) -> failwith fn
+| CNSTEXP (Astring, STRING fn::rght::[]) -> failwith fn
 | CNSTEXP (arithop, lft::rght::[]) -> (arithopint arithop) (cnstexpr modul lft) (cnstexpr modul rght)
 | STRING string -> let (_, (w, cnst)) = List.assoc string !(modul.cnst) in cnstexpr modul cnst
 (*
@@ -183,12 +185,22 @@ let logop = function
 |"shiftrs" -> Lshiftrs
 | _ -> Lunknown
 
+let otharithop = ref ""
+
 let arithop = function
 |"add" -> Aadd ""
 |"sub" -> Asub
 |"mul" -> Amul
 |"muls" -> Amuls
-| _ -> Aunknown
+|"div" -> Adiv
+|"divs" -> Adivs
+|"mod" -> Amod
+|"mods" -> Amods
+|"pow" -> Apow
+|"pows" -> Apows
+|"moddiv" -> Amod
+|"moddivs" -> Amods
+| oth -> otharithop := oth; failwith "Input_dump.arithop"
 
 let chkvif nam =
        let m = "__Viftop" in
@@ -255,6 +267,11 @@ let cexp exp = match exp.[0] with
     try Scanf.sscanf exp "%d'b%s" (fun b s -> (b, decodebin b s)) with err ->
     try Scanf.sscanf exp "%d'sh%x" (fun b n -> (b, SHEX n)) with err ->
     try Scanf.sscanf exp "%d'bx" (fun b -> (b, BIN 'x')) with err ->
+    try Scanf.sscanf exp "%d&apos;h%x" (fun b n -> (b, HEX n)) with err ->
+    try Scanf.sscanf exp "%d&apos;h%s" (fun b s -> (b, decode b s)) with err ->
+    try Scanf.sscanf exp "%d&apos;b%s" (fun b s -> (b, decodebin b s)) with err ->
+    try Scanf.sscanf exp "%d&apos;sh%x" (fun b n -> (b, SHEX n)) with err ->
+    try Scanf.sscanf exp "%d&apos;bx" (fun b -> (b, BIN 'x')) with err ->
     try Scanf.sscanf exp "%d" (fun n -> (32, SHEX n)) with err ->
     try Scanf.sscanf exp "%f" (fun f -> (64, FLT f)) with err -> (-1,ERR exp)
 
@@ -434,7 +451,9 @@ let dumparith = function
 | Amods -> "Amods"
 | Apow -> "Apow"
 | Apows -> "Apows"
-| Aunknown -> "Aunknown"
+| Astring -> "Astring"
+| Aenum -> "Aenum"
+| Asyscall -> "Asyscall"
 
 let dumpstrlst lst = "["^String.concat ";\n\t" (List.map dumps lst)^"]"
 
@@ -527,7 +546,9 @@ let arithopv = function
 | Adiv | Adivs -> "/"
 | Amod | Amods -> "%"
 | Apow | Apows -> "**"
-| Aunknown -> "???"
+| Astring -> "??? Astring"
+| Aenum -> "??? Aenum"
+| Asyscall -> "??? Asyscall"
 
 let dumpi n = string_of_int n
 let dumpcnst (w,n) = dumpsized w n
@@ -539,7 +560,7 @@ let rec dumpr = function
 | STRING s -> s
 | FLT f -> string_of_float f
 | BIGINT i -> hex_of_bigint 64 i
-| CNSTEXP (Aunknown, STRING fn::rght::[]) -> fn^" "^(dumpr rght)
+| CNSTEXP (Astring, STRING fn::rght::[]) -> fn^" "^(dumpr rght)
 | CNSTEXP (op, lft::rght::[]) -> (dumpr lft)^" "^arithopv op^" "^(dumpr rght)
 | CNSTEXP _ -> failwith "CNSTEXP"
 | ENUMVAL _ -> failwith "ENUMVAL"
@@ -1228,6 +1249,7 @@ let rec reformat1 = function
 
 let rec reformat2 = function
 | [] -> []
+| FUNCTION :: SP :: NL :: WIRE :: SP :: tl -> FUNCTION :: SP :: reformat2 tl
 | BEGIN lbl :: NL :: NL :: tl -> reformat2 (BEGIN lbl :: NL :: tl)
 | ENDCASE :: SEMI :: tl -> ENDCASE :: reformat2 ( NL :: tl )
 | END :: NL :: SEMI :: NL :: (END|ENDCASE as end') :: tl -> reformat2 (END :: NL :: end' :: tl)
@@ -1333,7 +1355,7 @@ let rec cnstexpr = function
 | ENUMVAL (int, string) -> SP :: []
 | FLT float -> SP :: []
 | BIGINT int64t -> SP :: []
-| CNSTEXP (Aunknown, STRING fn::rght::[]) -> IDENT fn :: LPAREN :: cnstexpr rght @ [RPAREN]
+| CNSTEXP (Astring, STRING fn::rght::[]) -> IDENT fn :: LPAREN :: cnstexpr rght @ [RPAREN]
 | CNSTEXP (arithop, cexp_lst) -> List.flatten (List.mapi (fun ix itm -> (if ix > 0 then IDENT (arithopv arithop) else SP) :: cnstexpr itm) cexp_lst)
 
 let rec widshow id rng = function
@@ -1637,7 +1659,7 @@ let dump intf f modul =
     ) (!(modul.io));
   head := !head @ (if !delim <> COMMA then !delim :: [] else []) @ [RPAREN;SEMI];
   List.iter (function
-	     | (nam, (_, (w, CNSTEXP (Aunknown, lst)))) -> let delim = ref (NL :: IDENT "typedef" :: SP :: IDENT "enum" :: SP :: SP :: LCURLY :: []) in
+	     | (nam, (_, (w, CNSTEXP (Aenum, lst)))) -> let delim = ref (NL :: IDENT "typedef" :: SP :: IDENT "enum" :: SP :: SP :: LCURLY :: []) in
  head := !head @ NL :: List.flatten (List.map (function
 | ENUMVAL(n,s) -> let field = !delim @ (IDENT s :: EQUALS :: num n :: []) in delim := COMMA :: SP :: []; field
 | oth -> []) lst) @ [RCURLY; SP ; IDENT nam; SEMI; NL] | _ -> ()) (!(modul.cnst));

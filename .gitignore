@@ -101,6 +101,7 @@ relational/
 test_ashr/
 ternary/
 blocking_add/
+optest0_15/
 Source_text_verible.ml
 Source_text_verible.mli
 Source_text_verible.mly

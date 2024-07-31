@@ -198,7 +198,7 @@ let _Porthighrng itms dir nam typrng =
     if not (List.mem_assoc nam !(itms.io)) then
  vadd itms (nam, ("", (BASDTYP, "wire", typrng, []), "wire", (UNKDTYP, "", TYPNONE, []))) 
 let _Enum itms enum_t lst =
-  if not (List.mem_assoc enum_t !(itms.cnst)) then itms.cnst := (enum_t,(false,(0,CNSTEXP(Aunknown, List.map (function
+  if not (List.mem_assoc enum_t !(itms.cnst)) then itms.cnst := (enum_t,(false,(0,CNSTEXP(Aenum, List.map (function
   | TUPLE5 (Enum_const, STRING enam, TUPLE2 (INT, Int n), Vpidecompile _, TUPLE2 (Vpisize, Int _)) -> ENUMVAL (n, enam)
   | _ -> STRING "unknown") lst)))) :: !(itms.cnst)
 let _Param itms param = function
@@ -241,7 +241,7 @@ let rec _cnstexpr = function
 | CNST (w, lft) -> lft
 | ARITH(arithop, args) -> CNSTEXP(arithop, List.map _cnstexpr args)
 | VRF (param, (BASDTYP, "wire", TYPNONE, []), []) -> STRING param
-| SYS ("", syscall, args) -> CNSTEXP(Aunknown, STRING syscall :: List.map _cnstexpr args)
+| SYS ("", syscall, args) -> CNSTEXP(Asyscall, STRING syscall :: List.map _cnstexpr args)
 | oth -> oth' := oth; failwith "_cnstexpr oth'"
 let _Range itms (lft, rght) = TYPRNG(_cnstexpr lft, _cnstexpr rght)
 let _Place itms (n, _, _) = SCOPE ("Place"^string_of_int n)

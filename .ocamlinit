@@ -1,16 +1,19 @@
 #directory "/Users/jonathan/.opam/default/lib/hardcaml";;
 #directory "/Users/jonathan/.opam/default/lib/base";;
 #directory "/Users/jonathan/.opam/default/lib/hardcaml";;
+#directory "/Users/jonathan/.opam/default/lib/xml-light";;
 #directory "outputparser";;
 #directory "hardcaml_of_verilog/_build/install/default/lib/hardcaml_of_verilog";;
 
+open Xml
 open Input
 open Input_types
 open Input_dump
 open Input_hardcaml
+open Dump_types
+open Input_equiv_verilator
 (*
 open Rtl_parser
-open Dump_types
 open Hardcaml
 open Signal
 open Input_cnv

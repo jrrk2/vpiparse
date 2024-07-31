@@ -50,7 +50,6 @@ type logop =
 | Lshiftrs
 
 type arithop =
-| Aunknown
 | Aadd of string
 | Asub
 | Amul
@@ -61,6 +60,9 @@ type arithop =
 | Amods
 | Apow
 | Apows
+| Astring
+| Aenum
+| Asyscall
 
 type dirop = 
 | Dunknown
