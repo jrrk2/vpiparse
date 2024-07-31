@@ -73,11 +73,6 @@ let rec rw' attr = function
             | "package" -> PACKAGE
             | oth -> failwith ("unexpected instance: "^oth)),uniq'))
         | oth -> instopt := Some oth; failwith "instopt") tlst);
-(*
-    let fd = open_out "instances.txt" in
-    let indent = ref 0 in List.iter (fun (k, (kind,n)) -> output_string fd (k^": "^tokencnv indent kind^" "^n^"\n")) !(attr.instances);
-    close_out fd;
-*)
     let attr' = {attr with typetable=typtable} in
     let tlst' = List.map (rw' attr') tlst in
     let opt1 = optitm' false tlst' in
@@ -222,12 +217,6 @@ let rec rw' attr = function
     let attr' = {attr with anchor="";names=ref [];tmpvar=ref []} in
     let xlst' = List.map (rw' attr') xlst in
     attr.modulexml := (nam', ("", xlst', !(attr'.names))) :: !(attr.modulexml);
-(*
-    let fd = open_out (nam'^".elem") in
-    output_string fd (dumplst xlst');
-    output_string fd ("\n["^String.concat ";\n " (List.map (fun (k,x) -> dumps k^", "^dumptab !x) !(attr'.names))^"]\n");
-    close_out fd;
-*)
     MODUL ("", nam', xlst', !(attr'.tmpvar))
 | Xml.Element ("case", [("loc", _)], xlst) -> CS ("", List.map (rw' attr) xlst)
 | Xml.Element ("caseitem", [("loc", _)], xlst) -> CSITM ("", List.map (rw' attr) xlst)
@@ -256,7 +245,7 @@ let rec rw' attr = function
 | Xml.Element (("fclose"|"finish"|"stop" as sys), [("loc", _)], xlst) -> SYS ("", "$"^sys, List.map (rw' attr) xlst)
 | Xml.Element ("initarray"|"sformat"|"initialstatic"|"stmtexpr" as op, _, xlst) -> SYS ("", "$"^op, List.map (rw' attr) xlst)
 | Xml.Element ("inititem", [("index", ix)], xlst) -> ITM ("", ix, List.map (rw' attr) xlst)
-| Xml.Element ("initarray"|"streaml"|"powsu"|"powss"|"realtobits"|"itord"|"rand"|"clog2"|"div"|"fopen" as op, [("loc", _); ("dtype_id", tid)], xlst) ->
+| Xml.Element ("streaml"|"powsu"|"powss"|"realtobits"|"itord"|"rand"|"clog2"|"div"|"fopen" as op, [("loc", _); ("dtype_id", tid)], xlst) ->
     SYS ("", "$"^op, List.map (rw' attr) xlst)
 | Xml.Element ("replicate", [("loc", _); ("dtype_id", tid)], xlst) -> REPL ("", int_of_string tid, List.map (rw' attr) xlst)
 | Xml.Element ("iface", [("loc", _); ("name", bus); ("origName", _)], xlst) ->
@@ -286,13 +275,6 @@ let rec rw' attr = function
 | Xml.Element ("cells", [], xlst) ->
     attr.intf := [];
     let xlst' = List.map (rw' attr) xlst in
-(*    let fd = open_out "traverse.cell" in
-    let rec traverse' indent = function
-        | CELL("", nam, subnam', hier, xlst) -> cell_traverse fd attr indent (nam,subnam'); List.iter (traverse' (indent^"  ")) xlst
-        | _ -> () in
-    List.iter (traverse' "") xlst';
-    close_out fd;
-*)
     CELLS(xlst', attr)
 | Xml.Element ("cell", [("loc", _); ("name", nam); ("submodname", subnam); ("hier", hier)], xlst) ->
     let (_,subnam') = if List.mem_assoc subnam !(attr.instances) then
@@ -326,11 +308,6 @@ let rec rw' attr = function
 	| (t, s, typ, lst) -> (t, s, typ, List.map subtypmap lst)
     and maptyp ix = maptyp' (lookup ix) in
     List.iter (fun (ix, typ') -> typarr.(ix) <- maptyp ix) types;
-(*
-    let fd = open_out "typetable.debug" in
-    Array.iteri (fun ix itm -> output_string fd (string_of_int ix^":"^dumptab itm^"\n")) typarr;
-    close_out fd;
-*)
     TYPETABLE typarr
 | Xml.Element ("scopename", [("loc", _); ("dtype_id", tid)], []) -> SCOPE tid
 | Xml.Element ("conspackuorstruct", [("loc", _); ("dtype_id", tid)], xlst) -> CONSPACK (tid, List.map (rw' attr) xlst)
@@ -477,7 +454,6 @@ let rec catitm modules packages interfaces (pth:string option) itms names' = fun
 | MODUL("", nam', rw_lst, tmpvar) ->
     print_endline ("Module: "^nam');
     itmopt := Some rw_lst;
-    let (orig'', xlst'', names'') = List.assoc nam' names' in
     let itms = empty_itms [] in
     List.iter (fun (str1, (str2, typ1)) ->
         itms.v := (str1, ("", typ1, str1, (UNKDTYP,"",TYPNONE,[]))) :: !(itms.v)) tmpvar;
@@ -491,7 +467,6 @@ let rec catitm modules packages interfaces (pth:string option) itms names' = fun
     List.iter (catitm modules packages interfaces (Some nam') itms names') rw_lst;
     Hashtbl.add packages nam' ("", itms)
 | IFC("", nam', rw_lst) ->
-    let (orig'', xlst'', names'') = List.assoc nam' names' in
     let itms' = empty_itms [] in
     List.iter (catitm modules packages interfaces (Some nam') itms' names') rw_lst;
     Hashtbl.add interfaces nam' ("", itms')
@@ -506,238 +481,6 @@ let rec catitm modules packages interfaces (pth:string option) itms names' = fun
 | ITM _ -> ()
 | oth -> itmothlst := oth :: !itmothlst; failwith "itmothlst;;1508"
 
-(*
-let chktyp = function
-| "wire" -> WIRE
-| "logic" -> LOGIC
-| oth -> LOGIC
-
-let iolst modul delim dir io = function
-| (IFCRFDTYP dir, kind, TYPNONE, []) as typ' -> !delim :: IDENT kind :: DOT :: IDENT dir :: SP :: IDENT io :: SP :: LCOMMENT :: IDENT (dumptab typ') :: RCOMMENT :: []
-| (STRDTYP, _, TYPNONE, typlst) as typ' ->
-    let (widlst,cnst,rng) = findmembers' typ' in
-    !delim :: DIR dir :: SP :: LOGIC :: SP :: widshow io rng widlst @ comment widlst
-| (typenc, kind, typmap, rng) as typ' ->
-    let (widlst,cnst,rng) = findmembers' typ' in
-    !delim :: DIR dir :: SP :: chktyp kind :: SP :: widshow io rng widlst @ comment widlst
-
-let fndlm = function
-| FIRSTG -> LPAREN::RPAREN::SEMI::[]
-| IOSTG -> RPAREN::SEMI::[]
-| VARSTG
-| JMPSTG
-| BDYSTG -> SEMI :: []
-	     
-let rec fnstmt modul dly stg = function
-| IO ("", iolst', typ', dir, _, lst) ->
-    let lst = List.flatten (List.map (fun io -> iolst modul (ref (if !stg = FIRSTG then LPAREN else COMMA)) dir io typ') iolst') in
-    stg := IOSTG;
-    lst
-| VAR ("", idlst, typ', _) -> 
-    let dlm = fndlm !stg in
-    stg := VARSTG;
-    dlm @ List.flatten (List.map (fun id -> varlst modul (ref NL) typ' id) idlst)
-| JMPL("", rw_lst) ->
-    let dlm = fndlm !stg in
-    stg := JMPSTG;
-    dlm @ BEGIN None :: (List.flatten (List.map (fnstmt modul dly stg) rw_lst)) @ [SEMI;END]
-| JMPG (_,[]) -> []
-| itm ->
-    let dlm = fndlm !stg in
-    stg := BDYSTG;
-    dlm @ cstmt modul dly itm
-
-let rec taskstmt modul dly nam = function
-| BGN(_,rw_lst) -> List.flatten (List.map (taskstmt modul dly nam) rw_lst)
-| itm -> cstmt modul dly itm @ SEMI :: []
-
-let outnam f = f^".v"
-let outnamopt f = let l = String.length f in f^(if l < 4 || String.sub f (l-4) 4 <> "_opt" then "_opt.v" else ".v")
-let outtok f = f^"_tokens.txt"
-let outtcl f = "./"^f^"_fm.tcl"
-
-let needed modul (kind,nam) = match kind with
-| FUNCTION ->
-    print_endline ("Searching function: "^nam);
-    let found = List.mem_assoc nam !(modul.func) in
-    let ("", typ', lst, itms') = if found then
-        List.assoc nam !(modul.func)
-    else
-        Hashtbl.find functable nam in
-    let stg = ref FIRSTG in let lst = fsrc "" :: FUNCTION :: SP :: (varlst modul (ref NL) typ' nam) @
-    List.flatten (List.map (fnstmt modul false stg) (List.tl lst)) in
-    lst @ (fndlm !stg @ [ENDFUNCTION;NL])
-| TASK ->
-    print_endline ("Searching task: "^nam);
-    let found = List.mem_assoc nam !(modul.task) in
-    let ("", lst, itms') = if found then
-        List.assoc nam !(modul.task)
-    else
-        Hashtbl.find tasktable nam in
-    let lst = List.flatten (List.map (taskstmt modul false nam) lst) in
-    fsrc "" :: TASK :: SP :: IDENT nam :: SEMI :: BEGIN None :: lst @ END :: ENDTASK :: []
-| oth -> failwith "needed"
-
-let othedg = ref None
-
-let dump intf f ("", modul) =
-  let appendlst = ref [] in
-  let append lst = appendlst := lst :: !appendlst in
-  if true then print_endline ("f \""^f^"\";; /* "^outnam f^" : "^outtcl f ^" */");
-  let head = ref [fsrc ""; if intf then INTERFACE else MODULE; SP; IDENT f] in
-  let delim = ref LPAREN in
-  List.iter (fun (io, ("", typ', dir, kind', lst)) -> 
-    head := !head @ iolst modul delim dir io typ';
-    delim := COMMA;
-    ) (!(modul.io));
-  head := !head @ (if !delim <> COMMA then !delim :: [] else []) @ [RPAREN;SEMI];
-  List.iter (fun (id, ("", typ', kind', n)) -> append (fsrc "" :: varlst modul (ref NL) typ' id @ SEMI :: NL :: []);
-                 ) (List.rev !(modul.v));
-  List.iter (fun itm -> append (needed modul itm)) (List.rev !(modul.needed));
-  List.iter (fun (a, ("", lst)) -> let delim = ref LPAREN in
-    let lst = MODPORT :: SP :: IDENT a ::
-    List.flatten (List.map (fun (nam',dir') -> let lst = !delim :: DIR dir' :: SP :: IDENT nam' :: [] in delim := COMMA; lst) lst) @
-    [RPAREN; SEMI] in
-    append ((fsrc "") :: lst)) !(modul.imp);  
-  List.iter (fun ("", dst, src) ->
-                 append (fsrc "" :: ASSIGN :: SP :: expr modul dst @ (SP :: ASSIGNMENT :: SP:: expr modul src @ SEMI :: NL :: []));
-                 ) (List.rev !(modul.ca));
-  List.iter (function
-    | ("", COMB, (SNTRE [] :: lst)) ->
-      append (fsrc "" :: ALWAYS :: AT :: STAR :: flatten1 modul false lst);
-    | ("", COMB, (BGN (None, lst) :: [])) ->
-      append (fsrc "" :: ALWAYS :: AT :: STAR :: flatten1 modul false lst);
-    | ("", COMB, (SNTRE deplst) :: lst) ->
-      append (fsrc "" :: ALWAYS :: AT :: let delim = ref [SP;LPAREN] in List.flatten (List.map (function
-      | VRF (nam, _, _) -> let dep = !delim @ [IDENT nam] in delim := SP :: IDENT "or" :: SP :: []; dep
-      | oth -> []) deplst) @ RPAREN :: SP :: flatten1 modul false lst);
-    | ("", POSPOS (ck, rst), lst) ->
-      append (fsrc "" :: ALWAYS :: AT :: LPAREN :: POSEDGE :: SP :: IDENT ck :: COMMA :: POSEDGE :: SP :: IDENT rst :: RPAREN :: flatten1 modul true lst);
-    | ("", POSNEG (ck, rst), lst) ->
-      append (fsrc "" :: ALWAYS :: AT :: LPAREN :: POSEDGE :: SP :: IDENT ck :: COMMA :: NEGEDGE :: SP :: IDENT rst :: RPAREN :: flatten1 modul true lst);
-    | ("", NEGNEG (ck, rst), lst) ->
-      append (fsrc "" :: ALWAYS :: AT :: LPAREN :: NEGEDGE :: SP :: IDENT ck :: COMMA :: NEGEDGE :: SP :: IDENT rst :: RPAREN :: flatten1 modul true lst);
-    | ("", POSEDGE (ck), lst) ->
-      append (fsrc "" :: ALWAYS :: AT :: LPAREN :: POSEDGE :: SP :: IDENT ck :: RPAREN :: flatten1 modul true lst);
-    | ("", NEGEDGE (ck), lst) ->
-      append (fsrc "" :: ALWAYS :: AT :: LPAREN :: NEGEDGE :: SP :: IDENT ck :: RPAREN :: flatten1 modul true lst);
-    | ("", _, lst) as edg -> othedg := Some edg; failwith "edge specification not implemented";
-    ) (List.rev (List.map (fun ("",edg,lst) -> ("", edg, lst)) !(modul.alwys)));
-  List.iter (fun (inst, ("", kind, lst)) ->
-                 let delim = ref SP in
-                 let lst = List.flatten (List.map (fun term -> let lst = !delim :: portconn modul term in delim := COMMA; lst) lst) in
-                 append (fsrc "" :: IDENT kind :: SP :: IDENT inst :: LPAREN :: lst @ [RPAREN;SEMI]);
-                 ) !(modul.inst);
-  List.iter (fun ("", tok, lst) -> append (fsrc "" :: tok :: flatten1 modul false lst);
-                 ) !(modul.init);
-  !head @ List.flatten (List.sort compare !appendlst) @ [NL;if intf then ENDINTERFACE else ENDMODULE;NL;NL]
-
-let rec iterate depth f (modorig, modul) =
-    let indent = String.make depth ' ' in
-    let newitms = copy_itms modul in
-    newitms.ir := [];
-    newitms.inst := [];
-    print_string (indent^"Scanning instances of "^f^": ["^String.concat ";" (List.map (fun (inst, (_,kind,_)) -> inst^"("^kind^")") !(modul.inst))^"]");
-    List.iter (fun (inst, ("", kind, iolst)) ->
-        if Hashtbl.mem interfaces kind then
-           begin
-           let (_, intf) = Hashtbl.find interfaces kind in
-           List.iter (fun (nam, ("", typ', kind, n)) ->
-                 let pth = inst^"_"^nam in
-                 newitms.v := (pth, (modorig, typ', kind, n)) :: !(newitms.v);
-                ) !(intf.v);
-           end
-        else if Hashtbl.mem modules kind then
-           begin
-           print_endline (indent^"Iterating: "^kind);
-           let (kindorig, itms) = Hashtbl.find modules kind in
-           let newiolst = ref [] in
-           let newinnerlst = ref [] in
-	   let previolst = !(itms.io) in
-           List.iter2 (fun ((_, ("", typ', idir', typ'', ilst)) as inr) -> function
-		       | VRF (id, typ', []) ->
-                           newiolst := PORT("", id, idir', [VRF(id, typ', [])]) :: !newiolst;
-                           newinnerlst := inr :: !newinnerlst;
-		       | PORT ("", id_i, Dvif bus, VRF (id, _, []) :: []) as pat ->
-                           if List.mem_assoc id !(modul.inst) then
-                               begin
-                               let (_,inam,_) = List.assoc id !(modul.inst) in
-                               print_endline (indent^id^" is a local bus mapped to "^inam);
-                               bus := inam;
-                               end;
-                           print_endline (indent^id^" connects to "^id_i);
-                           let inam = !bus in
-                           print_endline (indent^id^" maps to "^inam);
-                           if Hashtbl.mem interfaces inam then (match typ' with (IFCRFDTYP iport, simple, TYPNONE, []) ->
-                              begin
-                              print_endline (indent^iport^" matched");
-                              let (_, intf) = Hashtbl.find interfaces inam in
-                              print_endline (indent^"Searching for "^ iport);
-                              if List.mem_assoc iport !(intf.imp) then
-                              let ("", lst) = List.assoc iport !(intf.imp) in
-                              List.iter (fun (nam, dir) ->
-                                    print_endline (indent^inam^":"^iport^":"^nam^":"^id_i);
-                                    let (_, typ', kind, _) = List.assoc nam !(intf.v) in
-                                    newiolst := PORT("", id_i^"_"^nam, dir, [VRF(id^"_"^nam, typ', [])]) :: !newiolst;
-                                    newinnerlst := (id_i^"_"^nam, ("", typ', dir, typ'', ilst)) :: !newinnerlst) lst
-                              else print_endline (indent^"Direction "^ iport ^" not found");
-                              end
-                           | _ ->
-                              print_endline (indent^dumptab typ'^" did not match");
-                              newiolst := pat :: !newiolst; newinnerlst := inr :: !newinnerlst)
-			   else
-                               begin
-			       newiolst := pat :: !newiolst;
-			       newinnerlst := inr :: !newinnerlst;
-			       end
-		       | PORT _ as pat -> newiolst := pat :: !newiolst; newinnerlst := inr :: !newinnerlst
-		       | oth -> portothlst := oth :: !portothlst; failwith "portothlst"
-		       ) previolst iolst;
-           let newiolst = List.rev !newiolst in
-           let newinnerlst = List.rev !newinnerlst in
-	   let kind_opt = kind^"_opt" in
-           if not (Hashtbl.mem modules_opt kind_opt) then
-               begin
-               let newinneritms = copy_itms itms in
-               newinneritms.io := newinnerlst;
-               let newhash = (kindorig, newinneritms) in
-	       iterate (depth+2) kind newhash
-               end;
-           newitms.inst := (inst, ("", kind_opt, newiolst)) :: !(newitms.inst);
-           end
-        ) !(modul.inst);
-    newitms.inst := List.rev (!(newitms.inst));
-    Hashtbl.replace modules_opt (f^"_opt") (modorig, newitms);
-    print_endline (indent^f^" done")
-
-let dumpform f f' separate = 
-    let fd = open_out (outtcl f') in
-    let srcpath = try Sys.getenv "XMLSRCPATH" with err -> "." in
-    Printf.fprintf fd "#!/opt/synopsys/fm_vO-2018.06-SP3/bin/fm_shell -f\n";
-    Printf.fprintf fd "set hdlin_warn_on_mismatch_message \"FMR_ELAB-115 FMR_ELAB-117 FMR_ELAB-146 FMR_ELAB-147 FMR_VLOG-928\"\n";
-    Printf.fprintf fd "read_sverilog -container r -libname WORK -12 { \\\n";
-    let plst = ref [] in Hashtbl.iter (fun _ (s,_) -> plst := fst (find_source s) :: !plst) packages;
-    let iflst = List.map snd (if Hashtbl.mem hierarchy f then Hashtbl.find hierarchy f else []) in
-    let hlst = List.sort_uniq compare (List.map (fun k -> let (s, _) = if Hashtbl.mem modules k then Hashtbl.find modules k else (k, empty_itms []) in fst (find_source s)) (f::iflst)) in
-    let slst = !plst @ hlst in
-    List.iter (fun src -> if src.[0] == '/' then Printf.fprintf fd "%s \\\n" src else Printf.fprintf fd "%s/%s \\\n" srcpath src) slst;
-    Printf.fprintf fd "}\n";
-    Printf.fprintf fd "set_top r:/WORK/%s\n" f;
-    Printf.fprintf fd "read_sverilog -container i -libname WORK -12 { \\\n";
-    let hlst' = List.sort_uniq compare (f' :: (if separate then iflst else [])) in
-    List.iter (fun nam -> Printf.fprintf fd "%s \\\n" (outnamopt nam)) hlst';
-    Printf.fprintf fd "}\n";
-    Printf.fprintf fd "set_top i:/WORK/%s\n" f';
-    Printf.fprintf fd "match\n";
-    Printf.fprintf fd "report_potentially_constant_registers\n";
-    Printf.fprintf fd "verify\n";
-    Printf.fprintf fd "report_failing_points -inputs unmatched -inputs undriven\n";
-    Printf.fprintf fd "analyze_points -all\n";
-    Printf.fprintf fd "quit\n";
-    close_out fd;
-    Unix.chmod (outtcl f') 0o740    
-*)
-    
 let rec debug f (origin, modul) =
   let fd = open_out (f^".debug") in
   dumpitms fd modul;
