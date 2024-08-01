@@ -102,6 +102,8 @@ test_ashr/
 ternary/
 blocking_add/
 optest0_15/
+shift_left/
+shift_test/
 Source_text_verible.ml
 Source_text_verible.mli
 Source_text_verible.mly
