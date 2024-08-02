@@ -10,4 +10,11 @@ end
 
 print("fact=",factorial(6))
 
-
+v = "test/hardcaml/multiplier_test.sv"
+lib = "liberty/simcells"
+-- verible.tran(v)
+print(verible.tranlst(v))
+print(yosys.gold(v))
+print(liberty.read(lib))
+print(itms.itm())
+print(verible.tranitm(""))

@@ -58,13 +58,29 @@ C.register_module "Pair"
             )
     ] g;        
  
-    C.register_module "Example" 
+    C.register_module "Sys" 
     ["argv",   (V.list V.string).V.embed (Array.to_list Sys.argv);
      "getenv", V.efunc (V.string **->> V.string) Sys.getenv;
     ] g;
  
-    C.register_module "verible" 
-    ["tran", V.efunc (V.string **->> V.unit) Input_equiv_verible.tran;
+    C.register_module "verible" [
+    "tran", V.efunc (V.string **->> V.unit) Input_equiv_verible.tran;
+    "tranlst", V.efunc (V.string **->> V.string) Input_equiv_verible.ltranlst;
+    "tranitm", V.efunc (V.string **->> V.string) Input_equiv_verible.ltranitm;
+    ] g;
+
+    C.register_module "yosys" [
+    "gold", V.efunc (V.string **->> V.string) Input_equiv_verible.lyosys;
+    ] g;
+
+    C.register_module "itms" [
+    "itm", V.efunc (V.unit **->> V.string) Input_equiv_verible.litms;
+    ] g;
+
+    C.register_module "liberty" [
+    "read", V.efunc (V.string **->> V.string) Input_equiv_verible.lreadlib;
+    "dump", V.efunc (V.string **->> V.unit) Input_equiv_verible.ldumplib;
+    "test", V.efunc (V.string **->> V.string) (fun x -> x);
     ] g;
 
     end (* M *)
@@ -85,12 +101,20 @@ module I =			    (* interpreter *)
 	(Lua.Parser.MakeStandard)
 	(Lua.MakeEval (T) (C))
 
+let cmdline verbose eval itm =
+  if verbose then print_endline ("argv: "^itm);
+  let fd = open_in itm in
+  let itm = ref "" in
+  try while true do let s = input_line fd in itm := !itm ^ "\n" ^ s done with _ -> ();
+  close_in fd;
+  if verbose then print_endline ("eval: "^ !itm);
+  try eval !itm with e -> print_endline (Printexc.to_string_default e)
 
 let main args =
-    let verbose = try int_of_string (Sys.getenv ("LUA_CLIENT_VERBOSE")) > 1 with _ -> false in
+    let verbose = try int_of_string (Sys.getenv ("LUA_CLIENT_VERBOSE")) > 0 with _ -> false in
     let state   = I.mk () in (* fresh Lua interpreter *)
     let eval e  = ignore (I.dostring state e) in
-    List.iter (fun itm -> if verbose then print_endline ("eval: "^itm); eval itm) args;
+    List.iter (cmdline verbose eval) args;
     while true do
     print_string "toplevel> ";
     let itm = ref "" in
@@ -99,6 +123,4 @@ let main args =
     if verbose then print_endline ("eval: "^ !itm);
     try eval !itm with e -> print_string (Printexc.to_string_default e^"\n* "); done
 
-let _ = main [] (* was: (List.tl (Array.to_list Sys.argv)) *)
-    
-
+let _ = main (List.tl (Array.to_list Sys.argv))

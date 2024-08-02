@@ -65,13 +65,24 @@ open Source_text_verible_rewrite
 open Verible_pat
 open Input_dump
 
+type libcell = string *
+          ((string * string) list *
+           (string * Rtl_parser.token * File_rewrite.liberty) list)
+
+type luaitm =
+| Cnvlst of string * Input_types.itms
+| Rtlil of string * Rtlil_input_rewrite_types.ilang list
+| Lib of string * libcell list
+
 let othrawp = ref End_of_file
 let othp = ref End_of_file
 let othp' = ref End_of_file
 let othp'' = ref Vempty
 let othitms = ref (Input_dump.empty_itms [])
 
-let tran v =
+let lhash = Hashtbl.create 257
+
+let tranlst v =
   let rawp = parse_output_ast_from_file v in
   othrawp := rawp;
   let p = Source_text_verible_rewrite.rw rawp in
@@ -81,23 +92,77 @@ let tran v =
   let p'' = pat p' in
   othp'' := p'';
   print_endline "verible_pat_cnv";
-  let gold = snd (Rtlil_input_rewrite.parse (Rtlil_input_rewrite.parse_output_ast_from_pipe v)) in
-  List.iter (Rtlil_dump.dumprtl "_gold") gold;
-  List.iter (fun (modnam, uitms) ->
+  Verible_pat.cnv' othitms p''
+
+let tranitm lib gold modnam uitms =
   print_endline "hardcaml_cnv";
   let rtl = Input_hardcaml.cnv (modnam, uitms) in
   let yliberty, ycells = Rtl_map.read_lib "liberty/simcells" in
   let ilang = Cnv_ilang.cnv_ilang modnam (Rtl_map.map ycells modnam rtl) in
   let _ = Rtlil_dump.dumprtl "_rev" ilang in
   let _ = Source_generic_main.rewrite_rtlil gold [ilang] in
- 
   eqv modnam;
-  let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
+  let liberty, cells = Rtl_map.read_lib lib in
   dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)));
-  sta (modnam^"_map.v") modnam liberty;
-  ) (Verible_pat.cnv' othitms p'')
+  sta (modnam^"_map.v") modnam liberty
 
-let _ = if Array.length Sys.argv > 1 then ignore (tran Sys.argv.(1))
-        else if (try int_of_string (Sys.getenv ("LIBERTY_DUMP")) > 0 with _ -> false) then
-                (let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
-		  print_endline ("Dumping cells: "^string_of_int (List.length cells)); Rtl_map.dumpv cells liberty);
+let ltranitm itm = 
+  let rtl = ref "" in
+  let modnam = ref "" in
+  let gold = ref ("",[]) in
+  let yliberty = ref "" and ycells = ref [] in
+  Hashtbl.iter (fun k -> function
+  | Cnvlst (nam, itms) -> modnam := nam; rtl := Input_hardcaml.cnv (nam, itms)
+  | Rtlil (nam, itms) -> gold := (nam, itms)
+  | Lib (nam, itms) -> yliberty := nam; ycells := itms
+  | oth -> ()) lhash;
+  let ilang = Cnv_ilang.cnv_ilang !modnam (Rtl_map.map !ycells !modnam !rtl) in
+  let _ = Source_generic_main.rewrite_rtlil [!gold] [ilang] in
+  "finished"
+
+let gold_yosys v =
+  snd (Rtlil_input_rewrite.parse (Rtlil_input_rewrite.parse_output_ast_from_pipe v))
+
+let tran v =
+  let cnvlst = tranlst v in 
+  let gold = gold_yosys v in
+  List.iter (Rtlil_dump.dumprtl "_gold") gold;
+  let lib = Rtl_map.dflt_liberty None in
+  List.iter (fun (modnam, uitms) -> tranitm lib gold modnam uitms) cnvlst
+
+let ldumplib lib =
+  let liberty, cells = match Hashtbl.find lhash lib with
+    | Lib (liberty, cells) -> liberty, cells
+    | oth -> failwith ("item "^lib^" is not a library") in
+  print_endline ("Dumping cells: "^string_of_int (List.length cells));
+  Rtl_map.dumpv cells liberty
+
+let nxtitm' =
+  let itm = ref 0 in fun () -> incr itm; "itm"^string_of_int !itm
+
+let ltranlst v =
+  let cnvlst = tranlst v in
+  let nxtitm = ref "" in
+  List.iter (fun (nam,itm) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Cnvlst (nam,itm))) cnvlst;
+  !nxtitm
+
+let lyosys v =
+  let gold = gold_yosys v in 
+  let nxtitm = ref "" in
+  List.iter (fun (nam, itm) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Rtlil (nam, itm))) gold;
+  !nxtitm
+
+let lreadlib lib =
+  let liberty, cells = Rtl_map.read_lib lib in
+  let nxtitm = nxtitm' () in
+  Hashtbl.add lhash nxtitm (Lib (liberty, cells));
+  nxtitm
+
+let litms () =
+  let itmlst = ref [] in
+  Hashtbl.iter (fun k -> function
+  | Cnvlst (nam, itms) -> itmlst := (k^"\t"^nam^"\tverilog items") :: !itmlst
+  | Rtlil (nam, itms) -> itmlst := (k^"\t"^nam^"\trtlil items") :: !itmlst
+  | Lib (nam, itms) -> itmlst := (k^"\t"^nam^"\tlibrary items") :: !itmlst
+  | oth -> itmlst := (k ^ "\tunknown item\n") :: !itmlst) lhash;
+  String.concat "\n" (List.sort compare !itmlst)
