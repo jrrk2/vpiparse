@@ -58,19 +58,24 @@ C.register_module "Pair"
             )
     ] g;        
  
-    C.register_module "Sys" 
-    ["argv",   (V.list V.string).V.embed (Array.to_list Sys.argv);
-     "getenv", V.efunc (V.string **->> V.string) Sys.getenv;
+    C.register_module "Sys" [
+    "argv",   (V.list V.string).V.embed (Array.to_list Sys.argv);
+    "getenv", V.efunc (V.string **->> V.string) Sys.getenv;
+    "test", V.efunc (V.string **-> V.string **->> V.string) (fun x y -> x^y);
     ] g;
  
     C.register_module "verible" [
     "tran", V.efunc (V.string **->> V.unit) Input_equiv_verible.tran;
     "tranlst", V.efunc (V.string **->> V.string) Input_equiv_verible.ltranlst;
-    "tranitm", V.efunc (V.string **->> V.string) Input_equiv_verible.ltranitm;
+    "tranitm", V.efunc (V.string **-> V.string **-> V.string **->> V.string) Input_equiv_verible.ltranitm;
     ] g;
 
     C.register_module "yosys" [
     "gold", V.efunc (V.string **->> V.string) Input_equiv_verible.lyosys;
+    ] g;
+
+    C.register_module "hardcaml" [
+    "cnv", V.efunc (V.string **->> V.string) Input_equiv_verible.lhardcnv;
     ] g;
 
     C.register_module "itms" [
@@ -80,7 +85,6 @@ C.register_module "Pair"
     C.register_module "liberty" [
     "read", V.efunc (V.string **->> V.string) Input_equiv_verible.lreadlib;
     "dump", V.efunc (V.string **->> V.unit) Input_equiv_verible.ldumplib;
-    "test", V.efunc (V.string **->> V.string) (fun x -> x);
     ] g;
 
     end (* M *)

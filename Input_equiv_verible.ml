@@ -73,6 +73,7 @@ type luaitm =
 | Cnvlst of string * Input_types.itms
 | Rtlil of string * Rtlil_input_rewrite_types.ilang list
 | Lib of string * libcell list
+| Rtl of string * string
 
 let othrawp = ref End_of_file
 let othp = ref End_of_file
@@ -81,6 +82,9 @@ let othp'' = ref Vempty
 let othitms = ref (Input_dump.empty_itms [])
 
 let lhash = Hashtbl.create 257
+
+let nxtitm' =
+  let itm = ref 0 in fun () -> incr itm; "itm"^string_of_int !itm
 
 let tranlst v =
   let rawp = parse_output_ast_from_file v in
@@ -106,19 +110,30 @@ let tranitm lib gold modnam uitms =
   dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)));
   sta (modnam^"_map.v") modnam liberty
 
-let ltranitm itm = 
-  let rtl = ref "" in
-  let modnam = ref "" in
-  let gold = ref ("",[]) in
-  let yliberty = ref "" and ycells = ref [] in
-  Hashtbl.iter (fun k -> function
-  | Cnvlst (nam, itms) -> modnam := nam; rtl := Input_hardcaml.cnv (nam, itms)
-  | Rtlil (nam, itms) -> gold := (nam, itms)
-  | Lib (nam, itms) -> yliberty := nam; ycells := itms
-  | oth -> ()) lhash;
-  let ilang = Cnv_ilang.cnv_ilang !modnam (Rtl_map.map !ycells !modnam !rtl) in
-  let _ = Source_generic_main.rewrite_rtlil [!gold] [ilang] in
-  "finished"
+let find_cnv itm = match Hashtbl.find lhash itm with
+    | Cnvlst (nam, itms) -> nam, itms
+    | oth -> failwith ("item "^itm^" is not a verilog uitm")
+
+let find_rtl itm = match Hashtbl.find lhash itm with
+    | Rtl (nam, itms) -> nam, itms
+    | oth -> failwith ("item "^itm^" is not a verilog uitm")
+
+let find_gold itm = match Hashtbl.find lhash itm with
+    | Rtlil (nam, itms) -> nam, itms
+    | oth -> failwith ("item "^itm^" is not a RTLIL itm")
+
+let find_lib lib = match Hashtbl.find lhash lib with
+    | Lib (liberty, cells) -> liberty, cells
+    | oth -> failwith ("item "^lib^" is not a library")
+
+let ltranitm lib gold rtlitm = 
+  let modnam, rtl = find_rtl rtlitm in
+  let gold = find_gold gold in
+  let yliberty, ycells = find_lib lib in
+  let ilang = Cnv_ilang.cnv_ilang modnam (Rtl_map.map ycells modnam rtl) in
+  let status = Source_generic_main.rewrite_rtlil [gold] [ilang] in
+  if false then print_endline status;
+  status
 
 let gold_yosys v =
   snd (Rtlil_input_rewrite.parse (Rtlil_input_rewrite.parse_output_ast_from_pipe v))
@@ -131,14 +146,16 @@ let tran v =
   List.iter (fun (modnam, uitms) -> tranitm lib gold modnam uitms) cnvlst
 
 let ldumplib lib =
-  let liberty, cells = match Hashtbl.find lhash lib with
-    | Lib (liberty, cells) -> liberty, cells
-    | oth -> failwith ("item "^lib^" is not a library") in
+  let liberty, cells = find_lib lib in
   print_endline ("Dumping cells: "^string_of_int (List.length cells));
   Rtl_map.dumpv cells liberty
 
-let nxtitm' =
-  let itm = ref 0 in fun () -> incr itm; "itm"^string_of_int !itm
+let lhardcnv itm =
+  let modnam, itms = find_cnv itm in
+  let rtl = Input_hardcaml.cnv (modnam, itms) in
+  let nxtitm = nxtitm' () in
+  Hashtbl.add lhash nxtitm (Rtl (modnam, rtl));
+  nxtitm
 
 let ltranlst v =
   let cnvlst = tranlst v in
@@ -164,5 +181,9 @@ let litms () =
   | Cnvlst (nam, itms) -> itmlst := (k^"\t"^nam^"\tverilog items") :: !itmlst
   | Rtlil (nam, itms) -> itmlst := (k^"\t"^nam^"\trtlil items") :: !itmlst
   | Lib (nam, itms) -> itmlst := (k^"\t"^nam^"\tlibrary items") :: !itmlst
-  | oth -> itmlst := (k ^ "\tunknown item\n") :: !itmlst) lhash;
+  | Rtl (nam, itms) -> itmlst := (k^"\t"^nam^"\tcompiled items") :: !itmlst
+  (*
+   | oth -> itmlst := (k ^ "\tunknown item\n") :: !itmlst
+  *)
+) lhash;
   String.concat "\n" (List.sort compare !itmlst)
