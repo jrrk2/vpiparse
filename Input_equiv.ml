@@ -65,29 +65,16 @@ open Input_hardcaml
 
 let p' = ref []
 
-let tran argv =
-  let f = argv.(1) in
-  print_endline ("tran "^f);
-  let ch = if f = "-" then stdin else open_in f in
-  let cache, p = Input_lex.parse_output_ast_from_chan ch in
-  close_in ch;
+let tran pipe src =
+  print_endline ("tran "^pipe);
+  let cache, p = Input_lex.parse_output_ast_from_uhdm_pipe pipe in
   p' := p;
   let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
   if true then List.iter (dump' "_all") !allmods;
   if true then List.iter (dump' "_top") !topmods;
   let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
-  if Array.length argv > 4 then (print_endline ("Dumping cells: "^string_of_int (List.length cells)); Rtl_map.dumpv cells argv.(4));
   List.iter (fun (modnam, (_, modul)) -> let rtl = cnv (modnam, modul) in Rtl_dump.dump modnam rtl;
   dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)))) !topmods;
-  if Array.length argv > 2 then match !topmods with
-    | (modnam,_)::[] -> eqv argv.(2) (modnam^"_map.v") modnam liberty; sta (modnam^"_map.v") modnam liberty
+  match !topmods with
+    | (modnam,_)::[] -> eqv src (modnam^"_map.v") modnam liberty; sta (modnam^"_map.v") modnam liberty
     | _ -> failwith "multiple top modules"
-
-let tran' argv = if Array.length argv > 3 then eqv argv.(3) argv.(2) argv.(1) (Rtl_map.dflt_liberty None)
-        else if Array.length argv > 1 then tran argv
-        else if (try int_of_string (Sys.getenv ("LIBERTY_DUMP")) > 0 with _ -> false) then
-                (let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
-		  print_endline ("Dumping cells: "^string_of_int (List.length cells)); Rtl_map.dumpv cells liberty)
-
-let _ = if Array.length Sys.argv > 1 then tran' Sys.argv else
-        try tran' (Array.of_list (Sys.argv.(0) :: String.split_on_char ';' (Sys.getenv ("EQUIV_VERILOG")))) with err -> print_endline (Printexc.to_string err)

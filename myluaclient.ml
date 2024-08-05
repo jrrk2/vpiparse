@@ -66,17 +66,19 @@ C.register_module "Pair"
     ] g;
  
     C.register_module "verible" [
-    "tran", V.efunc (V.string **->> V.unit) Input_equiv_verible.tran;
     "tranlst", V.efunc (V.string **->> V.string) Input_equiv_verible.ltranlst;
-    "tranitm", V.efunc (V.string **-> V.string **-> V.string **->> V.string) Input_equiv_verible.ltranitm;
+    "cnvitm", V.efunc (V.string **-> V.string **->> V.string) Input_equiv_verible.lcnvitm;
+    "mapitm", V.efunc (V.string **-> V.string **->> V.string) Input_equiv_verible.lmapitm;
+    "cmpitm", V.efunc (V.string **-> V.string **->> V.string) Input_equiv_verible.lcmpitm;
     ] g;
 
     C.register_module "verilator" [
     "tran", V.efunc (V.string **-> V.string **->> V.unit) Input_equiv_verilator.tran;
     ] g;
 
-    C.register_module "yosys" [
-    "gold", V.efunc (V.string **->> V.string) Input_equiv_verible.lyosys;
+    C.register_module "pipe" [
+    "uhdm", V.efunc (V.string **-> V.string **->> V.unit) Input_equiv.tran;
+    "rtlil", V.efunc (V.string **->> V.string) Input_equiv_verible.lrtlil;
     ] g;
 
     C.register_module "hardcaml" [
@@ -85,11 +87,18 @@ C.register_module "Pair"
 
     C.register_module "itms" [
     "itm", V.efunc (V.unit **->> V.string) Input_equiv_verible.litms;
+    "nam", V.efunc (V.string **->> V.string) Input_equiv_verible.lnam;
+    "dump", V.efunc (V.string **-> V.string **->> V.unit) Input_equiv_verible.ldump;
     ] g;
 
     C.register_module "liberty" [
     "read", V.efunc (V.string **->> V.string) Input_equiv_verible.lreadlib;
     "dump", V.efunc (V.string **->> V.unit) Input_equiv_verible.ldumplib;
+    ] g;
+
+    C.register_module "external" [
+    "eqv", V.efunc (V.string **->> V.string) Input_equiv_verible.eqv;
+    "sta", V.efunc (V.string **-> V.string **-> V.string **->> V.unit) Input_equiv_verible.sta;
     ] g;
 
     end (* M *)

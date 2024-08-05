@@ -124,3 +124,4 @@ hardcaml_of_verilog/
 Input_verilator
 Input_verilator_top
 Source_combined
+Source_combined_top

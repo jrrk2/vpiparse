@@ -1,0 +1,28 @@
+
+print(Sys.test("Hello","World"))
+
+v = Sys.arg(2)
+lib = "liberty/simcells"
+ver = verible.tranlst(v)
+print(ver)
+gold = pipe.rtlil("yosys -q -q -p 'read_verilog -sv "..v.."; synth; write_ilang'")
+print(gold)
+lib = liberty.read(lib)
+print(lib)
+cnv = hardcaml.cnv(ver)
+print(cnv)
+ilang=verible.cnvitm(lib,cnv)
+print(verible.cmpitm(gold,ilang))
+print(itms.itm())
+topmod=itms.nam(ver)
+print(topmod)
+itms.dump("_gold",gold)
+itms.dump("_rev",ilang)
+print(external.eqv(topmod))
+maplib="liberty/NangateOpenCellLibrary_typical"
+libmap = liberty.read(maplib)
+print(lib)
+itmmap=verible.mapitm(libmap,cnv)
+print(ilangmap)
+itms.dump("_map",itmmap)
+print(external.sta(topmod.."_map.v",topmod,maplib))

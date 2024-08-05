@@ -40,7 +40,7 @@ let eqv stem =
   output_string fd ("depth 10\n");
   output_string fd ("\n");
   close_out fd;
-  print_endline ("Status = "^string_of_int (Sys.command ("eqy -f "^script)))
+  string_of_int (Sys.command ("eqy -f "^script))
 
 let sta gate stem liberty =
   let env = "STA_"^stem in
@@ -105,7 +105,7 @@ let tranitm lib gold modnam uitms =
   let ilang = Cnv_ilang.cnv_ilang modnam (Rtl_map.map ycells modnam rtl) in
   let _ = Rtlil_dump.dumprtl "_rev" ilang in
   let _ = Source_generic_main.rewrite_rtlil gold [ilang] in
-  eqv modnam;
+  print_endline ("Status = "^eqv modnam);
   let liberty, cells = Rtl_map.read_lib lib in
   dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)));
   sta (modnam^"_map.v") modnam liberty
@@ -118,7 +118,7 @@ let find_rtl itm = match Hashtbl.find lhash itm with
     | Rtl (nam, itms) -> nam, itms
     | oth -> failwith ("item "^itm^" is not a verilog uitm")
 
-let find_gold itm = match Hashtbl.find lhash itm with
+let find_gold_gate itm = match Hashtbl.find lhash itm with
     | Rtlil (nam, itms) -> nam, itms
     | oth -> failwith ("item "^itm^" is not a RTLIL itm")
 
@@ -126,24 +126,31 @@ let find_lib lib = match Hashtbl.find lhash lib with
     | Lib (liberty, cells) -> liberty, cells
     | oth -> failwith ("item "^lib^" is not a library")
 
-let ltranitm lib gold rtlitm = 
+let lcnvitm lib rtlitm = 
   let modnam, rtl = find_rtl rtlitm in
-  let gold = find_gold gold in
   let yliberty, ycells = find_lib lib in
-  let ilang = Cnv_ilang.cnv_ilang modnam (Rtl_map.map ycells modnam rtl) in
+  let nam,ilang = Cnv_ilang.cnv_ilang modnam (Rtl_map.map ycells modnam rtl) in
+  let nxtitm = nxtitm' () in
+  Hashtbl.add lhash nxtitm (Rtlil (nam, ilang));
+  nxtitm
+
+let lmapitm lib rtlitm = 
+  let modnam, rtl = find_rtl rtlitm in
+  let liberty, cells = find_lib lib in
+  let map = Rtl_map.map cells modnam rtl in
+  let nxtitm = nxtitm' () in
+  Hashtbl.add lhash nxtitm (Cnvlst (modnam, map));
+  nxtitm
+
+let lcmpitm gold rtlitm = 
+  let gold = find_gold_gate gold in
+  let ilang = find_gold_gate rtlitm in
   let status = Source_generic_main.rewrite_rtlil [gold] [ilang] in
   if false then print_endline status;
   status
 
-let gold_yosys v =
-  snd (Rtlil_input_rewrite.parse (Rtlil_input_rewrite.parse_output_ast_from_pipe v))
-
-let tran v =
-  let cnvlst = tranlst v in 
-  let gold = gold_yosys v in
-  List.iter (Rtlil_dump.dumprtl "_gold") gold;
-  let lib = Rtl_map.dflt_liberty None in
-  List.iter (fun (modnam, uitms) -> tranitm lib gold modnam uitms) cnvlst
+let gold_rtlil v =
+  snd (Rtlil_input_rewrite.parse (Rtlil_input_rewrite.parse_output_ast_from_rtlil_pipe v))
 
 let ldumplib lib =
   let liberty, cells = find_lib lib in
@@ -163,8 +170,8 @@ let ltranlst v =
   List.iter (fun (nam,itm) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Cnvlst (nam,itm))) cnvlst;
   !nxtitm
 
-let lyosys v =
-  let gold = gold_yosys v in 
+let lrtlil v =
+  let gold = gold_rtlil v in 
   let nxtitm = ref "" in
   List.iter (fun (nam, itm) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Rtlil (nam, itm))) gold;
   !nxtitm
@@ -175,6 +182,20 @@ let lreadlib lib =
   Hashtbl.add lhash nxtitm (Lib (liberty, cells));
   nxtitm
 
+let lnam itm =
+  match Hashtbl.find lhash itm with
+  | Cnvlst (nam, itms) -> nam
+  | Rtlil (nam, itms) -> nam
+  | Lib (nam, itms) -> nam
+  | Rtl (nam, itms) -> nam
+
+let ldump stem itm =
+  match Hashtbl.find lhash itm with
+  | Cnvlst (nam, itms) -> dump' stem (nam, ((), (itms)))
+  | Rtlil (nam, itms) -> Rtlil_dump.dumprtl stem (nam, itms)
+  | Lib (nam, itms) -> failwith ("Library "^nam^" cannot be dumped with this command")
+  | Rtl (nam, itms) -> failwith ("RTL "^nam^" cannot be dumped with this command")
+
 let litms () =
   let itmlst = ref [] in
   Hashtbl.iter (fun k -> function
@@ -182,8 +203,5 @@ let litms () =
   | Rtlil (nam, itms) -> itmlst := (k^"\t"^nam^"\trtlil items") :: !itmlst
   | Lib (nam, itms) -> itmlst := (k^"\t"^nam^"\tlibrary items") :: !itmlst
   | Rtl (nam, itms) -> itmlst := (k^"\t"^nam^"\tcompiled items") :: !itmlst
-  (*
-   | oth -> itmlst := (k ^ "\tunknown item\n") :: !itmlst
-  *)
 ) lhash;
   String.concat "\n" (List.sort compare !itmlst)

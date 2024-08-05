@@ -65,7 +65,22 @@ open Input_hardcaml
 let othmod = ref ("", empty_itms [])
 let othxml = ref (Xml.PCData "")
 
-let tran f src =
+let read' lst x = try
+  let entry = Unix.readdir x in
+  print_endline entry;
+  lst := entry :: !lst; true with End_of_file -> Unix.closedir x; false
+
+let status f =
+  let stat = Unix.stat f in
+  match stat.st_kind with
+  | S_REG -> f
+  | S_DIR -> let x=Unix.opendir f in
+    let lst = ref [] and busy = ref true in
+    while !busy do busy := read' lst x done; f^"/"^(List.hd !lst)
+  | oth -> failwith "filt type not handled"
+
+let tran f' src =
+  let f = status f' in
   print_endline ("tran "^f);
   let (line,range,rwxml,xml,mods,toplst,topattr,modules,packages,interfaces) = Input_verilator.translate () f in
   othxml := xml;

@@ -422,5 +422,20 @@ let parse_output_ast_from_chan ch =
       failwith (Printf.sprintf "Output.parse: parse error at character %d" n);
   in
   output
+
+let parse_output_ast_from_uhdm_pipe p =
+  let ch = Unix.open_process_in p in
+  let lb = Lexing.from_channel ch in
+  let output = try
+      ml_start (deflate token) lb
+  with
+    | Parsing.Parse_error ->
+      let n = Lexing.lexeme_start lb in
+      failwith (Printf.sprintf "Output.parse: parse error at character %d" n);
+  in
+  let _ = Unix.close_process_in ch in
+  output
+
+
 (* *)
 }

@@ -115,7 +115,9 @@ Source_yosys: $(YSRC)
 
 EOBJ= Input_verilator.ml Input_equiv_verilator.ml
 
-COBJ=$(VSRC) $(GEN) outputparser/Source_generic_main.ml Input_equiv_verible.ml $(EOBJ) myluaclient.ml
+IOBJ= Input_pat4.ml Input_equiv.ml
+
+COBJ=$(VSRC) $(GEN) outputparser/Source_generic_main.ml Input_equiv_verible.ml $(EOBJ) $(IOBJ) myluaclient.ml
 
 Source_combined_top: $(COBJ)
 	ocamlfind ocamlmktop -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml -linkpkg -g -o $@ -I +unix -I outputparser $(COBJ)
