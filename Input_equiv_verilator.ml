@@ -65,24 +65,13 @@ open Input_hardcaml
 let othmod = ref ("", empty_itms [])
 let othxml = ref (Xml.PCData "")
 
-let tran argv =
-  let f = argv.(1) in
+let tran f src =
   print_endline ("tran "^f);
   let (line,range,rwxml,xml,mods,toplst,topattr,modules,packages,interfaces) = Input_verilator.translate () f in
   othxml := xml;
   if true then Hashtbl.iter (fun k x -> othmod := x; dump' "_check" (k,x)) modules;
   let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
-  if Array.length argv > 4 then (print_endline ("Dumping cells: "^string_of_int (List.length cells)); Rtl_map.dumpv cells argv.(4));
   Hashtbl.iter (fun modnam (_, modul) -> let rtl = cnv (modnam, modul) in Rtl_dump.dump modnam rtl;
   dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)))) modules;
-  if Array.length argv > 2 && Hashtbl.length modules = 1 then Hashtbl.iter (fun modnam (_, modul) -> 
-    eqv argv.(2) (modnam^"_map.v") modnam liberty; sta (modnam^"_map.v") modnam liberty) modules
-
-let tran' argv = if Array.length argv > 3 then eqv argv.(3) argv.(2) argv.(1) (Rtl_map.dflt_liberty None)
-        else if Array.length argv > 1 then tran argv
-        else if (try int_of_string (Sys.getenv ("LIBERTY_DUMP")) > 0 with _ -> false) then
-                (let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
-		  print_endline ("Dumping cells: "^string_of_int (List.length cells)); Rtl_map.dumpv cells liberty)
-
-let _ = if Array.length Sys.argv > 1 then tran' Sys.argv else
-        try tran' (Array.of_list (Sys.argv.(0) :: String.split_on_char ';' (Sys.getenv ("EQUIV_VERILOG")))) with err -> print_endline (Printexc.to_string err)
+  if Hashtbl.length modules = 1 then Hashtbl.iter (fun modnam (_, modul) -> 
+    eqv src (modnam^"_map.v") modnam liberty; sta (modnam^"_map.v") modnam liberty) modules

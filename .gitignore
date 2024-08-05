@@ -123,3 +123,4 @@ hardcaml_of_verilog/
 *.ilang
 Input_verilator
 Input_verilator_top
+Source_combined

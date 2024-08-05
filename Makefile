@@ -110,3 +110,15 @@ Source_yosys_top: $(YSRC)
 
 Source_yosys: $(YSRC)
 	ocamlfind ocamlopt -package msat,hardcaml,hardcaml_circuits,unix,ppx_let -linkpkg -g -o $@ -I +unix -I hardcaml_of_verilog/_build/install/default/lib/hardcaml_of_verilog hardcaml_of_verilog.cma $(YSRC)
+
+###########################################################################
+
+EOBJ= Input_verilator.ml Input_equiv_verilator.ml
+
+COBJ=$(VSRC) $(GEN) outputparser/Source_generic_main.ml Input_equiv_verible.ml $(EOBJ) myluaclient.ml
+
+Source_combined_top: $(COBJ)
+	ocamlfind ocamlmktop -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml -linkpkg -g -o $@ -I +unix -I outputparser $(COBJ)
+
+Source_combined: $(COBJ)
+	ocamlfind ocamlopt -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml -linkpkg -g -o $@ -I +unix -I outputparser $(COBJ)

@@ -59,7 +59,8 @@ C.register_module "Pair"
     ] g;        
  
     C.register_module "Sys" [
-    "argv",   (V.list V.string).V.embed (Array.to_list Sys.argv);
+    "arg", V.efunc (V.int **->> V.string) (fun ix -> Sys.argv.(ix));
+    "argv", V.efunc (V.unit **->> V.list V.string) (fun () -> Array.to_list Sys.argv);
     "getenv", V.efunc (V.string **->> V.string) Sys.getenv;
     "test", V.efunc (V.string **-> V.string **->> V.string) (fun x y -> x^y);
     ] g;
@@ -68,6 +69,10 @@ C.register_module "Pair"
     "tran", V.efunc (V.string **->> V.unit) Input_equiv_verible.tran;
     "tranlst", V.efunc (V.string **->> V.string) Input_equiv_verible.ltranlst;
     "tranitm", V.efunc (V.string **-> V.string **-> V.string **->> V.string) Input_equiv_verible.ltranitm;
+    ] g;
+
+    C.register_module "verilator" [
+    "tran", V.efunc (V.string **-> V.string **->> V.unit) Input_equiv_verilator.tran;
     ] g;
 
     C.register_module "yosys" [
@@ -118,7 +123,7 @@ let main args =
     let verbose = try int_of_string (Sys.getenv ("LUA_CLIENT_VERBOSE")) > 0 with _ -> false in
     let state   = I.mk () in (* fresh Lua interpreter *)
     let eval e  = ignore (I.dostring state e) in
-    List.iter (cmdline verbose eval) args;
+    (match args with hd::tl -> cmdline verbose eval hd | _ -> print_endline "Interactive mode");
     while true do
     print_string "toplevel> ";
     let itm = ref "" in
