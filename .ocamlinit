@@ -1,9 +1,9 @@
-#directory "/Users/jonathan/.opam/default/lib/hardcaml";;
-#directory "/Users/jonathan/.opam/default/lib/base";;
-#directory "/Users/jonathan/.opam/default/lib/hardcaml";;
-#directory "/Users/jonathan/.opam/default/lib/xml-light";;
+#directory "/Users/jonathan/.opam/5.2.0/lib/hardcaml";;
+#directory "/Users/jonathan/.opam/5.2.0/lib/base";;
+#directory "/Users/jonathan/.opam/5.2.0/lib/hardcaml";;
+#directory "/Users/jonathan/.opam/5.2.0/lib/xml-light";;
 #directory "outputparser";;
-#directory "hardcaml_of_verilog/_build/install/default/lib/hardcaml_of_verilog";;
+#directory "hardcaml_of_verilog/_build/install/5.2.0/lib/hardcaml_of_verilog";;
 
 open Xml
 open Input
@@ -12,15 +12,34 @@ open Input_dump
 open Input_hardcaml
 open Dump_types
 open Input_equiv_verilator
+open Verible_pat
+open Source_text_verible
+open Verible_typ
+open Generic_rewrite
+open Convert_edited
+open Source_generic_main
+open Rtlil_input_rewrite_types
+
+let sat = Hashtbl.find Input_equiv_verible.lhash "itm6";;
+
+(*
+let (ind,klst,itm) = List.hd !conlst;;
+let w = Hashtbl.find ind.wires;;
+let st = Hashtbl.find ind.stash;;
+
+let stlst = let lst = ref [] in Hashtbl.iter (fun k x -> lst := (k,x) :: !lst) ind.stash; !lst;;
+
+let s' = idx "$auto$maccmap.cc:114:fulladd$100.A" 11;;
+*)
+
+
 (*
 open Rtl_parser
 open Hardcaml
 open Signal
 open Input_cnv
 open Source_generic_main
-open Verible_pat
 open Source_text_verible_rewrite
-open Source_text_verible
 *)
 
 #print_length 1000000;;

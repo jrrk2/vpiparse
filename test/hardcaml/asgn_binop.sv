@@ -12,10 +12,8 @@
 `TEST(add, +=)
 `TEST(sub, -=)
 `TEST(mul, *=)
-/*
 `TEST(div, /=)
 `TEST(mod, %=)
-*/
 `TEST(bit_and, &=)
 `TEST(bit_or , |=)
 `TEST(bit_xor, ^=)

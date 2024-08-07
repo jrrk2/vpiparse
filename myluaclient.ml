@@ -1,3 +1,5 @@
+let saved_args = ref []
+
 module LuaChar = struct
     type 'a t	    = char
     let tname	    = "char"
@@ -43,7 +45,10 @@ module MakeLib
 end    
 
 let init g = 
-        
+
+let wrap1 f a = try f a with e -> Printexc.print_backtrace stdout; raise e in
+let wrap2 f a b = try f a b with e -> Printexc.print_backtrace stdout; raise e in
+
 C.register_module "Pair"
     [ "mk", V.efunc (V.value **-> V.value **->> Map.pair) Pair.mk
     ; "fst",V.efunc (Map.pair **->> V.value)              Pair.fst
@@ -59,46 +64,47 @@ C.register_module "Pair"
     ] g;        
  
     C.register_module "Sys" [
-    "arg", V.efunc (V.int **->> V.string) (fun ix -> Sys.argv.(ix));
-    "argv", V.efunc (V.unit **->> V.list V.string) (fun () -> Array.to_list Sys.argv);
+    "arg", V.efunc (V.int **->> V.string) (fun ix -> List.nth !saved_args ix);
+    "argv", V.efunc (V.unit **->> V.list V.string) (fun () -> !saved_args);
     "getenv", V.efunc (V.string **->> V.string) Sys.getenv;
     "test", V.efunc (V.string **-> V.string **->> V.string) (fun x y -> x^y);
     ] g;
  
     C.register_module "verible" [
-    "tranlst", V.efunc (V.string **->> V.string) Input_equiv_verible.ltranlst;
-    "cnvitm", V.efunc (V.string **-> V.string **->> V.string) Input_equiv_verible.lcnvitm;
-    "mapitm", V.efunc (V.string **-> V.string **->> V.string) Input_equiv_verible.lmapitm;
-    "cmpitm", V.efunc (V.string **-> V.string **->> V.string) Input_equiv_verible.lcmpitm;
+    "tranlst", V.efunc (V.string **->> V.string) (wrap1 Input_equiv_verible.ltranlst);
+    "cnvitm", V.efunc (V.string **-> V.string **->> V.string) (wrap2 Input_equiv_verible.lcnvitm);
+    "mapitm", V.efunc (V.string **-> V.string **->> V.string) (wrap2 Input_equiv_verible.lmapitm);
+    "satitm", V.efunc (V.string **->> V.string) (wrap1 Input_equiv_verible.lcnvsat);
+    "cmpitm", V.efunc (V.string **-> V.string **->> V.string) (wrap2 Input_equiv_verible.lcmpitm);
     ] g;
 
     C.register_module "verilator" [
-    "tran", V.efunc (V.string **-> V.string **->> V.unit) Input_equiv_verilator.tran;
+    "tran", V.efunc (V.string **-> V.string **->> V.unit) (wrap2 Input_equiv_verilator.tran);
     ] g;
 
     C.register_module "pipe" [
-    "uhdm", V.efunc (V.string **-> V.string **->> V.unit) Input_equiv.tran;
-    "rtlil", V.efunc (V.string **->> V.string) Input_equiv_verible.lrtlil;
+    "uhdm", V.efunc (V.string **-> V.string **->> V.unit) (wrap2 Input_equiv.tran);
+    "rtlil", V.efunc (V.string **->> V.string) (wrap1 Input_equiv_verible.lrtlil);
     ] g;
 
     C.register_module "hardcaml" [
-    "cnv", V.efunc (V.string **->> V.string) Input_equiv_verible.lhardcnv;
+    "cnv", V.efunc (V.string **->> V.string) (wrap1 Input_equiv_verible.lhardcnv);
     ] g;
 
     C.register_module "itms" [
-    "itm", V.efunc (V.unit **->> V.string) Input_equiv_verible.litms;
-    "nam", V.efunc (V.string **->> V.string) Input_equiv_verible.lnam;
-    "dump", V.efunc (V.string **-> V.string **->> V.unit) Input_equiv_verible.ldump;
+    "itm", V.efunc (V.unit **->> V.string) (wrap1 Input_equiv_verible.litms);
+    "nam", V.efunc (V.string **->> V.string) (wrap1 Input_equiv_verible.lnam);
+    "dump", V.efunc (V.string **-> V.string **->> V.unit) (wrap2 Input_equiv_verible.ldump);
     ] g;
 
     C.register_module "liberty" [
-    "read", V.efunc (V.string **->> V.string) Input_equiv_verible.lreadlib;
-    "dump", V.efunc (V.string **->> V.unit) Input_equiv_verible.ldumplib;
+    "read", V.efunc (V.string **->> V.string) (wrap1 Input_equiv_verible.lreadlib);
+    "dump", V.efunc (V.string **->> V.unit) (wrap1 Input_equiv_verible.ldumplib);
     ] g;
 
     C.register_module "external" [
-    "eqv", V.efunc (V.string **->> V.string) Input_equiv_verible.eqv;
-    "sta", V.efunc (V.string **-> V.string **-> V.string **->> V.unit) Input_equiv_verible.sta;
+    "eqv", V.efunc (V.string **->> V.string) (wrap1 Input_equiv_verible.eqv);
+    "sta", V.efunc (V.string **-> V.string **-> V.string **->> V.unit) (wrap2 Input_equiv_verible.sta);
     ] g;
 
     end (* M *)
@@ -129,6 +135,7 @@ let cmdline verbose eval itm =
   try eval !itm with e -> print_endline (Printexc.to_string_default e)
 
 let main args =
+    saved_args := Sys.argv.(0) :: args;
     let verbose = try int_of_string (Sys.getenv ("LUA_CLIENT_VERBOSE")) > 0 with _ -> false in
     let state   = I.mk () in (* fresh Lua interpreter *)
     let eval e  = ignore (I.dostring state e) in
@@ -141,4 +148,8 @@ let main args =
     if verbose then print_endline ("eval: "^ !itm);
     try eval !itm with e -> print_string (Printexc.to_string_default e^"\n* "); done
 
-let _ = main (List.tl (Array.to_list Sys.argv))
+let eargs = String.split_on_char ';' (try Sys.getenv "LUA_ARGS" with _ -> "")
+
+let _ = if false then List.iter print_endline ("eargs: "::eargs)
+
+let _ = try main (if eargs <> [] then eargs else List.tl (Array.to_list Sys.argv)) with End_of_file -> ()

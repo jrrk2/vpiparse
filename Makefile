@@ -57,12 +57,12 @@ Formula.ml Formula.mli: Formula.mly
 
 ############################################################################
 
-GEN = outputparser/String_lit.mli outputparser/String_lit.ml outputparser/Msat_sat_slit.mli outputparser/Msat_sat_slit.ml outputparser/Msat_tseitin.mli outputparser/Msat_tseitin.ml Rtlil_input.mli outputparser/Rtlil_input_rewrite_types.mli dump_types.mli Input.mli outputparser/generic_rewrite.ml outputparser/convert_edited.ml
+GEN = outputparser/String_lit.mli outputparser/String_lit.ml outputparser/Msat_sat_slit.mli outputparser/Msat_sat_slit.ml outputparser/Msat_tseitin.mli outputparser/Msat_tseitin.ml Rtlil_input.mli dump_types.mli Input.mli outputparser/generic_rewrite.ml outputparser/convert_edited.ml
 GEN2 =  Rtlil_input.ml  Rtlil_input_tokens.ml  ord_input.ml Rtlil_input_lex.ml outputparser/Rtlil_dump.ml outputparser/Rtlil_input_rewrite.ml
 Source_generic_top: outputparser/Rtlil_input_types.ml $(GEN) $(GEN2) outputparser/Source_generic_main.ml
 	ocamlfind ocamlmktop -package msat,hardcaml,hardcaml_circuits -linkpkg -g -o $@ -I +unix unix.cma -I outputparser outputparser/Rtlil_input_types.ml  $(GEN) $(GEN2) outputparser/Source_generic_main.ml
 
-VSRC=outputparser/Source_text_verible_types.mli outputparser/Rtlil_input_types.mli outputparser/Source_text_verible_types.ml outputparser/Rtlil_input_types.ml Source_text_verible.mli outputparser/Source_text_verible_rewrite_types.mli Source_text_verible.ml Source_text_verible_tokens.ml Source_text_verible_lex.ml outputparser/Source_text_verible_rewrite.ml dump_types.mli Input.mli rtl_parser.mli File.mli File.ml File_lex.ml File_rewrite.ml Input_types.mli Input_dump.ml Input_cnv.ml rtl_parser.ml rtl_lexer.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml Input.ml ord_input.ml Input_lex.ml outputparser/verible_pat.ml outputparser/Rtlil_input_rewrite_types.mli Rtlil_input.mli outputparser/Rtlil_dump.ml Rtlil_input.ml Rtlil_input_tokens.ml Rtlil_input_lex.ml outputparser/Rtlil_input_rewrite.ml outputparser/dump_rtlil.ml cnv_ilang.ml
+VSRC=outputparser/Source_text_verible_types.mli outputparser/Rtlil_input_types.mli outputparser/Source_text_verible_types.ml outputparser/Rtlil_input_types.ml Source_text_verible.mli outputparser/Source_text_verible_rewrite_types.mli Source_text_verible.ml Source_text_verible_tokens.ml Source_text_verible_lex.ml outputparser/Source_text_verible_rewrite.ml dump_types.mli Input.mli rtl_parser.mli File.mli File.ml File_lex.ml File_rewrite.ml Input_types.mli Input_dump.ml Input_cnv.ml rtl_parser.ml rtl_lexer.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml Input.ml ord_input.ml Input_lex.ml outputparser/verible_typ.ml outputparser/verible_pat.ml outputparser/Rtlil_input_rewrite_types.ml Rtlil_input.mli outputparser/Rtlil_dump.ml Rtlil_input.ml Rtlil_input_tokens.ml Rtlil_input_lex.ml outputparser/Rtlil_input_rewrite.ml outputparser/dump_rtlil.ml cnv_ilang.ml
 VOBJ=$(VSRC) $(GEN) outputparser/Source_generic_main.ml Input_equiv_verible.ml myluaclient.ml
 
 Source_verible_top: $(VOBJ)
@@ -74,8 +74,10 @@ Source_verible: $(VOBJ)
 Source_text_verible.mly Source_text_verible_tokens.ml: outputparser/verible.output outputparser/output_parser Makefile
 	env OCAMLRUNPARAM=b STRING_LITERAL=string TK_StringLiteral=string SymbolIdentifier=string SystemTFIdentifier=string TK_DecNumber=string TK_BinBase=string TK_BinDigits=string TK_DecBase=string TK_DecDigits=string TK_OctBase=string TK_OctDigits=string TK_HexBase=string TK_HexDigits=string TK_UnBasedNumber=string TK_RealTime=string STRING=string outputparser/output_parser $<
 
-Source_text_verible.ml: Source_text_verible.mly outputparser/Source_text_verible_types.cmi
+Source_text_verible.ml Source_text_verible.mli: Source_text_verible.mly outputparser/Source_text_verible_types.cmi
 	menhir $(MENHIRFLAGS) $<
+	sed -i -e 's=^\(exception\)=[@@deriving yojson] \1=' Source_text_verible.mli
+	sed -i -e 's=^\(end$$\)=[@@deriving yojson] \1=' Source_text_verible.ml
 
 outputparser/Source_text_verible_types.mli: outputparser/Source_text_verible_types.ml
 	ocamlc -i $< > $@
@@ -120,7 +122,7 @@ IOBJ= Input_pat4.ml Input_equiv.ml
 COBJ=$(VSRC) $(GEN) outputparser/Source_generic_main.ml Input_equiv_verible.ml $(EOBJ) $(IOBJ) myluaclient.ml
 
 Source_combined_top: $(COBJ)
-	ocamlfind ocamlmktop -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml -linkpkg -g -o $@ -I +unix -I outputparser $(COBJ)
+	ocamlfind ocamlmktop -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml,ppx_deriving_yojson -linkpkg -g -o $@ -I +unix -I outputparser $(COBJ)
 
 Source_combined: $(COBJ)
-	ocamlfind ocamlopt -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml -linkpkg -g -o $@ -I +unix -I outputparser $(COBJ)
+	ocamlfind ocamlopt -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml,ppx_deriving_yojson -linkpkg -g -o $@ -I +unix -I outputparser $(COBJ)
