@@ -147,7 +147,7 @@ type liberty =
 | VoltageMap of liberty list
 | CapLoadUnit of liberty list
 | LibFeatures of liberty list
-| IsolationCell
+| IsolationCell [@@deriving yojson]
 
 let unhand = ref None
 let plst = ref []

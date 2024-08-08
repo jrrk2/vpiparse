@@ -103,6 +103,27 @@ let ltranlst v =
   List.iter (fun (nam,itm) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Cnvlst (nam,itm))) cnvlst;
   !nxtitm
 
+let ltranxml f v =
+  let cnvlst = Input_equiv_verilator.tranxml f v in
+  let nxtitm = ref "" in
+  List.iter (fun (nam,(_,itm)) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Cnvlst (nam,itm))) cnvlst;
+  print_endline ("nxtitm = "^ !nxtitm);
+  !nxtitm
+
+let ltranuhdmall f v =
+  let cnvlst = Input_equiv.tranall f v in
+  let nxtitm = ref "" in
+  List.iter (fun (nam,(_,itm)) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Cnvlst (nam,itm))) cnvlst;
+  print_endline ("nxtitm = "^ !nxtitm);
+  !nxtitm
+
+let ltranuhdmtop f v =
+  let cnvlst = Input_equiv.trantop f v in
+  let nxtitm = ref "" in
+  List.iter (fun (nam,(_,itm)) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Cnvlst (nam,itm))) cnvlst;
+  print_endline ("nxtitm = "^ !nxtitm);
+  !nxtitm
+
 let lrtlil v =
   let gold = gold_rtlil v in 
   let nxtitm = ref "" in
@@ -222,10 +243,13 @@ C.register_module "Pair"
 
     C.register_module "verilator" [
     "tran", V.efunc (V.string **-> V.string **->> V.unit) (wrap2 Input_equiv_verilator.tran);
+    "tranxml", V.efunc (V.string **-> V.string **->> V.string) (wrap2 ltranxml);
     ] g;
 
     C.register_module "pipe" [
-    "uhdm", V.efunc (V.string **-> V.string **->> V.unit) (wrap2 Input_equiv.tran);
+    "uhdmtest", V.efunc (V.string **-> V.string **->> V.unit) (wrap2 Input_equiv.tran);
+    "uhdmall", V.efunc (V.string **-> V.string **->> V.string) (wrap2 ltranuhdmall);
+    "uhdmtop", V.efunc (V.string **-> V.string **->> V.string) (wrap2 ltranuhdmtop);
     "rtlil", V.efunc (V.string **->> V.string) (wrap1 lrtlil);
     ] g;
 

@@ -29,6 +29,8 @@ open Hardcaml
 open Always
 open Signal
 
+type othalw = (string * Input_types.rw * Input_types.rw list) [@@deriving yojson]
+
 let othrepl = ref (REPL("",0,[]))
 let othsel' = ref (SEL ("", []))
 let othcse = ref []
@@ -43,7 +45,7 @@ let othcmp = ref Cunknown
 let othirng = ref UNKNOWN
 let othtokens = ref Rtl_parser.ENDOFFILE
 let othcnst = ref (ERR "othcnst")
-let othalwystran = ref None
+let (othalwystran:othalw ref) = ref ("", COMB, [])
 let othcatran = ref None
 let othasgn = ref Work
 let othr = ref Invalid
@@ -100,9 +102,9 @@ let add_fast model a_sig b_sig =
              ~input2:(b_sig)
              ~carry_in:(Signal.zero 1))
 
-let sub_fast carry_in a_sig b_sig =
+let sub_fast model carry_in a_sig b_sig =
           (Hardcaml_circuits.Prefix_sum.create
-             ~config:(if exact_log2 (width a_sig) && exact_log2 (width b_sig) then Kogge_stone else Sklansky)
+             ~config:(if model <> "" then if false then print_endline ("add_fast model: "^model); adder_config a_sig b_sig model)
              (module Signal)
              ~input1:(a_sig)
              ~input2:(~: b_sig)
@@ -115,19 +117,19 @@ let notequal a b = fold' (|:) (a ^: b)
 let equal a b = (~:) (notequal a b)
 
 let less_fast a b =
-    let diff = sub_fast Signal.vdd (uresize a (width a + 1)) (uresize b (width b + 1)) in
+    let diff = sub_fast "" Signal.vdd (uresize a (width a + 1)) (uresize b (width b + 1)) in
     ~: (bit diff (width diff - 1))
 
 let greater_fast a b =
-    let diff = sub_fast Signal.vdd (uresize b (width b + 1)) (uresize a (width a + 1)) in
+    let diff = sub_fast "" Signal.vdd (uresize b (width b + 1)) (uresize a (width a + 1)) in
     ~: (bit diff (width diff - 1))
 
 let greater_equal_fast a b =
-    let diff = sub_fast Signal.gnd (uresize b (width b + 1)) (uresize a (width a + 1)) in
+    let diff = sub_fast "" Signal.gnd (uresize b (width b + 1)) (uresize a (width a + 1)) in
     ~: (bit diff (width diff - 1))
 
 let less_equal_fast a b =
-    let diff = sub_fast Signal.gnd (uresize a (width a + 1)) (uresize b (width b + 1)) in
+    let diff = sub_fast "" Signal.gnd (uresize a (width a + 1)) (uresize b (width b + 1)) in
     ~: (bit diff (width diff - 1))
 
 let less_signed lhs rhs = Signed.of_signal (less_fast (Signed.to_signal lhs) (Signed.to_signal rhs))
@@ -138,9 +140,14 @@ let greater_equal_signed lhs rhs = Signed.of_signal (greater_equal_fast (Signed.
 
 let less_equal_signed lhs rhs = Signed.of_signal (less_equal_fast (Signed.to_signal lhs) (Signed.to_signal rhs))
 
-let mult_wallace a_sig b_sig =
+let mult_config = function
+  | "Wallace" | "" -> Hardcaml_circuits.Mul.Config.Wallace
+  | "Dadda" -> Dadda
+  | oth -> failwith ("Multiplier model not supported: "^oth)
+
+let mult_fast model a_sig b_sig =
           (Hardcaml_circuits.Mul.create
-             ~config:Wallace
+             ~config:(if model <> "" then if false then print_endline ("mult_fast model: "^model); mult_config model)
              (module Signal)
              (a_sig)
              (b_sig))
@@ -180,12 +187,12 @@ else if wlhs > wrhs then
 mux2 cond lhs (uresize rhs wlhs)
 else failwith "mux2'"
 
-let mult_wallace_signed a_sig b_sig =
+let mult_fast_signed model a_sig b_sig =
           let open Signed in
           let nega = to_signal (less_signed a_sig (signed_zero (signedwidth a_sig))) in
           let negb = to_signal (less_signed b_sig (signed_zero (signedwidth b_sig))) in
           let mult' = Hardcaml_circuits.Mul.create
-             ~config:Wallace
+             ~config:(if model <> "" then if false then print_endline ("mult_fast model: "^model); mult_config model)
              (module Signal)
              (mux2' (nega) (to_signal (signednegate a_sig)) (to_signal a_sig))
              (mux2' (negb) (to_signal (signednegate b_sig)) (to_signal b_sig))
@@ -195,7 +202,7 @@ let sim_mult n_bits =
   let circuit =
     Circuit.create_exn
       ~name:"lfsr"
-      [ output "o" (mult_wallace (input "a" n_bits) (input "b" n_bits))]
+      [ output "o" (mult_fast "" (input "a" n_bits) (input "b" n_bits))]
   in
   let sim = Cyclesim.create circuit in
   let a = Cyclesim.in_port sim "a" in
@@ -266,9 +273,9 @@ let othtok = ref INVALID
 
 let arithopvpi = function
 | Aadd model -> Add model
-| Asub -> Sub
-| Amul -> Mult
-| Amuls -> Mults
+| Asub model -> Sub model
+| Amul model -> Mult model
+| Amuls model -> Mults model
 | Adiv -> Div
 | Adivs -> Divs
 | Amod -> Mod
@@ -519,10 +526,11 @@ let _ = List.iter (fun (io,_ as args) -> if not (exists io) then Input_dump.iofu
 
 let alwystran = List.flatten (List.map (function
   | ("", COMB, (SNTRE [] :: lst)) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in List.map (tranitm attr) lst
+  | ("", COMB, (ASGN _ as stmt :: [])) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in [tranitm attr stmt]
   | ("", POSEDGE clk, lst) -> let attr = {enable=Signal.vdd; r_sync=Some (Reg_spec.create ~clock:(sig' (find_decl clk)) ()); dest=false} in List.map (tranitm attr) lst
   | ("", POSPOS (clk, rst), lst) -> let attr = {enable=Signal.vdd; r_sync=Some (Reg_spec.create ~clock:(sig' (find_decl clk)) ~reset:(sig' (find_decl rst)) ()); dest=false} in List.map (tranitm attr) lst
   
-  | oth -> othalwystran := Some oth; failwith "alwystran") !(modul.alwys)) in
+  | oth -> othalwystran := oth; Verible_typ.fail_json othalw_to_yojson oth; failwith "alwystran") !(modul.alwys)) in
 
 let catran = List.map (function
   | ("", dst, rhs) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in Asgn((tranitm {attr with dest=true}) dst, tranitm attr rhs)
@@ -570,9 +578,9 @@ let signed_relational x = let open Signed in match x with
 |LshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift srl (Signed.to_signal lhs) (Signed.to_signal rhs)))
 |AshiftR -> (fun lhs rhs -> Signed.of_signal (Signal.log_shift sra (Signed.to_signal lhs) (Signed.to_signal rhs)))
 |Add model -> (fun lhs rhs -> Signed.of_signal (add_fast model (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Sub -> (fun lhs rhs -> Signed.of_signal (sub_fast Signal.vdd (Signed.to_signal rhs) (Signed.to_signal lhs)))
-|Mult -> mult_wallace_signed
-|Mults -> mult_wallace_signed
+|Sub model -> (fun lhs rhs -> Signed.of_signal (sub_fast model Signal.vdd (Signed.to_signal rhs) (Signed.to_signal lhs)))
+|Mult model -> mult_fast_signed model
+|Mults model -> mult_fast_signed model
 |Div -> (fun lhs rhs -> Signed.of_signal (div_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Mod -> (fun lhs rhs -> Signed.of_signal (mod_signed (Signed.to_signal rhs) (Signed.to_signal lhs)))
 |Pow -> unimps "power"
@@ -595,8 +603,8 @@ let unsigned_relational = function
 |LshiftR -> Signal.log_shift srl
 |AshiftR -> Signal.log_shift sra
 |Add model  -> add_fast model
-|Sub -> sub_fast Signal.vdd
-|Mult -> mult_wallace
+|Sub model -> sub_fast model Signal.vdd
+|Mult model -> mult_fast model
 |Div -> div_unsigned
 |Mod -> unimp "mod"
 |Pow -> unimp "power"
@@ -628,7 +636,7 @@ let _detect_dyadic = function
 | op,Sigs lhs, Sig rhs -> relational (unsigned_relational op) (Signed.to_signal lhs) rhs
 | op,Sig lhs, Sigs rhs -> relational (unsigned_relational op) lhs (Signed.to_signal rhs)
 | op,Sigs lhs, Sigs rhs -> relational' (signed_relational op) lhs rhs
-| (Sub as op), Sig lhs, Con rhs -> relational (unsigned_relational op) lhs (Signal.of_constant rhs)
+| (Sub _ as op), Sig lhs, Con rhs -> relational (unsigned_relational op) lhs (Signal.of_constant rhs)
 | op, Con lhs, Sig rhs -> relational (unsigned_relational op) (Signal.of_constant lhs) rhs
 | op, Con lhs, Sigs rhs -> relational' (signed_relational op) (Signed.of_signal (Signal.of_constant lhs)) rhs
 | (LshiftL|LshiftR|AshiftR as op), Sig lhs, Con rhs -> relationalc (unsigned_relationalc op) lhs (Constant.to_int rhs)
@@ -650,7 +658,7 @@ if not (List.mem lbl !seen) then print_endline ("unimplu: "^lbl); seen := lbl ::
 
 let remapunary' = function
 |Add _ -> (fun rhs -> rhs)
-|Sub -> arithnegate
+|Sub _ -> arithnegate
 |And -> fold' (&:)
 |Nand -> fold' (lognegate (&:))
 |Or -> fold' (|:)

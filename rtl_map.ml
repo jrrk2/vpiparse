@@ -186,9 +186,9 @@ let dir = function
 | oth -> othmapfail := oth; failwith "dir"
 
 let arithop = function
-| TIMES -> Amul
+| TIMES -> Amul "fastest"
 | PLUS -> Aadd "fastest"
-| MINUS -> Asub
+| MINUS -> Asub "fastest"
 | oth -> othmapfail := oth; failwith "arithop"
 
 let logicop = function
@@ -414,7 +414,7 @@ and _chk_arith itms op = function
    | LESS -> CMP(Clt, lhs :: rhs :: [])
    | P_EQUAL -> CMP(Ceq, lhs :: rhs :: [])
    | PLUS -> ARITH(Aadd "fastest", lhs :: rhs :: [])
-   | MINUS -> ARITH(Asub, lhs :: rhs :: [])
+   | MINUS -> ARITH(Asub "fastest", lhs :: rhs :: [])
    | oth -> othmapfail := oth; failwith "arithop'" in
   let op' = arithop
                (VRF (a, (BASDTYP, "wire", typrnga, []), [])) 

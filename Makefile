@@ -3,7 +3,7 @@ TRACET = --explain --trace
 
 ############################################################################
 
-XOBJ= dump_types.mli Input.mli Input_types.mli rtl_parser.mli rtl_parser.ml rtl_lexer.ml Input_dump.ml Input_cnv.ml Input_verilator.ml File.mli File.ml File_lex.ml File_rewrite.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml ord_input.ml Input_equiv_verilator.ml
+XOBJ= dump_types.ml Input.mli Input_types.ml rtl_parser.mli rtl_parser.ml rtl_lexer.ml Input_dump.ml Input_cnv.ml Input_verilator.ml File.mli File.ml File_lex.ml File_rewrite.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml ord_input.ml Input_equiv_verilator.ml
 
 Input_verilator_top: $(XOBJ)
 	ocamlfind ocamlmktop -g -o $@ -package xml-light,base,hardcaml,hardcaml_waveterm,hardcaml_circuits -linkpkg $(XOBJ)
@@ -13,7 +13,7 @@ Input_verilator: $(XOBJ)
 
 ############################################################################
 
-LOBJ= dump_types.mli Input.mli Input_types.mli rtl_parser.mli rtl_parser.ml rtl_lexer.ml Input_dump.ml Input_cnv.ml Input_pat4.ml File.mli File.ml File_lex.ml File_rewrite.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml Input.ml ord_input.ml Input_lex.ml Input_equiv.ml
+LOBJ= dump_types.ml Input.mli Input_types.ml rtl_parser.mli rtl_parser.ml rtl_lexer.ml Input_dump.ml Input_cnv.ml Input_pat4.ml File.mli File.ml File_lex.ml File_rewrite.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml Input.ml ord_input.ml Input_lex.ml Input_equiv.ml
 
 Input_equiv_top: $(LOBJ)
 	ocamlfind ocamlmktop -g -o $@ -package base,hardcaml,hardcaml_waveterm,hardcaml_circuits -linkpkg $(LOBJ)
@@ -25,14 +25,18 @@ Input_lex.ml: Input_lex.mll
 	ocamllex $<
 
 Input.ml: Input.mly Makefile
-	ocamlfind ocamlc -package base,hardcaml -g -c dump_types.mli
+	ocamlfind ocamlc -package base,hardcaml -g -c dump_types.ml
 	menhir $(TRACE) --infer $<
+	sed -i -e 's=^\(exception\)=[@@deriving yojson] \1=' Input.mli
+	sed -i -e 's=^\(end$$\)=[@@deriving yojson] \1=' Input.ml
 
 rtl_lexer.ml: rtl_lexer.mll
 	ocamllex $<
 
 rtl_parser.ml rtl_parser.mli: rtl_parser.mly Makefile
 	menhir $(TRACE) --infer $<
+	sed -i -e 's=^\(exception\)=[@@deriving yojson] \1=' rtl_parser.mli
+	sed -i -e 's=^\(end$$\)=[@@deriving yojson] \1=' rtl_parser.ml
 
 ############################################################################
 
@@ -56,12 +60,12 @@ Formula.ml Formula.mli: Formula.mly
 
 ############################################################################
 
-GEN = outputparser/String_lit.mli outputparser/String_lit.ml outputparser/Msat_sat_slit.mli outputparser/Msat_sat_slit.ml outputparser/Msat_tseitin.mli outputparser/Msat_tseitin.ml Rtlil_input.mli dump_types.mli Input.mli outputparser/generic_rewrite.ml
+GEN = outputparser/String_lit.mli outputparser/String_lit.ml outputparser/Msat_sat_slit.mli outputparser/Msat_sat_slit.ml outputparser/Msat_tseitin.mli outputparser/Msat_tseitin.ml Rtlil_input.mli dump_types.ml Input.mli outputparser/Rtlil_input_rewrite_types.ml outputparser/Source_text_rewrite_types.ml outputparser/generic_rewrite.ml
 GEN2 =  Rtlil_input.ml  Rtlil_input_tokens.ml  ord_input.ml Rtlil_input_lex.ml outputparser/Rtlil_dump.ml outputparser/Rtlil_input_rewrite.ml
 Source_generic_top: outputparser/Rtlil_input_types.ml $(GEN) $(GEN2) outputparser/Source_generic_main.ml
 	ocamlfind ocamlmktop -package msat,hardcaml,hardcaml_circuits -linkpkg -g -o $@ -I +unix unix.cma -I outputparser outputparser/Rtlil_input_types.ml  $(GEN) $(GEN2) outputparser/Source_generic_main.ml
 
-VSRC=outputparser/Source_text_verible_types.mli outputparser/Rtlil_input_types.mli outputparser/Source_text_verible_types.ml outputparser/Rtlil_input_types.ml Source_text_verible.mli outputparser/Source_text_verible_rewrite_types.mli Source_text_verible.ml Source_text_verible_tokens.ml Source_text_verible_lex.ml outputparser/Source_text_verible_rewrite.ml dump_types.mli Input.mli rtl_parser.mli File.mli File.ml File_lex.ml File_rewrite.ml Input_types.mli Input_dump.ml Input_cnv.ml rtl_parser.ml rtl_lexer.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml Input_hardcaml.ml rtl_map.ml Input.ml ord_input.ml Input_lex.ml outputparser/Rtlil_input_rewrite_types.ml outputparser/Source_text_rewrite_types.ml outputparser/verible_typ.ml
+VSRC=outputparser/Source_text_verible_types.mli outputparser/Rtlil_input_types.mli outputparser/Source_text_verible_types.ml outputparser/Rtlil_input_types.ml Source_text_verible.mli outputparser/Source_text_verible_rewrite_types.mli Source_text_verible.ml Source_text_verible_tokens.ml Source_text_verible_lex.ml outputparser/Source_text_verible_rewrite.ml Input.mli rtl_parser.mli File.mli File.ml File_lex.ml File_rewrite.ml Input.ml rtl_parser.ml Input_types.ml Input_dump.ml Input_cnv.ml rtl_lexer.ml Formula.mli Formula_types.ml Formula.ml Formula_lex.ml Formula_rewrite.ml rtl_dump.ml ord_input.ml Input_lex.ml outputparser/verible_typ.ml Input_hardcaml.ml rtl_map.ml
 XSRC= outputparser/verible_pat.ml Rtlil_input.mli outputparser/Rtlil_dump.ml Rtlil_input.ml Rtlil_input_tokens.ml Rtlil_input_lex.ml outputparser/Rtlil_input_rewrite.ml outputparser/dump_rtlil.ml cnv_ilang.ml outputparser/convert_edited.ml
 VOBJ= $(GEN) $(VSRC) $(XSRC) outputparser/Source_generic_main.ml Input_equiv_verible.ml myluaclient.ml
 

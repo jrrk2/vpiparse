@@ -33,8 +33,8 @@ let dir = function
 
 let arithop = function
 | PLUS -> Aadd ""
-| MINUS -> Asub
-| TIMES -> Amul
+| MINUS -> Asub ""
+| TIMES -> Amul ""
 | oth -> othdumpfail := oth; failwith "arithop"
 
 let logicop = function

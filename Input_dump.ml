@@ -32,9 +32,9 @@ let othvfunc = ref None
 
 let arithopint = function
 | Aadd _ -> ( + )
-| Asub -> ( - )
-| Amul -> ( * )
-| Amuls -> ( * )
+| Asub _ -> ( - )
+| Amul _ -> ( * )
+| Amuls _ -> ( * )
 | Adiv|Adivs -> ( / )
 | Amod|Amods -> ( mod )
 | Apow|Apows -> ( fun lft rght -> let rec pow = function n when n > 0 -> lft * pow (n-1) | _ -> 1 in pow rght )
@@ -189,9 +189,9 @@ let otharithop = ref ""
 
 let arithop = function
 |"add" -> Aadd ""
-|"sub" -> Asub
-|"mul" -> Amul
-|"muls" -> Amuls
+|"sub" -> Asub ""
+|"mul" -> Amul ""
+|"muls" -> Amuls ""
 |"div" -> Adiv
 |"divs" -> Adivs
 |"mod" -> Amod
@@ -442,9 +442,9 @@ let dumplog = function
 
 let dumparith = function
 | Aadd _ -> "Aadd"
-| Asub -> "Asub"
-| Amul -> "Amul"
-| Amuls -> "Amuls"
+| Asub _ -> "Asub"
+| Amul _ -> "Amul"
+| Amuls _ -> "Amuls"
 | Adiv -> "Adiv"
 | Adivs -> "Adivs"
 | Amod -> "Amod"
@@ -541,8 +541,8 @@ let simplify_asgn dly' attr dst = function
 
 let arithopv = function
 | Aadd _ -> "+"
-| Asub -> "-"
-| Amul | Amuls -> "*"
+| Asub _ -> "-"
+| Amul _ | Amuls _ -> "*"
 | Adiv | Adivs -> "/"
 | Amod | Amods -> "%"
 | Apow | Apows -> "**"
@@ -1272,7 +1272,7 @@ let rec cntbasic = function
 | (BASDTYP, "wire", TYPNONE, _) -> WIRE :: []
 | (BASDTYP, ("logic"|"bit"), TYPNONE, _) -> BIT :: []
 | (BASDTYP, "real", TYPNONE, _) -> REAL :: []
-| (BASDTYP, "string", TYPNONE, _) -> STRING :: []
+| (BASDTYP, "string", TYPNONE, _) -> STR :: []
 | (IFCRFDTYP _, _, TYPNONE, _) -> UNKARR :: []
 | (PACKADTYP, _, RECTYP subtyp, TYPRNG((HEX n|SHEX n), (HEX n'|SHEX n'))::_) -> PACKED(n, n') :: findmembers subtyp
 | (UNPACKADTYP, _, RECTYP subtyp, TYPRNG ((HEX n|SHEX n), (HEX n'|SHEX n'))::_) -> UNPACKED(n, n') :: findmembers subtyp
@@ -1296,7 +1296,7 @@ let rec comment' = function
 | REG -> "REG"
 | WIRE -> "WIRE"
 | REAL -> "REAL"
-| STRING -> "STRING"
+| STR -> "STR"
 | ARNG(int1,int2) -> "ARNG("^string_of_int int1^":"^string_of_int int2^")"
 | PACKED(int1,int2) -> "PACKED("^string_of_int int1^":"^string_of_int int2^")"
 | UNPACKED(int1,int2) -> "UNPACKED("^string_of_int int1^":"^string_of_int int2^")"
@@ -1362,7 +1362,7 @@ let rec widshow id rng = function
 | [] -> []
 | UNKARR :: tl -> failwith "UNKARR"
 | (BIT|REG|WIRE) :: tl -> SP :: IDENT id :: SP :: widshow id rng tl
-| STRING :: tl -> SP :: IDENT id :: SP :: widshow id rng tl
+| STR :: tl -> SP :: IDENT id :: SP :: widshow id rng tl
 | ARNG(hi,lo) :: PACKED(hi',lo') :: tl -> widshow id rng (ARNG((hi-lo+1)*(hi'-lo'+1)-1 , 0) :: tl)
 | ARNG(hi,lo) :: tl -> LBRACK :: num hi :: COLON :: num lo :: RBRACK :: SP :: IDENT id :: SP :: widshow id rng tl
 | PACKED(hi,lo) :: tl -> LBRACK :: num hi :: COLON :: num lo :: RBRACK :: SP :: widshow id rng tl
@@ -1379,7 +1379,7 @@ let othvar = ref None
 let varlst modul delim typ' id =
     let (widlst,cnst,rng) as found = findmembers' typ' in
     let kind = match found with
-        | (STRING :: [],_,_) -> VSTRING
+        | (STR :: [],_,_) -> VSTRING
         | (UNPACKED _ :: ARNG _ :: [],_,_) -> WIRE
         | (BIT :: [], false, _) -> WIRE
         | (ARNG _ :: [], false, _) -> WIRE

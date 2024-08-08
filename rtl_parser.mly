@@ -64,7 +64,6 @@
 %token<token * token> RANGE
 %token<token list> PLIST
 %token<token list> TLIST
-%token<(token,unit) Hashtbl.t * (token,unit) Hashtbl.t> THASH
 // for undeclared wires
 %token IMPLICIT
 %token RECEIVER
@@ -2256,7 +2255,6 @@ unused_tokens:			{	}
 	|	TASKREF		{	}
 	|	TASKUSED	{	}
 	|	TEDGE		{	}
-	|	THASH		{	}
 	|	TLIST		{	}
 	|	TREDECUPLE	{	}
 	|	TREVIGENUPLE	{	}

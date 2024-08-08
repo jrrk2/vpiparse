@@ -20,8 +20,10 @@ open Convert_edited
 open Source_generic_main
 open Rtlil_input_rewrite_types
 
-let t s = List.map (List.map E.transparent) (Hashtbl.find sath s)
+(*
+let t s = List.map (List.map Source_text_rewrite_types.E.transparent) (Hashtbl.find sath s)
 let tlst = t "mul[0]";;
+*)
 
 (*
 let ind = Myluaclient.find_sat "itm7";;

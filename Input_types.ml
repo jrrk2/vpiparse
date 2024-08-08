@@ -71,10 +71,10 @@ and remapp =
   | Aneg
   | Sneg
   | Mux
-  | Sub
+  | Sub of string
   | Add of string
-  | Mult
-  | Mults
+  | Mult of string
+  | Mults of string
   | Div
   | Divs
   | Mod
@@ -133,7 +133,7 @@ type stage =
 | IOSTG
 | VARSTG
 | JMPSTG
-| BDYSTG
+| BDYSTG [@@deriving yojson]
 
 type typmap =
 | TYPNONE
@@ -143,10 +143,10 @@ type typmap =
 | TYPENUM of string * int * (int*cexp)
 | TYPDEF
 | RECTYP of typetable_t
-| TYPSIGNED
+| TYPSIGNED [@@deriving yojson]
 
-and typetable_t = typenc*string*typmap*typmap list
-and typ_t = typenc*string*typmap*rw list
+and typetable_t = typenc*string*typmap*typmap list [@@deriving yojson]
+and typ_t = typenc*string*typmap*rw list [@@deriving yojson]
 and xmlattr = {
     anchor: string;
     names: (string*typetable_t ref) list ref;
@@ -156,7 +156,7 @@ and xmlattr = {
     modulexml: (string*(string*rw list*(string*typetable_t ref) list)) list ref;
     tmpvar: (string*(string*typetable_t)) list ref;
     tmpasgn: (string*rw) list ref;
-    }
+    } [@@deriving yojson]
 and rw =
 | UNKNOWN
 | XML of rw list
@@ -230,7 +230,7 @@ and rw =
 | ITM of string * string * rw list
 | CONSPACK of string * rw list
 | CONSPACKMEMB of string * rw list
-| CONTAINER of itms * rw
+| CONTAINER of itms * rw [@@deriving yojson]
 
 and itms = { 
   io: (string*(string*typetable_t*dirop*string*(int*cexp) list)) list ref;
@@ -253,7 +253,7 @@ and itms = {
   cells: (string *
           ((string * string) list *
            (string * Rtl_parser.token * File_rewrite.liberty) list)) list;
-}
+} [@@deriving yojson]
 
 type remap =
   | Invalid
@@ -271,4 +271,4 @@ type summary =
   | Sigs_
   | Alw_
   | Var_
-  | Itm_
+  | Itm_ [@@deriving yojson]

@@ -65,6 +65,20 @@ open Input_hardcaml
 
 let p' = ref []
 
+let tranall pipe src =
+  print_endline ("tran "^pipe);
+  let cache, p = Input_lex.parse_output_ast_from_uhdm_pipe pipe in
+  p' := p;
+  let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
+  !allmods
+
+let trantop pipe src =
+  print_endline ("tran "^pipe);
+  let cache, p = Input_lex.parse_output_ast_from_uhdm_pipe pipe in
+  p' := p;
+  let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
+  !topmods
+
 let tran pipe src =
   print_endline ("tran "^pipe);
   let cache, p = Input_lex.parse_output_ast_from_uhdm_pipe pipe in

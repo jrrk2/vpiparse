@@ -511,11 +511,11 @@ let translate errlst xmlf =
     let top = snd(List.hd toplst) in
     print_endline ("toplevel is "^top);
     let mods = ref [] in
-    Hashtbl.iter (fun k (_,x) ->
+    if false then Hashtbl.iter (fun k (_,x) ->
         let rawtok = dump true k x in
         let d = reformat0 rawtok in
         mods := (k, rawtok, d, reformat2 (reformat1 d)) :: !mods) interfaces;
-    Hashtbl.iter (fun k (_,x) ->
+    if false then Hashtbl.iter (fun k (_,x) ->
         let rawtok = dump false k x in
         let d = reformat0 rawtok in
         mods := (k, rawtok, d, reformat2 (reformat1 d)) :: !mods) modules;

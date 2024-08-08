@@ -16,7 +16,7 @@ type unaryop =
 | Uunsigned
 | Usigned
 | Uextend of (int*int)
-| Uextends of (string*int*int)
+| Uextends of (string*int*int) [@@deriving yojson]
 
 type cmpop =
 | Cunknown
@@ -31,7 +31,7 @@ type cmpop =
 | Cltes
 | Clte
 | Clt
-| Clts
+| Clts [@@deriving yojson]
 
 type logop =
 | Lunknown
@@ -47,13 +47,13 @@ type logop =
 | Lredxnor
 | Lshiftl
 | Lshiftr
-| Lshiftrs
+| Lshiftrs [@@deriving yojson]
 
 type arithop =
 | Aadd of string
-| Asub
-| Amul
-| Amuls
+| Asub of string
+| Amul of string
+| Amuls of string
 | Adiv
 | Adivs
 | Amod
@@ -62,7 +62,7 @@ type arithop =
 | Apows
 | Astring
 | Aenum
-| Asyscall
+| Asyscall [@@deriving yojson]
 
 type dirop = 
 | Dunknown
@@ -71,7 +71,7 @@ type dirop =
 | Dinout
 | Dvif of string ref
 | Dinam of string
-| Dport of (string * int * dirop * string * string list)
+| Dport of (string * int * dirop * string * string list) [@@deriving yojson]
 
 type typenc =
 | UNKDTYP
@@ -86,7 +86,7 @@ type typenc =
 | MEMBDTYP
 | PARMTDTYP
 | IFCRFDTYP of string
-| TYPDF of string
+| TYPDF of string [@@deriving yojson]
 
 type arrtyp =
 | UNKARR
@@ -94,14 +94,14 @@ type arrtyp =
 | REG
 | WIRE
 | REAL
-| STRING
+| STR
 | ARNG of (int*int)
 | PACKED of (int*int)
 | UNPACKED of (int*int)
 | ADD of arrtyp list
 | MAX of arrtyp list
 | MEMBER of arrtyp list
-| VECTOR of (cexp * cexp)
+| VECTOR of (cexp * cexp) [@@deriving yojson]
 
 and cexp =
 | ERR of string
@@ -112,4 +112,4 @@ and cexp =
 | ENUMVAL of int * string
 | FLT of float
 | BIGINT of Int64.t
-| CNSTEXP of arithop * cexp list
+| CNSTEXP of arithop * cexp list [@@deriving yojson]
