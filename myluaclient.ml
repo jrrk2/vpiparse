@@ -318,4 +318,4 @@ let eargs = String.split_on_char ';' (try Sys.getenv "LUA_ARGS" with _ -> "")
 
 let _ = if false then List.iter print_endline ("eargs: "::eargs)
 
-let _ = try main (if eargs <> [] then eargs else List.tl (Array.to_list Sys.argv)) with End_of_file -> ()
+let _ = try main (if eargs <> [""] then eargs else List.tl (Array.to_list Sys.argv)) with End_of_file -> ()
