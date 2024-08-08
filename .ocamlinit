@@ -20,7 +20,13 @@ open Convert_edited
 open Source_generic_main
 open Rtlil_input_rewrite_types
 
-let sat = Hashtbl.find Input_equiv_verible.lhash "itm6";;
+let t s = List.map (List.map E.transparent) (Hashtbl.find sath s)
+let tlst = t "mul[0]";;
+
+(*
+let ind = Myluaclient.find_sat "itm7";;
+let json = json' ind;;
+*)
 
 (*
 let (ind,klst,itm) = List.hd !conlst;;

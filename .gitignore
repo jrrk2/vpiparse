@@ -125,3 +125,5 @@ Input_verilator
 Input_verilator_top
 Source_combined
 Source_combined_top
+Source_text_verible.ml-e
+Source_text_verible.mli-e
