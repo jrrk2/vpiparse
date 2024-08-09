@@ -74,11 +74,18 @@ let lcnvsat itm =
   let nxtitm = nxtitm' () in
   Hashtbl.add lhash nxtitm (Sat ind);
   nxtitm
-  
+
 let lcmpitm gold rev = 
   let goldlst = Source_generic_main.cnv_sat_arg (find_sat gold) in
   let revlst = Source_generic_main.cnv_sat_arg (find_sat rev) in
   let status = Source_generic_main.cmp_sat goldlst revlst in
+  if false then print_endline status;
+  status
+
+let lcmpz3 gold rev = 
+  let goldlst = Source_generic_main.cnv_sat_arg (find_sat gold) in
+  let revlst = Source_generic_main.cnv_sat_arg (find_sat rev) in
+  let status = Z3_example.z3compare goldlst revlst in
   if false then print_endline status;
   status
 
@@ -270,7 +277,12 @@ C.register_module "Pair"
 
     C.register_module "external" [
     "eqv", V.efunc (V.string **->> V.string) (wrap1 Input_equiv_verible.eqv);
-    "sta", V.efunc (V.string **-> V.string **-> V.string **->> V.unit) (wrap2 Input_equiv_verible.sta);
+    "sta", V.efunc (V.string **-> V.string **-> V.string **->> V.unit) (wrap2 Input_equiv_verible.sta);    
+    ] g;
+
+    C.register_module "z3" [
+    "example", V.efunc (V.unit **->> V.int) (wrap1 Z3_example.z3_example);
+    "cmp", V.efunc (V.string **-> V.string **->> V.string) (wrap2 lcmpz3);    
     ] g;
 
     end (* M *)
@@ -314,8 +326,6 @@ let main args =
     if verbose then print_endline ("eval: "^ !itm);
     try eval !itm with e -> print_string (Printexc.to_string_default e^"\n* "); done
 
-let eargs = String.split_on_char ';' (try Sys.getenv "LUA_ARGS" with _ -> "")
+let eargs = try String.split_on_char ';' (Sys.getenv "LUA_ARGS") with _ -> List.tl (Array.to_list Sys.argv)
 
-let _ = if false then List.iter print_endline ("eargs: "::eargs)
-
-let _ = try main (if eargs <> [""] then eargs else List.tl (Array.to_list Sys.argv)) with End_of_file -> ()
+let _ = try main eargs with End_of_file -> ()

@@ -123,10 +123,10 @@ EOBJ= Input_verilator.ml Input_equiv_verilator.ml
 
 IOBJ= Input_pat4.ml Input_equiv.ml
 
-COBJ= $(GEN) $(VSRC) $(XSRC) outputparser/Source_generic_main.ml Input_equiv_verible.ml $(EOBJ) $(IOBJ) myluaclient.ml
+COBJ= $(GEN) $(VSRC) $(XSRC) outputparser/Source_generic_main.ml Input_equiv_verible.ml $(EOBJ) $(IOBJ) z3_example.ml myluaclient.ml
 
 Source_combined_top: $(COBJ)
-	ocamlfind ocamlmktop -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml,ppx_deriving_yojson -linkpkg -g -o $@ -I +unix -I outputparser $(COBJ)
+	ocamlfind ocamlmktop -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml,ppx_deriving_yojson,z3 -linkpkg -thread -g -o $@ -I +unix -I outputparser $(COBJ)
 
 Source_combined: $(COBJ)
-	ocamlfind ocamlopt -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml,ppx_deriving_yojson -linkpkg -g -o $@ -I +unix -I outputparser $(COBJ)
+	ocamlfind ocamlopt -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml,ppx_deriving_yojson,z3 -linkpkg -thread -g -o $@ -I +unix -I outputparser $(COBJ)

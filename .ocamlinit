@@ -1,7 +1,7 @@
+#directory "/Users/jonathan/.opam/5.2.0/lib/xml-light";;
 #directory "/Users/jonathan/.opam/5.2.0/lib/hardcaml";;
 #directory "/Users/jonathan/.opam/5.2.0/lib/base";;
-#directory "/Users/jonathan/.opam/5.2.0/lib/hardcaml";;
-#directory "/Users/jonathan/.opam/5.2.0/lib/xml-light";;
+#directory "/Users/jonathan/.opam/5.2.0/lib/z3";;
 #directory "outputparser";;
 #directory "hardcaml_of_verilog/_build/install/5.2.0/lib/hardcaml_of_verilog";;
 
@@ -19,6 +19,8 @@ open Generic_rewrite
 open Convert_edited
 open Source_generic_main
 open Rtlil_input_rewrite_types
+open Myluaclient
+open Source_text_rewrite_types
 
 (*
 let t s = List.map (List.map Source_text_rewrite_types.E.transparent) (Hashtbl.find sath s)
@@ -122,3 +124,21 @@ let gold = snd (Rtlil_input_rewrite.parse (Rtlil_input_rewrite.parse_output_ast_
 let _ = Rtlil_dump.dumprtl "_gold" gold
 let _ = Source_generic_main.rewrite_rtlil gold ilang
 *)
+
+open Z3
+open Z3.Symbol
+open Z3.Sort
+open Z3.Expr
+open Z3.Boolean
+open Z3.FuncDecl
+open Z3.Goal
+open Z3.Tactic
+open Z3.Tactic.ApplyResult
+open Z3.Probe
+open Z3.Solver
+open Z3.Arithmetic
+open Z3.Arithmetic.Integer
+open Z3.Arithmetic.Real
+open Z3.BitVector
+
+exception TestFailedException of string

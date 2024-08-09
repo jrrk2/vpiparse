@@ -1,3 +1,4 @@
+*-e
 *~
 File.ml
 File.mli
@@ -18,6 +19,8 @@ Input.conflicts
 uhdm.txt
 slpp_all/
 hardcaml_circuits-0.17.0/
+multiplier_attributes/
+simple/
 *.v
 *.eqy
 *.tcl
