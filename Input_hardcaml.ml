@@ -632,10 +632,11 @@ let _detect_dyadic = function
 (*
  | (Vpirhs as op),Sig lhs, Sig rhs -> othop := (op, summary (Sig lhs), summary (Sig rhs)); failwith "detect_dyadic_rhs"
 *)
+| (Mults _|Divs|Mods as op), Sig lhs, Sig rhs -> relational' (signed_relational op) (Signed.of_signal lhs) (Signed.of_signal rhs)
+| op,Sigs lhs, Sigs rhs -> relational' (signed_relational op) lhs rhs
 | op,Sig lhs, Sig rhs -> relational (unsigned_relational op) lhs rhs
 | op,Sigs lhs, Sig rhs -> relational (unsigned_relational op) (Signed.to_signal lhs) rhs
 | op,Sig lhs, Sigs rhs -> relational (unsigned_relational op) lhs (Signed.to_signal rhs)
-| op,Sigs lhs, Sigs rhs -> relational' (signed_relational op) lhs rhs
 | (Sub _ as op), Sig lhs, Con rhs -> relational (unsigned_relational op) lhs (Signal.of_constant rhs)
 | op, Con lhs, Sig rhs -> relational (unsigned_relational op) (Signal.of_constant lhs) rhs
 | op, Con lhs, Sigs rhs -> relational' (signed_relational op) (Signed.of_signal (Signal.of_constant lhs)) rhs

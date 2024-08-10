@@ -79,7 +79,7 @@ let status f =
     while !busy do busy := read' lst x done; f^"/"^(List.hd !lst)
   | oth -> failwith "filt type not handled"
 
-let tranxml f' src =
+let tranxml f' =
   let f = status f' in
   print_endline ("tran "^f);
   let (line,range,rwxml,xml,mods,toplst,topattr,modules,packages,interfaces) = Input_verilator.translate () f in

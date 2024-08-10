@@ -1,10 +1,9 @@
 module multiplier_signed (
-    input clock,
-    input signed [3:0] b,
-    input signed [7:0] a,
-    output reg [11:0] y);
+    input signed [5:0] b,
+    input signed [5:0] a,
+    output reg [5:0] mul);
 
-    always @(posedge clock)
-          y <= a * b;
+    always_comb
+          mul <= a * b;
 
 endmodule

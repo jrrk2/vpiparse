@@ -416,19 +416,21 @@ let z3_example () =
 open Source_text_rewrite_types
     
 let othz3 = ref None
-let othz3' = ref None
 
 let rec z3expr ctx = function
-| F.Lit (false, String_lit.Made (String_lit.SCALAR a)) -> Expr.mk_const ctx (Symbol.mk_string ctx a) (Boolean.mk_sort ctx)
-| F.Lit (false, String_lit.Made (String_lit.INDEXED (a,ix))) -> Expr.mk_const ctx (Symbol.mk_string ctx (a^"_"^string_of_int ix)) (Boolean.mk_sort ctx)
-| F.Comb (F.Or, lst) -> Boolean.mk_or ctx (List.map (z3expr ctx) lst)
+| F.Lit (Made (SCALAR a)) -> Expr.mk_const ctx (Symbol.mk_string ctx a) (Boolean.mk_sort ctx)
+| F.Lit (Made (INDEXED (a,ix))) -> Expr.mk_const ctx (Symbol.mk_string ctx (a^"!"^string_of_int ix)) (Boolean.mk_sort ctx)
 | F.Comb (F.And, lst) -> Boolean.mk_and ctx (List.map (z3expr ctx) lst)
+| F.Comb (F.Or, lst) -> Boolean.mk_or ctx (List.map (z3expr ctx) lst)
+| F.Comb (F.Xor, [a;b]) -> Boolean.mk_xor ctx (z3expr ctx a) (z3expr ctx b)
+| F.Comb (F.Xor, _) -> failwith "Xor"
+| F.Comb (F.Imp, [a;b]) -> Boolean.mk_implies ctx (z3expr ctx a) (z3expr ctx b)
+| F.Comb (F.Imp, _) -> failwith "Imp"
 | F.Comb (F.Not, [rght]) -> Boolean.mk_not ctx (z3expr ctx rght)
-(*
-| F.False -> Boolean.mk_false ctx
-*)
-| F.True -> Boolean.mk_true ctx
-| oth -> othz3' := Some oth; failwith "z3expr"
+| F.Comb (F.Not, _) -> failwith "Not"
+| F.Lit (Made GND) -> Boolean.mk_false ctx
+| F.Lit (Made PWR) -> Boolean.mk_true ctx
+| F.Lit (Fresh n) -> mk_fresh_const ctx (string_of_int n) (Boolean.mk_sort ctx)
 
 let z3tran ctx = function
 | E.SCALAR a, expr -> z3expr ctx expr
@@ -440,12 +442,14 @@ let z3compare (prt1,form1,wid1) (prt2,form2,wid2) =
 let cfg = [("model", "true"); ("proof", "false")] in
 let ctx = (mk_context cfg) in
 
-let form' = List.map2 (fun itm1 itm2 -> Boolean.mk_eq ctx (z3tran ctx itm1) (z3tran ctx itm2)) form1 form2 in
+let rslts = List.map2 (fun itm1 itm2 ->
+let form' = Boolean.mk_xor ctx (z3tran ctx itm1) (z3tran ctx itm2) in
 let g' = (mk_goal ctx true false false) in
-Goal.add g' form';
+Goal.add g' [form'];
 Printf.printf "%s\n" ("Goal': " ^ (Goal.to_string g'));
 let solver' = (mk_solver ctx None) in
 List.iter (fun a -> (Solver.add solver' [ a ])) (get_formulas g');
 let rslt' = string_of_status (check solver' []) in
-let _ = print_endline rslt' in
-rslt'
+print_endline rslt';
+rslt') form1 form2 in
+String.concat ";" rslts
