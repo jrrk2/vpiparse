@@ -438,18 +438,24 @@ let z3tran ctx = function
 | oth -> othz3 := Some oth; failwith "z3tran"
 
 let z3compare (prt1,form1,wid1) (prt2,form2,wid2) =
-
+let verbose = try int_of_string (Sys.getenv "Z3_GOAL_VERBOSE") > 0 with _ -> false in
 let cfg = [("model", "true"); ("proof", "false")] in
 let ctx = (mk_context cfg) in
 
-let rslts = List.map2 (fun itm1 itm2 ->
-let form' = Boolean.mk_xor ctx (z3tran ctx itm1) (z3tran ctx itm2) in
+let form' = Boolean.mk_or ctx (List.map2 (fun itm1 itm2 ->
+Boolean.mk_xor ctx (z3tran ctx itm1) (z3tran ctx itm2)) form1 form2) in
 let g' = (mk_goal ctx true false false) in
 Goal.add g' [form'];
-Printf.printf "%s\n" ("Goal': " ^ (Goal.to_string g'));
+if verbose then Printf.printf "%s\n" ("Goal': " ^ (Goal.to_string g'));
 let solver' = (mk_solver ctx None) in
 List.iter (fun a -> (Solver.add solver' [ a ])) (get_formulas g');
-let rslt' = string_of_status (check solver' []) in
-print_endline rslt';
-rslt') form1 form2 in
-String.concat ";" rslts
+let q = check solver' [] in
+let rslt' = if q = SATISFIABLE then
+      (match get_model solver' with
+      | None -> failwith "get_model"
+	| Some (m) ->
+	  Printf.sprintf "Z3 found counter-example:\n%s\n" (Model.to_string m))
+    else
+      "z3compare found no discrepancy"
+      in
+rslt'
