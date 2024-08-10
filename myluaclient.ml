@@ -52,10 +52,9 @@ let find_lib lib = match Hashtbl.find lhash lib with
     | Lib (liberty, cells) -> liberty, cells
     | oth -> failwith ("item "^lib^" is not a library")
 
-let lcnvitm lib rtlitm = 
-  let modnam, rtl = find_rtl rtlitm in
-  let yliberty, ycells = find_lib lib in
-  let nam,ilang = Cnv_ilang.cnv_ilang modnam (Rtl_map.map ycells modnam rtl) in
+let lcnvitm mapitm = 
+  let modnam, map = find_cnv mapitm in
+  let nam,ilang = Cnv_ilang.cnv_ilang modnam map in
   let nxtitm = nxtitm' () in
   Hashtbl.add lhash nxtitm (Rtlil (nam, ilang));
   nxtitm
@@ -242,7 +241,7 @@ C.register_module "Pair"
  
     C.register_module "verible" [
     "tranlst", V.efunc (V.string **->> V.string) (wrap1 ltranlst);
-    "cnvitm", V.efunc (V.string **-> V.string **->> V.string) (wrap2 lcnvitm);
+    "cnvitm", V.efunc (V.string **->> V.string) (wrap1 lcnvitm);
     "mapitm", V.efunc (V.string **-> V.string **->> V.string) (wrap2 lmapitm);
     "satitm", V.efunc (V.string **->> V.string) (wrap1 lcnvsat);
     "cmpitm", V.efunc (V.string **-> V.string **->> V.string) (wrap2 lcmpitm);
