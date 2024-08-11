@@ -142,7 +142,7 @@ let less_equal_signed lhs rhs = Signed.of_signal (less_equal_fast (Signed.to_sig
 
 let mult_config = function
   | "Wallace" | "" -> Hardcaml_circuits.Mul.Config.Wallace
-  | "Dadda" -> Dadda
+  | "Dadda" | "fastest" -> Dadda
   | oth -> failwith ("Multiplier model not supported: "^oth)
 
 let mult_fast model a_sig b_sig =

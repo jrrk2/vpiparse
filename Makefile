@@ -130,3 +130,6 @@ Source_combined_top: $(COBJ)
 
 Source_combined: $(COBJ)
 	ocamlfind ocamlopt -package xml-light,msat,hardcaml,hardcaml_circuits,unix,lua-ml,ppx_deriving_yojson,z3 -linkpkg -thread -g -o $@ -I +unix -I outputparser $(COBJ)
+
+test_combined: Source_combined
+	./$< verify.lua test/hardcaml/multiplier_dadda.sv test/hardcaml/multiplier_wallace.sv
