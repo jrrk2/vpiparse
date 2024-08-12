@@ -1,11 +1,11 @@
 module counter_test (
     input rst,
     input clk,
-    output reg [7:0] cnt);
+    output reg [3:0] cnt);
 
     always @(posedge clk)
         if (rst)
-            cnt <= 8'b00000000;
+            cnt <= 4'b0000;
         else
           cnt <= cnt + 1;
 

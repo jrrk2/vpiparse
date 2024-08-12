@@ -262,9 +262,7 @@ let annot itms porth inports outports op = function
  Hashtbl.replace porth (fst (List.hd outports)) (explode itms op)
  | oth,_ -> othff := oth; failwith "maplib'_othff"
 
-let mapcnt = ref 0
-
-let maplib' itms lst = function
+let maplib' mapcnt itms lst = function
 | (VRF (nam, _, _) as op), (cellnam::_,(portlst,(funy,eqn,(liberty:liberty))::_)::_) ->
 let porth = Hashtbl.create 127 in
 List.iter (fun (nam, _) -> Hashtbl.add porth nam []) portlst;
@@ -286,7 +284,7 @@ decr sigcnt;
 let nam = "_"^string_of_int !sigcnt in
 let outp = VRF (nam, (BASDTYP, "wire", TYPNONE, []), []) in
 _Identyp itms nam Vpinet;
-maplib' itms lst (outp,cell);
+maplib' mapcnt itms lst (outp,cell);
 outp
 *)
 
@@ -314,14 +312,14 @@ let rec body itms = function
 | QUADRUPLE(DLYASSIGNMENT, src, EMPTY, dest) -> _Asgn itms (expr itms src, expr itms dest)
 | oth -> othmapfail := oth; failwith "body"
 
-let _chk_assign itms (lhs, rhs) = maplib' itms [lhs] (rhs, filtcells itms.cells BUF)
+let _chk_assign mapcnt itms (lhs, rhs) = maplib' mapcnt itms [lhs] (rhs, filtcells itms.cells BUF)
 
-let rec _map itms = function
-| TLIST lst -> List.iter (map itms) lst
+let rec _map mapcnt itms = function
+| TLIST lst -> List.iter (map mapcnt itms) lst
 | DOUBLE(POSEDGE,arg) as pat -> othmapfail := pat; failwith "DOUBLE(POSEDGE,arg)"
 | DOUBLE(ALWAYS, TLIST [DOUBLE (DOUBLE (AT, TLIST [DOUBLE (POSEDGE, clk)]), TLIST
          [TLIST [QUADRUPLE (DLYASSIGNMENT, lhs, EMPTY, rhs)]])]) ->
-maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells itms.cells POSEDGE)
+maplib' mapcnt itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells itms.cells POSEDGE)
 | DOUBLE(ALWAYS, TLIST [DOUBLE (DOUBLE (AT, TLIST [DOUBLE (POSEDGE, IDSTR clk)]), TLIST [TLIST lst])]) as alw -> othalw := alw;
   _Always itms (POSEDGE clk, List.map (body itms) lst)
 | DOUBLE(tok,arg) as pat -> othmapfail := pat; failwith "DOUBLE(tok,arg)"
@@ -331,11 +329,11 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells itms.cel
 | TRIPLE(LESS, arg1, arg2) as pat -> othmapfail := pat; failwith "TRIPLE(LESS,"
 | TRIPLE(ASSIGNMENT, arg1, arg2) as pat -> othmapfail := pat; failwith "TRIPLE(ASSIGNMENT,"
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE((AND|OR|XOR as func), lft, rght)))]) ->
-  maplib' itms ([expr itms lft;expr itms rght]) (expr itms lhs, filtcells itms.cells func)
+  maplib' mapcnt itms ([expr itms lft;expr itms rght]) (expr itms lhs, filtcells itms.cells func)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (DOUBLE((NOT as func), rght)))]) ->
-  maplib' itms ([expr itms rght]) (expr itms lhs, filtcells itms.cells func)
+  maplib' mapcnt itms ([expr itms rght]) (expr itms lhs, filtcells itms.cells func)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, QUADRUPLE (QUERY, cond, lft, rght))]) ->
-  maplib' itms [expr itms cond; expr itms lft; expr itms rght] (expr itms lhs, filtcells itms.cells QUERY)
+  maplib' mapcnt itms [expr itms cond; expr itms lft; expr itms rght] (expr itms lhs, filtcells itms.cells QUERY)
 | TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, (TRIPLE((PLUS|MINUS|P_EQUAL|LESS as op), lft, rght)))]) ->
   let body = match _chk_arith itms op (expr itms lft, expr itms rght, expr itms lhs) with
     | QUINTUPLE (MODULE, IDSTR _, TLIST [], TLIST io, TLIST lst) ->
@@ -343,8 +341,8 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells itms.cel
       let map' = function IDSTR id -> id | _ -> failwith "prefix" in
       List.map (prefix (List.map map' io)) body'
     | oth -> othchkarith := oth; failwith "_chk_arith" in
-    othbody := body; List.iter (map itms) body
-| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, rhs)]) -> _chk_assign itms (expr itms rhs, expr itms lhs)
+    othbody := body; List.iter (map mapcnt itms) body
+| TRIPLE(ASSIGN, EMPTY, TLIST [TRIPLE (ASSIGNMENT, lhs, rhs)]) -> _chk_assign mapcnt itms (expr itms rhs, expr itms lhs)
 | TRIPLE(tok, arg1, arg2) as pat ->  othmapfail := pat; failwith "TRIPLE(tok,"
 | QUADRUPLE(QUERY, arg1, arg2, arg3) as pat ->  othmapfail := pat; failwith "QUADRUPLE(QUERY,"
 | QUADRUPLE(PARTSEL, IDSTR id, hi, lo) as pat -> othmapfail := pat; failwith "QUADRUPLE(PARTSEL,"
@@ -360,12 +358,12 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells itms.cel
     TLIST [TRIPLE (IDSTR nam, EMPTY, EMPTY)]) -> _Identyprng itms nam (TYPRNG(HEX hi, HEX lo)) Vpinet
 | QUADRUPLE((WIRE|REG), EMPTY, TRIPLE (EMPTY, EMPTY, EMPTY),
 	  TLIST [TRIPLE (IDSTR nam, EMPTY, init)]) ->
-		  _Identyp itms nam Vpinet; _chk_assign itms (expr itms init, _Ident itms nam)
+		  _Identyp itms nam Vpinet; _chk_assign mapcnt itms (expr itms init, _Ident itms nam)
 | QUADRUPLE((WIRE|REG), EMPTY, TRIPLE (EMPTY, RANGE (INT hi, INT lo), EMPTY),
 	  TLIST [TRIPLE (IDSTR nam, EMPTY, init)]) ->
-		  _Identyprng itms nam (TYPRNG(HEX hi, HEX lo)) Vpinet; _chk_assign itms (expr itms init, _Ident itms nam)
+		  _Identyprng itms nam (TYPRNG(HEX hi, HEX lo)) Vpinet; _chk_assign mapcnt itms (expr itms init, _Ident itms nam)
 | QUADRUPLE(tok, arg1, arg2, arg3) as pat -> othmapfail := pat; failwith "QUADRUPLE(tok,"
-| QUINTUPLE(MODULE, arg1, arg2, TLIST arg3, arg4) -> let u = empty_itms itms.cells in uitms := u :: !uitms; map u arg2; ports arg3; map u arg4
+| QUINTUPLE(MODULE, arg1, arg2, TLIST arg3, arg4) -> let u = empty_itms itms.cells in uitms := u :: !uitms; map mapcnt u arg2; ports arg3; map mapcnt u arg4
 | QUINTUPLE((INPUT|OUTPUT as dir'), EMPTY, EMPTY, EMPTY,
         TLIST [TRIPLE (IDSTR nam, EMPTY, EMPTY)]) -> _Port itms (dir dir') nam
 | QUINTUPLE((INPUT|OUTPUT as dir'), EMPTY, EMPTY, RANGE (INT hi, INT lo),
@@ -403,7 +401,7 @@ maplib' itms (List.map (expr itms) [rhs;clk]) (expr itms lhs, filtcells itms.cel
 | INT n as pat -> othmapfail := pat; failwith "INT"
 | oth -> othmapfail := oth; failwith "dump"
 
-and map itms pat = lastpat := pat; _map itms pat
+and map mapcnt itms pat = lastpat := pat; _map mapcnt itms pat
 
 and _chk_arith itms op = function
 | VRF (a, _, _), VRF (b, _, _), VRF (y, _, _) ->
@@ -455,7 +453,7 @@ let rslt = map' rtl in
 othrtl := rslt;
 let u = empty_itms cells in
 uitms := u :: [];
-let _ = map u rslt in
+let _ = map (ref 0) u rslt in
 let u = List.hd !uitms in
 uitms := u :: [];
 u

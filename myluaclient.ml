@@ -52,27 +52,32 @@ let find_lib lib = match Hashtbl.find lhash lib with
     | Lib (liberty, cells) -> liberty, cells
     | oth -> failwith ("item "^lib^" is not a library")
 
+let hadd found = function
+  | Cnvlst (nam, itms) -> Hashtbl.iter (fun k -> function Cnvlst(nam', itms') -> if itms=itms' then found := k | _ -> ()) lhash
+  | Rtlil(nam,ilang) -> Hashtbl.iter (fun k -> function Rtlil(nam', ilang') -> if ilang=ilang' then found := k | _ -> ()) lhash
+  | Lib (nam, itms) -> Hashtbl.iter (fun k -> function Lib(nam', itms') -> if itms=itms' then found := k | _ -> ()) lhash
+  | Rtl (nam, itms) -> Hashtbl.iter (fun k -> function Rtl(nam', itms') -> if itms=itms' then found := k | _ -> ()) lhash
+  | Sat itms -> Hashtbl.iter (fun k -> function Sat itms' -> if itms=itms' then found := k | _ -> ()) lhash
+
+let hadd x =
+  let found = ref "" in hadd found x;
+  if !found = "" then (let nxtitm = nxtitm' () in Hashtbl.add lhash nxtitm x; nxtitm) else !found
+
 let lcnvitm mapitm = 
   let modnam, map = find_cnv mapitm in
   let nam,ilang = Cnv_ilang.cnv_ilang modnam map in
-  let nxtitm = nxtitm' () in
-  Hashtbl.add lhash nxtitm (Rtlil (nam, ilang));
-  nxtitm
+  hadd (Rtlil (nam, ilang))
 
 let lmapitm lib rtlitm = 
   let modnam, rtl = find_rtl rtlitm in
   let liberty, cells = find_lib lib in
   let map = Rtl_map.map cells modnam rtl in
-  let nxtitm = nxtitm' () in
-  Hashtbl.add lhash nxtitm (Cnvlst (modnam, map));
-  nxtitm
+  hadd (Cnvlst (modnam, map))
 
 let lcnvsat itm =
   let ilang = find_ilang itm in
   let ind = Source_generic_main.cnv_sat_tree' ilang in
-  let nxtitm = nxtitm' () in
-  Hashtbl.add lhash nxtitm (Sat ind);
-  nxtitm
+  hadd (Sat ind)
 
 let lcmpitm gold rev = 
   let goldlst = Source_generic_main.cnv_sat_arg (find_sat gold) in
@@ -99,48 +104,41 @@ let ldumplib lib =
 let lhardcnv itm =
   let modnam, itms = find_cnv itm in
   let rtl = Input_hardcaml.cnv (modnam, itms) in
-  let nxtitm = nxtitm' () in
-  Hashtbl.add lhash nxtitm (Rtl (modnam, rtl));
-  nxtitm
+  hadd (Rtl (modnam, rtl))
 
 let ltranlst v =
   let cnvlst = Input_equiv_verible.tranlst v in
   let nxtitm = ref "" in
-  List.iter (fun (nam,itm) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Cnvlst (nam,itm))) cnvlst;
+  List.iter (fun (nam,itm) -> nxtitm := hadd (Cnvlst (nam,itm))) cnvlst;
   !nxtitm
 
 let ltranxml f =
   let cnvlst = Input_equiv_verilator.tranxml f in
   let nxtitm = ref "" in
-  List.iter (fun (nam,(_,itm)) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Cnvlst (nam,itm))) cnvlst;
-  print_endline ("nxtitm = "^ !nxtitm);
+  List.iter (fun (nam,(_,itm)) -> nxtitm := hadd (Cnvlst (nam,itm))) cnvlst;
   !nxtitm
 
 let ltranuhdmall f =
   let cnvlst = Input_equiv.tranall f in
   let nxtitm = ref "" in
-  List.iter (fun (nam,(_,itm)) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Cnvlst (nam,itm))) cnvlst;
-  print_endline ("nxtitm = "^ !nxtitm);
+  List.iter (fun (nam,(_,itm)) -> nxtitm := hadd (Cnvlst (nam,itm))) cnvlst;
   !nxtitm
 
 let ltranuhdmtop f =
   let cnvlst = Input_equiv.trantop f in
   let nxtitm = ref "" in
-  List.iter (fun (nam,(_,itm)) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Cnvlst (nam,itm))) cnvlst;
-  print_endline ("nxtitm = "^ !nxtitm);
+  List.iter (fun (nam,(_,itm)) -> nxtitm := hadd (Cnvlst (nam,itm))) cnvlst;
   !nxtitm
 
 let lrtlil v =
   let gold = gold_rtlil v in 
   let nxtitm = ref "" in
-  List.iter (fun (nam, itm) -> nxtitm := nxtitm'(); Hashtbl.add lhash !nxtitm (Rtlil (nam, itm))) gold;
+  List.iter (fun (nam, itm) -> nxtitm := hadd (Rtlil (nam, itm))) gold;
   !nxtitm
 
 let lreadlib lib =
   let liberty, cells = Rtl_map.read_lib lib in
-  let nxtitm = nxtitm' () in
-  Hashtbl.add lhash nxtitm (Lib (liberty, cells));
-  nxtitm
+  hadd (Lib (liberty, cells))
 
 let lnam itm =
   match Hashtbl.find lhash itm with
