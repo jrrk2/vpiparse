@@ -28,8 +28,6 @@ open Input_dump
 open Dump_types
 open Input_cnv
 
-let topmods = ref []
-let allmods = ref []
 let othmap = ref ([],[])
 let othstmtlst = ref []
 
@@ -84,8 +82,8 @@ let rec top_pat' itms = function
 | TUPLE2 (Vpitopmodule, Int n) -> ()
 | TUPLE2 ((Uhdmtopmodules|Uhdmallmodules), TLIST rawlst) ->
         (match List.partition (function TUPLE2 ((Vpitypedef|Vpiparamassign|Vpivariables|Vpimodule|Vpiport|Vpiprocess|Vpitopmodule|Vpinet|Vpitop), _) | TUPLE3 ((Vpiparameter|Cont_assign), _,_ ) | TUPLE6 ((Parameter), _, _ , _, _ , _) -> true | _ -> false) rawlst with
-          | types, Vpiparent :: TLIST [] :: (STRING topmod) :: body -> fresh (topmod) allmods types body
-          | types, Vpiname :: (STRING topmod) :: body -> fresh (topmod) topmods types body
+          | types, Vpiparent :: TLIST [] :: (STRING topmod) :: body -> fresh (topmod) itms.allmods types body
+          | types, Vpiname :: (STRING topmod) :: body -> fresh (topmod) itms.topmods types body
           | oth -> othmap := oth; failwith "map'")
 | TUPLE4 (Gen_scope_array, STRING lbl, TLIST _, TUPLE2(Gen_scope, TLIST (TLIST _ :: lst))) -> List.iter (function
   | TUPLE2 (Vpiprocess, TUPLE2 (TUPLE2 (Always, TUPLE2 (Vpialwaystype, Vpialways)),
@@ -284,7 +282,7 @@ and pat' itms = function
 |   TUPLE3 (Ref_typespec, TLIST _,
      TUPLE2 (Vpiactual, TUPLE2 (Array_typespec, TLIST (TUPLE3(Vpirange,_,_) :: elem)))) -> _Void    itms 300
 |   TUPLE3 (Ref_module, TUPLE3 (STRING _, STRING _, LOC _), TLIST lst) ->seq itms lst
-|   TUPLE3 (Named_begin, (STRING _ | TLIST _), TLIST rawlst) -> let namedmods = ref [] in
+|   TUPLE3 (Named_begin, (STRING _ | TLIST _), TLIST rawlst) -> let (namedmods:(string*(token list*itms)) list ref) = ref [] in
         (match List.partition (function TUPLE2 ((Vpitypedef|Vpiparamassign|Vpivariables|TUPLE2(Always,_)), _) | TUPLE3 (Vpiparameter, _,_ ) -> true | _ -> false) rawlst with
           | types, Vpiparent :: STRING topnamed :: TLIST _ :: body -> fresh topnamed namedmods types body
           | types, Vpiparent :: STRING topnamed :: body -> fresh topnamed namedmods types body

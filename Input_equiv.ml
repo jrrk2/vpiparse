@@ -69,26 +69,29 @@ let tranall pipe =
   print_endline ("tran "^pipe);
   let cache, p = Input_lex.parse_output_ast_from_uhdm_pipe pipe in
   p' := p;
-  let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
-  !allmods
+  let uitms = empty_itms [] in
+  let _ = List.map (top_pat uitms) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
+  !(uitms.allmods)
 
 let trantop pipe =
   print_endline ("tran "^pipe);
   let cache, p = Input_lex.parse_output_ast_from_uhdm_pipe pipe in
   p' := p;
-  let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
-  !topmods
+  let uitms = empty_itms [] in
+  let _ = List.map (top_pat uitms) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
+  !(uitms.topmods)
 
 let tran pipe src =
   print_endline ("tran "^pipe);
   let cache, p = Input_lex.parse_output_ast_from_uhdm_pipe pipe in
   p' := p;
-  let _ = List.map (top_pat (empty_itms [])) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
-  if true then List.iter (dump' "_all") !allmods;
-  if true then List.iter (dump' "_top") !topmods;
+  let uitms = empty_itms [] in
+  let _ = List.map (top_pat uitms) (List.filter (function TUPLE2 (Weaklyreferenced, _) -> false | _ -> true) p) in
+  if true then List.iter (dump' "_all") !(uitms.allmods);
+  if true then List.iter (dump' "_top") !(uitms.topmods);
   let liberty, cells = Rtl_map.read_lib (Rtl_map.dflt_liberty None) in
   List.iter (fun (modnam, (_, modul)) -> let rtl = cnv (modnam, modul) in Rtl_dump.dump modnam rtl;
-  dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)))) !topmods;
-  match !topmods with
+  dump' "_map" (modnam, ((), (Rtl_map.map cells modnam rtl)))) !(uitms.topmods);
+  match !(uitms.topmods) with
     | (modnam,_)::[] -> eqv src (modnam^"_map.v") modnam liberty; sta (modnam^"_map.v") modnam liberty
     | _ -> failwith "multiple top modules"

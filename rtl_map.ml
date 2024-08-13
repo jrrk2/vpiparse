@@ -433,7 +433,7 @@ and _chk_arith itms op = function
       init = {contents = []}; func = {contents = []}; task = {contents = []};
       gen = {contents = []}; imp = {contents = []}; inst = {contents = []};
       cnst = {contents = []}; needed = {contents = []};
-      remove_interfaces = false; mode = ""; names'' = []; cells=[]; } ))
+      remove_interfaces = false; mode = ""; names'' = []; cells=[]; topmods=ref []; allmods=ref [] } ))
 | oth -> othargs := oth; failwith "_chk_arith othargs"
 
 and map' rtl =

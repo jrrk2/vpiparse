@@ -1054,7 +1054,9 @@ needed=ref [];
 remove_interfaces = false;
 mode="";
 names''=[];
-cells=cells; }
+cells=cells;
+topmods=ref [];
+allmods=ref [] }
 
 let rev_itms prev = {
 io=ref (List.rev !(prev.io));
@@ -1074,7 +1076,10 @@ needed=ref (List.rev !(prev.needed));
 remove_interfaces = prev.remove_interfaces;
 mode=prev.mode;
 names''=prev.names'';
-cells=prev.cells}
+cells=prev.cells;
+topmods=ref (List.rev !(prev.topmods));
+allmods=ref (List.rev !(prev.allmods));
+}
 
 let copy_itms prev = {
 io=ref !(prev.io);
@@ -1094,7 +1099,10 @@ needed=ref !(prev.needed);
 remove_interfaces = prev.remove_interfaces;
 mode=prev.mode;
 names''=prev.names'';
-cells=prev.cells }
+cells=prev.cells;
+topmods=ref !(prev.topmods);
+allmods=ref !(prev.allmods);
+}
 
 let num x = NUM (HEX x)
 

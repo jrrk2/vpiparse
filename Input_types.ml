@@ -253,6 +253,8 @@ and itms = {
   cells: (string *
           ((string * string) list *
            (string * Rtl_parser.token * File_rewrite.liberty) list)) list;
+  topmods: (string*(token list*itms)) list ref;
+  allmods: (string*(token list*itms)) list ref;
 } [@@deriving yojson]
 
 type remap =
