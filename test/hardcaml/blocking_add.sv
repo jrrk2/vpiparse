@@ -5,10 +5,10 @@ module blocking_add (
 
    always_comb
      begin
-      y = 0;
+      y = a*b;
       for (int i = 0; i < 4; i=i+1)
 	begin
-	   y = y + (a[i] ? b : 0);
+	   y = y - (a[i] ? b : 0);
 	end
      end
    

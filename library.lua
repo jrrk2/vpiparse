@@ -57,7 +57,8 @@ function rtlil_parse(v)
   return gold
 end
 
-function eqv(topmod,gold,rev)
+function eqv(gold,rev)
+  local topmod=itms.nam(rev)
   itms.dump("_gold",gold)
   itms.dump("_rev",rev)
   print(external.eqv(topmod))
@@ -90,9 +91,11 @@ function allsat(goldver,revver)
   minisat(gold,rev)
 end
 
-function rtlilsat(ilang,revver)
+function rtlilsat(v,revver)
+  local ilang=rtlil_parse(v)
   local satlib=readlib()
   local rev=convert(map(satlib,revver))
+  eqv(ilang,rev)
   z3sat(ilang,rev)
-  minisat(ilang,rev)
+  --minisat(ilang,rev)
 end

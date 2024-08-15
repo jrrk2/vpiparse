@@ -1,6 +1,5 @@
 %{
-  open Parsing
-  let declst = ref []
+
 %}
 
 %token  ACCEPT

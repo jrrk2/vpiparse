@@ -5,14 +5,13 @@ v = Sys.arg(2)
 -- w = Sys.arg(3)
 maplib="liberty/NangateOpenCellLibrary_typical"
 
-goldver,goldmap=verilator_parse(maplib,v)
+--goldver,goldmap=verilator_parse(maplib,v)
 
-revver,revmap=uhdm_parse(maplib,v)
+--revver,revmap=uhdm_parse(maplib,v)
 
-allsat(goldver,revver)
+--allsat(goldver,revver)
 
-ilangver=rtlil_parse(v)
 verver,vermap=verible_parse(maplib,v)
-rtlilsat(ilangver,verver)
+rtlilsat(v,verver)
 
 print(itms.itm())

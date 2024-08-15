@@ -442,9 +442,9 @@ let rec tranitm attr = function
 | IRNG (str1, rw_lst) as irng -> othirng := irng; failwith "IRNG"
 | CNST (w, HEX n) -> Hex (string_of_int n, w)
 | CNST (w, SHEX n) -> Unary(Signed, Hex (string_of_int n, w)) (* TBC *)
-| BGN (None, rw::[]) -> tranitm attr rw
-| BGN (None, rw_lst) -> Seq (List.map (tranitm attr) rw_lst)
-| BGN (Some str1, rw_lst) -> failwith "BGN"
+| BGN (_, rw::[]) -> tranitm attr rw
+| BGN (_, rw_lst) -> Seq (List.map (tranitm attr) rw_lst)
+| BGN (_, rw_lst) -> failwith "BGN"
 | CS (str1, expr :: cslst) as cs -> othcs := Some cs; let expr' = tranitm attr expr in
 Case (expr', List.map (function
   | CSITM ("", (CNST _ as cexp) :: stmt :: []) -> Item (tranitm attr cexp, tranitm attr stmt)
@@ -526,7 +526,7 @@ let _ = List.iter (fun (io,_ as args) -> if not (exists io) then Input_dump.iofu
 
 let alwystran = List.flatten (List.map (function
   | ("", COMB, (SNTRE [] :: lst)) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in List.map (tranitm attr) lst
-  | ("", COMB, (ASGN _ as stmt :: [])) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in [tranitm attr stmt]
+  | ("", COMB, ((ASGN _|BGN _) as stmt :: [])) -> let attr = {enable=Signal.vdd; r_sync=None; dest=false} in [tranitm attr stmt]
   | ("", POSEDGE clk, lst) -> let attr = {enable=Signal.vdd; r_sync=Some (Reg_spec.create ~clock:(sig' (find_decl clk)) ()); dest=false} in List.map (tranitm attr) lst
   | ("", POSPOS (clk, rst), lst) -> let attr = {enable=Signal.vdd; r_sync=Some (Reg_spec.create ~clock:(sig' (find_decl clk)) ~reset:(sig' (find_decl rst)) ()); dest=false} in List.map (tranitm attr) lst
   
