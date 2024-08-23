@@ -18,7 +18,6 @@ depends: [
   "msat"
   "hardcaml"
   "hardcaml_circuits"
-  "unix"
   "lua-ml"
   "ppx_deriving_yojson"
   "z3"
