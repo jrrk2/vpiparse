@@ -132,3 +132,4 @@ Source_text_verible.ml-e
 Source_text_verible.mli-e
 z3.log
 _build/
+replay.ys
