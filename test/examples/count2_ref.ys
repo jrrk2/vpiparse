@@ -1,0 +1,6 @@
+read_verilog count2.v
+write_ilang count2_ref.ilang
+proc
+write_verilog -noattr count2_ref.proc
+synth
+write_verilog -noattr count2_ref.synth

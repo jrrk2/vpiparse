@@ -1,0 +1,14 @@
+read_verilog -sv slib_clock_div.v
+read_verilog -sv slib_counter.v
+read_verilog -sv slib_edge_detect.v
+read_verilog -sv slib_fifo.v
+read_verilog -sv slib_input_filter.v
+read_verilog -sv slib_input_sync.v
+read_verilog -sv slib_mv_filter.v
+read_verilog -sv uart_baudgen.v
+read_verilog -sv uart_interrupt.v
+read_verilog -sv uart_receiver.v
+read_verilog -sv uart_transmitter.v
+read_verilog -sv apb_uart.v
+synth
+write_verilog junk.v

@@ -1,0 +1,6 @@
+read_ilang array2.v_dump.rtlil
+write_ilang array2.ilang
+proc
+write_verilog -noattr array2.proc
+synth
+write_verilog -noattr array2.synth

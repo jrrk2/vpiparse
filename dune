@@ -1,5 +1,11 @@
 (include_subdirs qualified)
 
+(rule
+ (deps outputparser/myluaclient.exe verify.lua test/hardcaml/multiplier_test.sv library.lua liberty/simcells.lib liberty/NangateOpenCellLibrary_typical.lib)
+ (alias runtest)
+ (action
+  (run outputparser/myluaclient.exe verify.lua test/hardcaml/multiplier_test.sv)))
+
 (env
   (dev
     (flags (:standard -g -w -16 -w -32 -w -52 -w -21 -w -26 -w -27 -w -37 -w -11))

@@ -1,0 +1,5 @@
+read_verilog -sv -dump_ast1 apb_uart.sv
+write_ilang apb_uart.ilang
+write_rtlil apb_uart.rtlil
+proc
+write_json apb_uart.json

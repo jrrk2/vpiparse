@@ -1,0 +1,4 @@
+read_verilog -sv -dump_ast1 ariane_preproc.sv
+write_ilang ariane_preproc.ilang
+proc
+write_json ariane_preproc.json

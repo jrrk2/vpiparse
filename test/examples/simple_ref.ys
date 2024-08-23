@@ -1,0 +1,344 @@
+read_verilog -overwrite ../../yosys/tests/simple/arraycells.v
+write_ilang arraycells_ref.ilang
+synth
+write_ilang arraycells_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/aes_kexp128.v
+write_ilang aes_kexp128_ref.ilang
+synth
+write_ilang aes_kexp128_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/always01.v
+write_ilang always01_ref.ilang
+synth
+write_ilang always01_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/always02.v
+write_ilang always02_ref.ilang
+synth
+write_ilang always02_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/always03.v
+write_ilang always03_ref.ilang
+synth
+write_ilang always03_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/arraycells.v
+write_ilang arraycells_ref.ilang
+synth
+write_ilang arraycells_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/arrays01.v
+write_ilang arrays01_ref.ilang
+synth
+write_ilang arrays01_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/attrib01_module.v
+write_ilang attrib01_module_ref.ilang
+synth
+write_ilang attrib01_module_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/attrib02_port_decl.v
+write_ilang attrib02_port_decl_ref.ilang
+synth
+write_ilang attrib02_port_decl_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/attrib03_parameter.v
+write_ilang attrib03_parameter_ref.ilang
+synth
+write_ilang attrib03_parameter_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/attrib04_net_var.v
+write_ilang attrib04_net_var_ref.ilang
+synth
+write_ilang attrib04_net_var_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/attrib06_operator_suffix.v
+write_ilang attrib06_operator_suffix_ref.ilang
+synth
+write_ilang attrib06_operator_suffix_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/attrib08_mod_inst.v
+write_ilang attrib08_mod_inst_ref.ilang
+synth
+write_ilang attrib08_mod_inst_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/attrib09_case.v
+write_ilang attrib09_case_ref.ilang
+synth
+write_ilang attrib09_case_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/carryadd.v
+write_ilang carryadd_ref.ilang
+synth
+write_ilang carryadd_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/case_expr_const.v
+write_ilang case_expr_const_ref.ilang
+synth
+write_ilang case_expr_const_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/case_expr_non_const.v
+write_ilang case_expr_non_const_ref.ilang
+synth
+write_ilang case_expr_non_const_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/case_large.v
+write_ilang case_large_ref.ilang
+synth
+write_ilang case_large_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/const_branch_finish.v
+write_ilang const_branch_finish_ref.ilang
+synth
+write_ilang const_branch_finish_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/const_fold_func.v
+write_ilang const_fold_func_ref.ilang
+synth
+write_ilang const_fold_func_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/const_func_shadow.v
+write_ilang const_func_shadow_ref.ilang
+synth
+write_ilang const_func_shadow_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/constmuldivmod.v
+write_ilang constmuldivmod_ref.ilang
+synth
+write_ilang constmuldivmod_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/constpower.v
+write_ilang constpower_ref.ilang
+synth
+write_ilang constpower_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/dff_different_styles.v
+write_ilang dff_different_styles_ref.ilang
+synth
+write_ilang dff_different_styles_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/dff_init.v
+write_ilang dff_init_ref.ilang
+synth
+write_ilang dff_init_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/dynslice.v
+write_ilang dynslice_ref.ilang
+synth
+write_ilang dynslice_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/fiedler-cooley.v
+write_ilang fiedler-cooley_ref.ilang
+synth
+write_ilang fiedler-cooley_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/forgen01.v
+write_ilang forgen01_ref.ilang
+synth
+write_ilang forgen01_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/forgen02.v
+write_ilang forgen02_ref.ilang
+synth
+write_ilang forgen02_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/forloops.v
+write_ilang forloops_ref.ilang
+synth
+write_ilang forloops_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/fsm.v
+write_ilang fsm_ref.ilang
+synth
+write_ilang fsm_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/func_block.v
+write_ilang func_block_ref.ilang
+synth
+write_ilang func_block_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/func_recurse.v
+write_ilang func_recurse_ref.ilang
+synth
+write_ilang func_recurse_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/func_width_scope.v
+write_ilang func_width_scope_ref.ilang
+synth
+write_ilang func_width_scope_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/genblk_collide.v
+write_ilang genblk_collide_ref.ilang
+synth
+write_ilang genblk_collide_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/genblk_dive.v
+write_ilang genblk_dive_ref.ilang
+synth
+write_ilang genblk_dive_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/genblk_order.v
+write_ilang genblk_order_ref.ilang
+synth
+write_ilang genblk_order_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/genblk_port_shadow.v
+write_ilang genblk_port_shadow_ref.ilang
+synth
+write_ilang genblk_port_shadow_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/generate.v
+write_ilang generate_ref.ilang
+synth
+write_ilang generate_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/graphtest.v
+write_ilang graphtest_ref.ilang
+synth
+write_ilang graphtest_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/hierarchy.v
+write_ilang hierarchy_ref.ilang
+synth
+write_ilang hierarchy_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/hierdefparam.v
+write_ilang hierdefparam_ref.ilang
+synth
+write_ilang hierdefparam_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/i2c_master_tests.v
+write_ilang i2c_master_tests_ref.ilang
+synth
+write_ilang i2c_master_tests_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/ifdef_1.v
+write_ilang ifdef_1_ref.ilang
+synth
+write_ilang ifdef_1_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/ifdef_2.v
+write_ilang ifdef_2_ref.ilang
+synth
+write_ilang ifdef_2_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/implicit_ports.v
+write_ilang implicit_ports_ref.ilang
+synth
+write_ilang implicit_ports_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/localparam_attr.v
+write_ilang localparam_attr_ref.ilang
+synth
+write_ilang localparam_attr_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/loop_prefix_case.v
+write_ilang loop_prefix_case_ref.ilang
+synth
+write_ilang loop_prefix_case_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/loop_var_shadow.v
+write_ilang loop_var_shadow_ref.ilang
+synth
+write_ilang loop_var_shadow_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/loops.v
+write_ilang loops_ref.ilang
+synth
+write_ilang loops_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/macro_arg_surrounding_spaces.v
+write_ilang macro_arg_surrounding_spaces_ref.ilang
+synth
+write_ilang macro_arg_surrounding_spaces_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/macros.v
+write_ilang macros_ref.ilang
+synth
+write_ilang macros_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/mem2reg.v
+write_ilang mem2reg_ref.ilang
+synth
+write_ilang mem2reg_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/mem2reg_bounds_tern.v
+write_ilang mem2reg_bounds_tern_ref.ilang
+synth
+write_ilang mem2reg_bounds_tern_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/mem_arst.v
+write_ilang mem_arst_ref.ilang
+synth
+write_ilang mem_arst_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/memory.v
+write_ilang memory_ref.ilang
+synth
+write_ilang memory_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/module_scope.v
+write_ilang module_scope_ref.ilang
+synth
+write_ilang module_scope_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/module_scope_case.v
+write_ilang module_scope_case_ref.ilang
+synth
+write_ilang module_scope_case_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/multiplier.v
+write_ilang multiplier_ref.ilang
+synth
+write_ilang multiplier_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/muxtree.v
+write_ilang muxtree_ref.ilang
+synth
+write_ilang muxtree_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/named_genblk.v
+write_ilang named_genblk_ref.ilang
+synth
+write_ilang named_genblk_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/nested_genblk_resolve.v
+write_ilang nested_genblk_resolve_ref.ilang
+synth
+write_ilang nested_genblk_resolve_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/omsp_dbg_uart.v
+write_ilang omsp_dbg_uart_ref.ilang
+synth
+write_ilang omsp_dbg_uart_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/operators.v
+write_ilang operators_ref.ilang
+synth
+write_ilang operators_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/param_attr.v
+write_ilang param_attr_ref.ilang
+synth
+write_ilang param_attr_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/paramods.v
+write_ilang paramods_ref.ilang
+synth
+write_ilang paramods_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/partsel.v
+write_ilang partsel_ref.ilang
+synth
+write_ilang partsel_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/process.v
+write_ilang process_ref.ilang
+synth
+write_ilang process_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/realexpr.v
+write_ilang realexpr_ref.ilang
+synth
+write_ilang realexpr_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/repwhile.v
+write_ilang repwhile_ref.ilang
+synth
+write_ilang repwhile_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/retime.v
+write_ilang retime_ref.ilang
+synth
+write_ilang retime_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/rotate.v
+write_ilang rotate_ref.ilang
+synth
+write_ilang rotate_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/scopes.v
+write_ilang scopes_ref.ilang
+synth
+write_ilang scopes_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/signedexpr.v
+write_ilang signedexpr_ref.ilang
+synth
+write_ilang signedexpr_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/sincos.v
+write_ilang sincos_ref.ilang
+synth
+write_ilang sincos_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/specify.v
+write_ilang specify_ref.ilang
+synth
+write_ilang specify_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/string_format.v
+write_ilang string_format_ref.ilang
+synth
+write_ilang string_format_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/subbytes.v
+write_ilang subbytes_ref.ilang
+synth
+write_ilang subbytes_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/task_func.v
+write_ilang task_func_ref.ilang
+synth
+write_ilang task_func_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/undef_eqx_nex.v
+write_ilang undef_eqx_nex_ref.ilang
+synth
+write_ilang undef_eqx_nex_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/usb_phy_tests.v
+write_ilang usb_phy_tests_ref.ilang
+synth
+write_ilang usb_phy_tests_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/values.v
+write_ilang values_ref.ilang
+synth
+write_ilang values_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/verilog_primitives.v
+write_ilang verilog_primitives_ref.ilang
+synth
+write_ilang verilog_primitives_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/vloghammer.v
+write_ilang vloghammer_ref.ilang
+synth
+write_ilang vloghammer_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/wandwor.v
+write_ilang wandwor_ref.ilang
+synth
+write_ilang wandwor_ref.proc
+read_verilog -overwrite ../../yosys/tests/simple/wreduce.v
+write_ilang wreduce_ref.ilang
+synth
+write_ilang wreduce_ref.proc

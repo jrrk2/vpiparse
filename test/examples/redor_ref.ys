@@ -1,0 +1,6 @@
+read_verilog redor.v
+write_ilang redor_ref.ilang
+proc
+write_verilog -noattr redor_ref.proc
+synth
+write_verilog -noattr redor_ref.synth

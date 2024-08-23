@@ -1,0 +1,7 @@
+read_verilog -sv -overwrite examples/count0.v
+write_ilang examples/count0.v_golden_proc.rtlil
+synth
+write_ilang examples/count0.v_golden_synth.rtlil
+read_ilang -overwrite examples/count0.v_dump.rtlil
+synth
+write_ilang examples/count0.v_dump_synth.rtlil

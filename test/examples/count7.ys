@@ -1,0 +1,5 @@
+read_ilang count7.v_dump.rtlil
+proc
+write_ilang count7.ilang
+write_verilog /dev/tty
+write_json count7.json

@@ -1,0 +1,5 @@
+read_ilang count.v_dump.rtlil
+proc
+write_verilog count.proc
+synth
+write_verilog count.synth

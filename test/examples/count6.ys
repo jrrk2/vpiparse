@@ -1,0 +1,4 @@
+read_ilang count6.v_dump.rtlil
+proc
+write_ilang count6.proc
+write_verilog count6.verilog

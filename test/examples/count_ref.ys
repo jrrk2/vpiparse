@@ -1,0 +1,5 @@
+read_verilog count.v
+proc
+write_verilog count_ref.proc
+synth
+write_verilog count_ref.synth

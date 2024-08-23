@@ -1,0 +1,4 @@
+read_rtlil apb_uart_ref.rtlil
+write_ilang apb_uart.ilang
+proc
+write_json apb_uart.json
